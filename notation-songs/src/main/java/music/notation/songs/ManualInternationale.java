@@ -5,6 +5,7 @@ import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.pitch.Accidental;
+import music.notation.play.PlayPiece;
 import music.notation.structure.*;
 
 import java.util.List;
@@ -49,7 +50,8 @@ final class ManualInternationale implements PieceContentProvider<Internationale>
         // ── Main theme (G minor) ──
         var phrase1 = P
                 // Bar 1: D Bb A G (four quarters)
-                .bar().f().r(HALF).rd(QUARTER).o4(E)
+                .bar()
+                    .f().r(HALF).rd(QUARTER).o4(E)
                 .bar()
                     .o4d(A,QUARTER).o4(G,SHARP,EIGHTH).o4(B).o4(A).o4(E).o4(C,SHARP)
                 .bar()
@@ -123,5 +125,9 @@ final class ManualInternationale implements PieceContentProvider<Internationale>
         return new Piece(id.title(), id.composer(),
                 new KeySignature(A, Mode.MAJOR), new TimeSignature(4, 4),
                 new Tempo(104, QUARTER), List.of(melody));
+    }
+
+    public static void main(final String[] args) throws Exception {
+        PlayPiece.play(new ManualInternationale());
     }
 }

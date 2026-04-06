@@ -45,6 +45,9 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>music.notation.ui.NotationApp</mainClass>
+                    <options>
+                        <option>-Dmusic.collections=${project.basedir}/../collections.json</option>
+                    </options>
                 </configuration>
             </plugin>
         </plugins>
