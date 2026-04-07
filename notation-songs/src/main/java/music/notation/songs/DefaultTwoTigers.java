@@ -31,26 +31,26 @@ final class DefaultTwoTigers implements PieceContentProvider<TwoTigers> {
 
         // A: "两只老虎 两只老虎" — C D E C | C D E C
         var a = P
-                .bar().mf().o5(C, QUARTER).o5(D, QUARTER).o5(E, QUARTER).o5(C, QUARTER)
-                .bar().o5(C, QUARTER).o5(D, QUARTER).o5(E, QUARTER).o5(C, QUARTER)
+                .bar().mf().o5(QUARTER, C).o5(QUARTER, D).o5(QUARTER, E).o5(QUARTER, C)
+                .bar().o5(QUARTER, C).o5(QUARTER, D).o5(QUARTER, E).o5(QUARTER, C)
                 .build(attacca());
 
         // B: "跑得快 跑得快" — E F G - | E F G -
         var b = P
-                .bar().o5(E, QUARTER).o5(F, QUARTER).o5(G, HALF)
-                .bar().o5(E, QUARTER).o5(F, QUARTER).o5(G, HALF)
+                .bar().o5(QUARTER, E).o5(QUARTER, F).o5(HALF, G)
+                .bar().o5(QUARTER, E).o5(QUARTER, F).o5(HALF, G)
                 .build(attacca());
 
         // C: "一只没有眼睛 一只没有尾巴" — G̲A̲ G̲F̲ E C | G̲A̲ G̲F̲ E C
         var c = P
-                .bar().o5(G).o5(A).o5(G).o5(F).o5(E, QUARTER).o5(C, QUARTER)
-                .bar().o5(G).o5(A).o5(G).o5(F).o5(E, QUARTER).o5(C, QUARTER)
+                .bar().o5(G).o5(A).o5(G).o5(F).o5(QUARTER, E).o5(QUARTER, C)
+                .bar().o5(G).o5(A).o5(G).o5(F).o5(QUARTER, E).o5(QUARTER, C)
                 .build(attacca());
 
         // D: "真奇怪 真奇怪" — C G₃ C - | C G₃ C -
         var d = P
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
                 .build(breath());
 
         // ── Section 2: same melody shifted to D minor ──
@@ -59,8 +59,8 @@ final class DefaultTwoTigers implements PieceContentProvider<TwoTigers> {
         var cMinor = new ShiftedPhrase(c, C_MAJOR, D_MINOR);
 
         var dEnd = P
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
                 .build(end());
         var dMinor = new ShiftedPhrase(dEnd, C_MAJOR, D_MINOR);
 

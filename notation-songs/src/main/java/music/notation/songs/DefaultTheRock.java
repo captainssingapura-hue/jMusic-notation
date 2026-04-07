@@ -30,18 +30,18 @@ final class DefaultTheRock implements PieceContentProvider<TheRock> {
         var phrase1 = P
                 // Bar 1: D Bb A G (four quarters)
                 .bar().f()
-                    .r(EIGHTH).o5(D, EIGHTH).o5(B, FLAT, EIGHTH).o5(A, EIGHTH).o5d(G, QUARTER).r(EIGHTH)
+                    .r(EIGHTH).o5(EIGHTH, D).o5(EIGHTH, B, FLAT).o5(EIGHTH, A).o5(QUARTER.dot(), G).r(EIGHTH)
                 // Bar 2: Bb G Eb- (Q Q H)
                 .bar()
-                    .o5(B, FLAT, EIGHTH).o5(G, EIGHTH).o6d(E, FLAT, QUARTER).r(EIGHTH).o6(C, QUARTER)
+                    .o5(EIGHTH, B, FLAT).o5(EIGHTH, G).o6(QUARTER.dot(), E, FLAT).r(EIGHTH).o6(QUARTER, C)
                 // Bar 4: G A Bb C Bb A_ (eighths, A held as dotted quarter)
                 .bar()
-                    .o6(D, QUARTER).o5(B, FLAT, QUARTER).r(EIGHTH).o5d(G, EIGHTH).o5d(A, EIGHTH)
+                    .o6(QUARTER, D).o5(QUARTER, B, FLAT).r(EIGHTH).o5(EIGHTH.dot(), G).o5(EIGHTH.dot(), A)
                 .bar()
-                    .o5(B, FLAT, QUARTER).o6(C, QUARTER).slurStart().o6(C, SIXTEENTH).slurEnd().o5(B, FLAT, QUARTER).r(SIXTEENTH).o5(A, EIGHTH)
+                    .o5(QUARTER, B, FLAT).o6(QUARTER, C).slurStart().o6(SIXTEENTH, C).slurEnd().o5(QUARTER, B, FLAT).r(SIXTEENTH).o5(EIGHTH, A)
                 .bar()
-                    .o5(G, EIGHTH).o5(A, QUARTER).ff().r(EIGHTH).o5d(D, EIGHTH).fff().o6(D, FLAT, SIXTEENTH).o6(C, SIXTEENTH).o5d(B, FLAT, EIGHTH)
-                .bar().o5(A, EIGHTH).o5(G, HALF).rd(QUARTER)
+                    .o5(EIGHTH, G).o5(QUARTER, A).ff().r(EIGHTH).o5(EIGHTH.dot(), D).fff().o6(SIXTEENTH, D, FLAT).o6(SIXTEENTH, C).o5(EIGHTH.dot(), B, FLAT)
+                .bar().o5(EIGHTH, A).o5(HALF, G).r(QUARTER.dot())
                 .build(end());
 
         var melody = new Track("Melody", FRENCH_HORN, List.of(phrase1));

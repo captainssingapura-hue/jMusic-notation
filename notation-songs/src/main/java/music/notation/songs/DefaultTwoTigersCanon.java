@@ -1,6 +1,5 @@
 package music.notation.songs;
 
-import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.structure.*;
@@ -28,37 +27,37 @@ final class DefaultTwoTigersCanon implements PieceContentProvider<TwoTigersCanon
 
         // A: C D E C | C D E C
         var a = P
-                .bar().mf().o5(C, QUARTER).o5(D, QUARTER).o5(E, QUARTER).o5(C, QUARTER)
-                .bar().o5(C, QUARTER).o5(D, QUARTER).o5(E, QUARTER).o5(C, QUARTER)
+                .bar().mf().o5(QUARTER, C).o5(QUARTER, D).o5(QUARTER, E).o5(QUARTER, C)
+                .bar().o5(QUARTER, C).o5(QUARTER, D).o5(QUARTER, E).o5(QUARTER, C)
                 .build(attacca());
 
         // B: E F G - | E F G -
         var b = P
-                .bar().o5(E, QUARTER).o5(F, QUARTER).o5(G, HALF)
-                .bar().o5(E, QUARTER).o5(F, QUARTER).o5(G, HALF)
+                .bar().o5(QUARTER, E).o5(QUARTER, F).o5(HALF, G)
+                .bar().o5(QUARTER, E).o5(QUARTER, F).o5(HALF, G)
                 .build(attacca());
 
         // C: G̲A̲ G̲F̲ E C | G̲A̲ G̲F̲ E C
         var c = P
-                .bar().o5(G).o5(A).o5(G).o5(F).o5(E, QUARTER).o5(C, QUARTER)
-                .bar().o5(G).o5(A).o5(G).o5(F).o5(E, QUARTER).o5(C, QUARTER)
+                .bar().o5(G).o5(A).o5(G).o5(F).o5(QUARTER, E).o5(QUARTER, C)
+                .bar().o5(G).o5(A).o5(G).o5(F).o5(QUARTER, E).o5(QUARTER, C)
                 .build(attacca());
 
         // D: C G₃ C - | C G₃ C -
         var d = P
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
                 .build(attacca());
 
         // D with final ending
         var dEnd = P
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
-                .bar().o5(C, QUARTER).o4(G, QUARTER).o5(C, HALF)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
+                .bar().o5(QUARTER, C).o4(QUARTER, G).o5(HALF, C)
                 .build(end());
 
         // ── 1-bar rest (one bar of silence) ──
         var rest1 = new MelodicPhrase(
-                List.of(new RestNode(Duration.of(WHOLE))),
+                List.of(new RestNode(WHOLE)),
                 attacca());
 
         // ── Voice 1 (Piano): A B C D A B C D _ _ ──
