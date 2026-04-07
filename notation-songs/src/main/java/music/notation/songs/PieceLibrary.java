@@ -1,33 +1,43 @@
 package music.notation.songs;
 
-import com.google.common.reflect.ClassPath;
+import music.notation.structure.Collection;
+import music.notation.structure.Collection.Entry;
 import music.notation.structure.MusicalPiece;
 import music.notation.structure.Piece;
 import music.notation.structure.PieceContentProvider;
 
 import java.io.IOException;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Auto-discovered registry of {@link MusicalPiece} identities and their
- * {@link PieceContentProvider}s.
+ * Registry of {@link MusicalPiece} identities and their
+ * {@link PieceContentProvider}s, populated from {@link Collection}
+ * implementations listed in an external JSON configuration file.
  *
- * <p>At class-load time, the library scans the classpath (via Guava
- * {@link ClassPath}) for all concrete implementations of
- * {@code MusicalPiece} and {@code PieceContentProvider}.  Each provider's
- * generic type signature ({@code PieceContentProvider<P>}) is inspected
- * to link it to the {@code MusicalPiece} it serves.  Adding a new song
- * requires only writing the identity record and a provider — no
- * registration boilerplate.</p>
+ * <p>The path to the configuration file is specified via the system
+ * property {@code music.collections}.  The file maps collection names
+ * to fully-qualified class names:
+ *
+ * <pre>{@code
+ * {
+ *     "Built-in Songs": "music.notation.songs.DefaultCollection",
+ *     "My Custom Songs": "com.example.MyCollection"
+ * }
+ * }</pre>
+ *
+ * <p>If the system property is not set, the library falls back to an
+ * empty registry.</p>
  */
 public final class PieceLibrary {
 
     private PieceLibrary() {}
 
-    private static final String SCAN_PACKAGE = "music.notation";
+    /** System property that points to the collections JSON file. */
+    public static final String CONFIG_PROPERTY = "music.collections";
 
     /** Identity class → identity instance, insertion-ordered by title. */
     private static final Map<Class<? extends MusicalPiece>, MusicalPiece> IDENTITIES;
@@ -39,111 +49,87 @@ public final class PieceLibrary {
     private static final Map<Class<? extends MusicalPiece>, Piece> CACHE = new LinkedHashMap<>();
 
     static {
-        try {
-            final var result = scan();
-            IDENTITIES = Collections.unmodifiableMap(result.identities);
-            PROVIDERS = Collections.unmodifiableMap(result.providers);
-        } catch (final IOException e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
+        final var collections = loadCollections();
 
-    // ── Classpath scanning ──────────────────────────────────────────
+        final var identities = new LinkedHashMap<Class<? extends MusicalPiece>, MusicalPiece>();
+        final var providers = new LinkedHashMap<Class<? extends MusicalPiece>, List<PieceContentProvider<?>>>();
 
-    private record ScanResult(
-            LinkedHashMap<Class<? extends MusicalPiece>, MusicalPiece> identities,
-            LinkedHashMap<Class<? extends MusicalPiece>, List<PieceContentProvider<?>>> providers) {}
-
-    private static ScanResult scan() throws IOException {
-        final var classPath = ClassPath.from(PieceLibrary.class.getClassLoader());
-        final var topLevelClasses = classPath.getTopLevelClassesRecursive(SCAN_PACKAGE);
-
-        // Pass 1: discover all concrete MusicalPiece implementations
-        final var pieceInstances = new HashMap<Class<? extends MusicalPiece>, MusicalPiece>();
-        for (final var info : topLevelClasses) {
-            final Class<?> clazz = tryLoad(info);
-            if (clazz != null && isConcrete(clazz) && MusicalPiece.class.isAssignableFrom(clazz)) {
+        for (final Collection collection : collections) {
+            for (final Entry<?> entry : collection.entries()) {
                 @SuppressWarnings("unchecked")
-                final var pieceClass = (Class<? extends MusicalPiece>) clazz;
-                final var instance = (MusicalPiece) instantiate(pieceClass);
-                if (instance != null) {
-                    pieceInstances.put(pieceClass, instance);
-                }
+                final var key = (Class<? extends MusicalPiece>) entry.identity().getClass();
+                identities.putIfAbsent(key, entry.identity());
+                providers.computeIfAbsent(key, k -> new ArrayList<>())
+                        .addAll(entry.providers());
             }
         }
 
-        // Pass 2: discover all concrete PieceContentProvider implementations,
-        //         resolve their generic <P> to link to a MusicalPiece class
-        final var providerMap = new HashMap<Class<? extends MusicalPiece>, List<PieceContentProvider<?>>>();
-        for (final var info : topLevelClasses) {
-            final Class<?> clazz = tryLoad(info);
-            if (clazz != null && isConcrete(clazz) && PieceContentProvider.class.isAssignableFrom(clazz)) {
-                final var pieceType = resolvePieceType(clazz);
-                if (pieceType != null && pieceInstances.containsKey(pieceType)) {
-                    @SuppressWarnings("unchecked")
-                    final var provider = (PieceContentProvider<?>) instantiate(clazz);
-                    if (provider != null) {
-                        providerMap.computeIfAbsent(pieceType, k -> new ArrayList<>()).add(provider);
-                    }
-                }
-            }
-        }
-
-        // Sort identities alphabetically by title for stable UI display
+        // Sort by title for stable UI display
         final var sorted = new LinkedHashMap<Class<? extends MusicalPiece>, MusicalPiece>();
-        pieceInstances.entrySet().stream()
-                .filter(e -> providerMap.containsKey(e.getKey()))   // only pieces that have ≥1 provider
+        identities.entrySet().stream()
                 .sorted(Comparator.comparing(e -> e.getValue().title()))
                 .forEach(e -> sorted.put(e.getKey(), e.getValue()));
 
         final var sortedProviders = new LinkedHashMap<Class<? extends MusicalPiece>, List<PieceContentProvider<?>>>();
         for (final var key : sorted.keySet()) {
-            sortedProviders.put(key, List.copyOf(providerMap.get(key)));
+            sortedProviders.put(key, List.copyOf(providers.get(key)));
         }
 
-        return new ScanResult(sorted, sortedProviders);
+        IDENTITIES = Collections.unmodifiableMap(sorted);
+        PROVIDERS = Collections.unmodifiableMap(sortedProviders);
+    }
+
+    // ── Configuration loading ───────────────────────────────────────
+
+    private static List<Collection> loadCollections() {
+        final String configPath = System.getProperty(CONFIG_PROPERTY);
+        if (configPath == null || configPath.isBlank()) {
+            return List.of();
+        }
+
+        final String json;
+        try {
+            json = Files.readString(Path.of(configPath));
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to read collections config: " + configPath, e);
+        }
+
+        final Map<String, String> entries = parseJsonMap(json);
+        final var result = new ArrayList<Collection>();
+        for (final var entry : entries.entrySet()) {
+            final String name = entry.getKey();
+            final String className = entry.getValue();
+            try {
+                final Class<?> clazz = Class.forName(className);
+                if (!Collection.class.isAssignableFrom(clazz)) {
+                    throw new RuntimeException(
+                            "Class " + className + " does not implement Collection");
+                }
+                result.add((Collection) clazz.getDeclaredConstructor().newInstance());
+            } catch (final ReflectiveOperationException e) {
+                throw new RuntimeException(
+                        "Failed to load collection '" + name + "' (" + className + ")", e);
+            }
+        }
+        return result;
     }
 
     /**
-     * Walk the class's generic interfaces to find
-     * {@code PieceContentProvider<P>} and extract {@code P}.
+     * Parse a simple JSON object with string keys and string values.
+     * No external library needed for this flat structure.
      */
-    @SuppressWarnings("unchecked")
-    private static Class<? extends MusicalPiece> resolvePieceType(final Class<?> providerClass) {
-        for (final Type iface : providerClass.getGenericInterfaces()) {
-            if (iface instanceof ParameterizedType pt
-                    && pt.getRawType() == PieceContentProvider.class) {
-                final Type arg = pt.getActualTypeArguments()[0];
-                if (arg instanceof Class<?> c && MusicalPiece.class.isAssignableFrom(c)) {
-                    return (Class<? extends MusicalPiece>) c;
-                }
-            }
+    private static Map<String, String> parseJsonMap(final String json) {
+        final var result = new LinkedHashMap<String, String>();
+        final Pattern pair = Pattern.compile("\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)\"\\s*:\\s*\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)\"");
+        final Matcher m = pair.matcher(json);
+        while (m.find()) {
+            result.put(unescape(m.group(1)), unescape(m.group(2)));
         }
-        return null;
+        return result;
     }
 
-    private static boolean isConcrete(final Class<?> clazz) {
-        final int mod = clazz.getModifiers();
-        return !Modifier.isAbstract(mod) && !Modifier.isInterface(mod);
-    }
-
-    private static Class<?> tryLoad(final ClassPath.ClassInfo info) {
-        try {
-            return info.load();
-        } catch (final Throwable t) {
-            return null;     // skip unloadable classes (e.g. missing optional deps)
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T instantiate(final Class<?> clazz) {
-        try {
-            final var ctor = clazz.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            return (T) ctor.newInstance();
-        } catch (final ReflectiveOperationException e) {
-            return null;     // skip classes we can't instantiate
-        }
+    private static String unescape(final String s) {
+        return s.replace("\\\"", "\"").replace("\\\\", "\\");
     }
 
     // ── Public API ──────────────────────────────────────────────────
