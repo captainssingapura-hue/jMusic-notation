@@ -26,8 +26,13 @@ final class PitchScroll extends Canvas {
     private static final double PADDING_LEFT = 40.0;
     private static final double PADDING_RIGHT = 20.0;
     private static final double DEFAULT_MIN_QUARTER_PX = 4.0;
+    private static final double LYRICS_HEIGHT = 32.0;
 
     private static final Color BG = Color.web("#1e1e2e");
+    private static final Color LYRICS_BG = Color.web("#181825");
+    private static final Color LYRICS_ACTIVE = Color.web("#f5c2e7");
+    private static final Color LYRICS_PAST = Color.web("#6c7086");
+    private static final Color LYRICS_FUTURE = Color.web("#a6adc8");
     private static final Color LANE_SEPARATOR = Color.web("#45475a");
     private static final Color GRID_LINE = Color.web("#313244");
     private static final Color CURSOR_COLOR = Color.web("#f5c2e7");
@@ -123,13 +128,39 @@ final class PitchScroll extends Canvas {
         gc.fillRect(0, 0, w, h);
 
         final double ppt = pixelsPerTick();
+        final boolean hasLyrics = !data.lyricRects().isEmpty();
+        final double lyricsOffset = hasLyrics ? LYRICS_HEIGHT : 0;
+
+        // ── Lyrics strip ──
+        if (hasLyrics) {
+            gc.setFill(LYRICS_BG);
+            gc.fillRect(0, 0, w, LYRICS_HEIGHT);
+
+            gc.setFont(Font.font("System", 16));
+            for (final LyricRect lr : data.lyricRects()) {
+                final double x = PADDING_LEFT + lr.startTick() * ppt;
+                final boolean active = currentTick >= lr.startTick()
+                        && currentTick < lr.endTick();
+                final boolean past = currentTick >= lr.endTick();
+
+                gc.setFill(active ? LYRICS_ACTIVE : past ? LYRICS_PAST : LYRICS_FUTURE);
+                gc.fillText(lr.syllable(), x, LYRICS_HEIGHT - 10);
+            }
+
+            // Separator below lyrics
+            gc.setStroke(LANE_SEPARATOR);
+            gc.setLineWidth(1);
+            gc.strokeLine(0, LYRICS_HEIGHT, w, LYRICS_HEIGHT);
+        }
+
+        // ── Track lanes ──
         final int trackCount = data.trackCount();
-        final double laneHeight = (h - (trackCount - 1) * LANE_GAP) / trackCount;
+        final double laneHeight = (h - lyricsOffset - (trackCount - 1) * LANE_GAP) / trackCount;
         final int noteRange = data.maxNote() - data.minNote() + 1;
         final List<NoteRect> noteRects = data.noteRects();
 
         for (int t = 0; t < trackCount; t++) {
-            final double laneY = t * (laneHeight + LANE_GAP);
+            final double laneY = lyricsOffset + t * (laneHeight + LANE_GAP);
             final Color trackColor = TRACK_COLORS[t % TRACK_COLORS.length];
             final double notePixelHeight = (laneHeight - LANE_HEADER) / noteRange;
 
@@ -151,13 +182,14 @@ final class PitchScroll extends Canvas {
             if (barTickWidth > 0) {
                 gc.setStroke(BAR_LINE);
                 gc.setLineWidth(0.5);
-                for (long tick = 0; tick <= data.totalTicks(); tick += barTickWidth) {
+                for (long tick = data.pickupOffsetTicks(); tick <= data.totalTicks(); tick += barTickWidth) {
                     final double bx = PADDING_LEFT + tick * ppt;
                     gc.strokeLine(bx, laneY + LANE_HEADER, bx, laneY + laneHeight);
                 }
             }
 
             // Notes
+            final Color auxColor = trackColor.deriveColor(30, 0.55, 1.15, 1.0);
             for (final NoteRect r : noteRects) {
                 if (r.trackIndex() != t) continue;
 
@@ -166,7 +198,8 @@ final class PitchScroll extends Canvas {
                 final double y = laneY + LANE_HEADER + (data.maxNote() - r.midiNote()) * notePixelHeight;
 
                 final boolean active = currentTick >= r.startTick() && currentTick < r.endTick();
-                gc.setFill(active ? trackColor : trackColor.deriveColor(0, 1, 1, 0.6));
+                final Color base = r.aux() ? auxColor : trackColor;
+                gc.setFill(active ? base : base.deriveColor(0, 1, 1, 0.6));
                 gc.fillRoundRect(x, y - NOTE_HEIGHT / 2, Math.max(rw, 2), NOTE_HEIGHT, 2, 2);
             }
 

@@ -22,6 +22,17 @@ public record ShiftedPhrase(Phrase source, KeySignature sourceKey, KeySignature 
         return source.marking();
     }
 
+    /**
+     * A reusable key-pair that creates {@link ShiftedPhrase} wrappers.
+     * Captures source and target keys so transposition reads as
+     * {@code shift.apply(motif)} instead of repeating both keys each time.
+     */
+    public record Factory(KeySignature sourceKey, KeySignature targetKey) {
+        public ShiftedPhrase apply(Phrase source) {
+            return new ShiftedPhrase(source, sourceKey, targetKey);
+        }
+    }
+
     // ── Scale-degree shift logic (used by the interpreter) ──
 
     private static final int[] MAJOR_SCALE     = {0, 2, 4, 5, 7, 9, 11};

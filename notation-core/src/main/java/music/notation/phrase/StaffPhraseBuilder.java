@@ -5,8 +5,11 @@ import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.event.Ornament;
 import music.notation.pitch.Accidental;
+import music.notation.pitch.AccidentedNote;
+import music.notation.pitch.Note;
 import music.notation.pitch.NoteName;
 import music.notation.pitch.Pitch;
+import music.notation.pitch.ShiftedNote;
 import music.notation.structure.KeySignature;
 import music.notation.structure.Mode;
 import music.notation.structure.TimeSignature;
@@ -53,6 +56,19 @@ public final class StaffPhraseBuilder {
 
     private final List<Bar> bars = new ArrayList<>();
     private List<PhraseNode> current; // null until bar() is called
+    private boolean isPickup;         // true when current bar is a pickup
+
+    // ── Per-bar default duration ──
+    private Duration activeDur;  // per-bar override; null → use builder defaultDur
+
+    // ── Aux bar state ──
+    private List<PhraseNode> primaryNodes;                       // saved when first aux() is called
+    private List<AuxBar> pendingAuxBars = new ArrayList<>();     // completed aux bars for current bar
+    private boolean inAux;                                       // currently building aux content
+    private List<List<AuxBar>> allBarAuxBars = new ArrayList<>(); // aux bars per bar, accumulated during build
+    private List<List<AuxBar>> lastBuildAuxBars = List.of();     // snapshot from most recent build()
+    private final List<Boolean> pickupFlags = new ArrayList<>(); // true if bar at index was a pickup
+    private List<Boolean> lastBuildPickupFlags = List.of();      // snapshot from most recent build()
 
     private StaffPhraseBuilder(TimeSignature ts, Duration defaultDur,
                                Map<NoteName, Accidental> keyAccidentals) {
@@ -132,6 +148,100 @@ public final class StaffPhraseBuilder {
     public StaffPhraseBuilder bar() {
         flush();
         current = new ArrayList<>();
+        isPickup = false;
+        activeDur = null;
+        return this;
+    }
+
+    /** Start a new bar with a per-bar default duration. */
+    public StaffPhraseBuilder bar(Duration barDefault) {
+        bar();
+        activeDur = barDefault;
+        return this;
+    }
+
+    /**
+     * Start a pickup (anacrusis) bar. Notes added after this call form the
+     * pickup; when the bar is finalized a {@link PaddingNode} is prepended
+     * to fill the remaining beats.
+     */
+    public StaffPhraseBuilder pickup() {
+        flush();
+        current = new ArrayList<>();
+        isPickup = true;
+        activeDur = null;
+        return this;
+    }
+
+    /** Start a pickup bar with a per-bar default duration. */
+    public StaffPhraseBuilder pickup(Duration barDefault) {
+        pickup();
+        activeDur = barDefault;
+        return this;
+    }
+
+    /**
+     * Finalize the current bar as an ending — a {@link PaddingNode} is
+     * appended to fill any remaining beats after the notes already added.
+     */
+    public StaffPhraseBuilder ending() {
+        if (current == null) {
+            throw new IllegalStateException("ending() called without a preceding bar()");
+        }
+
+        List<PhraseNode> barNodes;
+        List<AuxBar> barAuxBars;
+
+        if (inAux) {
+            pendingAuxBars.add(new AuxBar(current));
+            barNodes = primaryNodes;
+            barAuxBars = List.copyOf(pendingAuxBars);
+            primaryNodes = null;
+            pendingAuxBars = new ArrayList<>();
+            inAux = false;
+        } else {
+            barNodes = current;
+            barAuxBars = List.of();
+        }
+
+        final int noteTotal = barNodes.stream().mapToInt(Bar::nodeSixtyFourths).sum();
+        final int padding = ts.barSixtyFourths() - noteTotal;
+        if (padding > 0) {
+            barNodes.add(new PaddingNode(Duration.ofSixtyFourths(padding)));
+        }
+        bars.add(new Bar(ts.barSixtyFourths(), barNodes, barAuxBars));
+        allBarAuxBars.add(barAuxBars);
+        pickupFlags.add(false); // ending() is never a pickup
+        current = null;
+        return this;
+    }
+
+    /**
+     * Terminate the primary bar content (or previous aux bar) and start
+     * building an auxiliary bar. Aux bars play simultaneously with the
+     * primary content, sharing the same instrument.
+     */
+    public StaffPhraseBuilder aux() {
+        if (current == null) {
+            throw new IllegalStateException("aux() called without a preceding bar()");
+        }
+        if (!inAux) {
+            // First aux in this bar — save primary content
+            primaryNodes = current;
+        } else {
+            // Subsequent aux — wrap current as completed AuxBar
+            pendingAuxBars.add(new AuxBar(current));
+        }
+        current = new ArrayList<>();
+        inAux = true;
+        activeDur = null;
+        return this;
+    }
+
+    /** Start an aux bar with a per-bar default duration. */
+    public StaffPhraseBuilder aux(Duration auxDefault) {
+        aux();
+        activeDur = auxDefault;
         return this;
     }
 
@@ -139,6 +249,64 @@ public final class StaffPhraseBuilder {
         flush();
         var result = MelodicPhrase.fromBars(ts, marking, bars.toArray(Bar[]::new));
         bars.clear();
+        // Snapshot aux bar data for buildAuxPhrases(); start fresh for next build
+        lastBuildAuxBars = allBarAuxBars;
+        lastBuildPickupFlags = List.copyOf(pickupFlags);
+        allBarAuxBars = new ArrayList<>();
+        pickupFlags.clear();
+        return result;
+    }
+
+    /**
+     * Build aux phrases from aux bars collected across all bars in the
+     * most recent {@link #build(PhraseMarking)} call. Each aux voice index
+     * (1st aux bar per bar → voice 0, etc.) becomes a separate phrase.
+     * Bars without aux content at a given voice index get rest padding.
+     *
+     * @return list of aux phrases (empty if no aux bars were used)
+     */
+    public List<MelodicPhrase> buildAuxPhrases(PhraseMarking marking) {
+        int maxVoices = 0;
+        for (List<AuxBar> barAux : lastBuildAuxBars) {
+            maxVoices = Math.max(maxVoices, barAux.size());
+        }
+        if (maxVoices == 0) {
+            lastBuildAuxBars = List.of();
+            lastBuildPickupFlags = List.of();
+            return List.of();
+        }
+
+        var result = new ArrayList<MelodicPhrase>(maxVoices);
+        for (int v = 0; v < maxVoices; v++) {
+            var auxBars = new ArrayList<Bar>();
+            for (int b = 0; b < lastBuildAuxBars.size(); b++) {
+                List<AuxBar> barAux = lastBuildAuxBars.get(b);
+                boolean pickup = b < lastBuildPickupFlags.size() && lastBuildPickupFlags.get(b);
+                int barSize = ts.barSixtyFourths();
+                if (v < barAux.size()) {
+                    var nodes = new ArrayList<>(barAux.get(v).nodes());
+                    int total = nodes.stream().mapToInt(Bar::nodeSixtyFourths).sum();
+                    int gap = barSize - total;
+                    if (gap > 0) {
+                        // Use PaddingNode for pickup bars so leading-padding detection works
+                        PhraseNode fill = pickup
+                                ? new PaddingNode(Duration.ofSixtyFourths(gap))
+                                : new RestNode(Duration.ofSixtyFourths(gap));
+                        nodes.add(fill);
+                    }
+                    auxBars.add(new Bar(barSize, nodes, List.of()));
+                } else {
+                    // No aux at this voice index — fill entire bar
+                    PhraseNode fill = pickup
+                            ? new PaddingNode(Duration.ofSixtyFourths(barSize))
+                            : new RestNode(Duration.ofSixtyFourths(barSize));
+                    auxBars.add(new Bar(barSize, List.of(fill), List.of()));
+                }
+            }
+            result.add(MelodicPhrase.fromBars(ts, marking, auxBars.toArray(Bar[]::new)));
+        }
+        lastBuildAuxBars = List.of();
+        lastBuildPickupFlags = List.of();
         return result;
     }
 
@@ -150,66 +318,52 @@ public final class StaffPhraseBuilder {
 
     // ── Octave 2 ──
 
-    public StaffPhraseBuilder o2(NoteName... ns)                           { return notes(2, defaultDur, ns); }
-    public StaffPhraseBuilder o2(Duration d, NoteName... ns)               { return notes(2, d, ns); }
-    public StaffPhraseBuilder o2(NoteName n, Accidental a)                 { return acc(n, a, 2, defaultDur); }
-    public StaffPhraseBuilder o2(Duration d, NoteName n, Accidental a)     { return acc(n, a, 2, d); }
-    public StaffPhraseBuilder o2(NoteName n, BaseValue v, Ornament o)                { return orn(n, 2, v, o); }
-    public StaffPhraseBuilder o2(NoteName n, Accidental a, BaseValue v, Ornament o)  { return orn(n, a, 2, v, o); }
+    public StaffPhraseBuilder o2(Note... ns)                  { return notes(2, currentDur(), ns); }
+    public StaffPhraseBuilder o2(Duration d, Note... ns)      { return notes(2, d, ns); }
+    public StaffPhraseBuilder o2(Note n, BaseValue v, Ornament o)  { return orn(n, 2, v, o); }
 
     // ── Octave 3 ──
 
-    public StaffPhraseBuilder o3(NoteName... ns)                           { return notes(3, defaultDur, ns); }
-    public StaffPhraseBuilder o3(Duration d, NoteName... ns)               { return notes(3, d, ns); }
-    public StaffPhraseBuilder o3(NoteName n, Accidental a)                 { return acc(n, a, 3, defaultDur); }
-    public StaffPhraseBuilder o3(Duration d, NoteName n, Accidental a)     { return acc(n, a, 3, d); }
-    public StaffPhraseBuilder o3(NoteName n, BaseValue v, Ornament o)                { return orn(n, 3, v, o); }
-    public StaffPhraseBuilder o3(NoteName n, Accidental a, BaseValue v, Ornament o)  { return orn(n, a, 3, v, o); }
+    public StaffPhraseBuilder o3(Note... ns)                  { return notes(3, currentDur(), ns); }
+    public StaffPhraseBuilder o3(Duration d, Note... ns)      { return notes(3, d, ns); }
+    public StaffPhraseBuilder o3(Note n, BaseValue v, Ornament o)  { return orn(n, 3, v, o); }
 
     // ── Octave 4 ──
 
-    public StaffPhraseBuilder o4(NoteName... ns)                           { return notes(4, defaultDur, ns); }
-    public StaffPhraseBuilder o4(Duration d, NoteName... ns)               { return notes(4, d, ns); }
-    public StaffPhraseBuilder o4(NoteName n, Accidental a)                 { return acc(n, a, 4, defaultDur); }
-    public StaffPhraseBuilder o4(Duration d, NoteName n, Accidental a)     { return acc(n, a, 4, d); }
-    public StaffPhraseBuilder o4(NoteName n, BaseValue v, Ornament o)                { return orn(n, 4, v, o); }
-    public StaffPhraseBuilder o4(NoteName n, Accidental a, BaseValue v, Ornament o)  { return orn(n, a, 4, v, o); }
+    public StaffPhraseBuilder o4(Note... ns)                  { return notes(4, currentDur(), ns); }
+    public StaffPhraseBuilder o4(Duration d, Note... ns)      { return notes(4, d, ns); }
+    public StaffPhraseBuilder o4(Note n, BaseValue v, Ornament o)  { return orn(n, 4, v, o); }
 
     // ── Octave 5 ──
 
-    public StaffPhraseBuilder o5(NoteName... ns)                           { return notes(5, defaultDur, ns); }
-    public StaffPhraseBuilder o5(Duration d, NoteName... ns)               { return notes(5, d, ns); }
-    public StaffPhraseBuilder o5(NoteName n, Accidental a)                 { return acc(n, a, 5, defaultDur); }
-    public StaffPhraseBuilder o5(Duration d, NoteName n, Accidental a)     { return acc(n, a, 5, d); }
-    public StaffPhraseBuilder o5(NoteName n, BaseValue v, Ornament o)                { return orn(n, 5, v, o); }
-    public StaffPhraseBuilder o5(NoteName n, Accidental a, BaseValue v, Ornament o)  { return orn(n, a, 5, v, o); }
+    public StaffPhraseBuilder o5(Note... ns)                  { return notes(5, currentDur(), ns); }
+    public StaffPhraseBuilder o5(Duration d, Note... ns)      { return notes(5, d, ns); }
+    public StaffPhraseBuilder o5(Note n, BaseValue v, Ornament o)  { return orn(n, 5, v, o); }
 
     // ── Octave 6 ──
 
-    public StaffPhraseBuilder o6(NoteName... ns)                           { return notes(6, defaultDur, ns); }
-    public StaffPhraseBuilder o6(Duration d, NoteName... ns)               { return notes(6, d, ns); }
-    public StaffPhraseBuilder o6(NoteName n, Accidental a)                 { return acc(n, a, 6, defaultDur); }
-    public StaffPhraseBuilder o6(Duration d, NoteName n, Accidental a)     { return acc(n, a, 6, d); }
-    public StaffPhraseBuilder o6(NoteName n, BaseValue v, Ornament o)                { return orn(n, 6, v, o); }
-    public StaffPhraseBuilder o6(NoteName n, Accidental a, BaseValue v, Ornament o)  { return orn(n, a, 6, v, o); }
+    public StaffPhraseBuilder o6(Note... ns)                  { return notes(6, currentDur(), ns); }
+    public StaffPhraseBuilder o6(Duration d, Note... ns)      { return notes(6, d, ns); }
+    public StaffPhraseBuilder o6(Note n, BaseValue v, Ornament o)  { return orn(n, 6, v, o); }
 
     // ── Octave 7 ──
 
-    public StaffPhraseBuilder o7(NoteName... ns)                           { return notes(7, defaultDur, ns); }
-    public StaffPhraseBuilder o7(Duration d, NoteName... ns)               { return notes(7, d, ns); }
-    public StaffPhraseBuilder o7(NoteName n, Accidental a)                 { return acc(n, a, 7, defaultDur); }
-    public StaffPhraseBuilder o7(Duration d, NoteName n, Accidental a)     { return acc(n, a, 7, d); }
-    public StaffPhraseBuilder o7(NoteName n, BaseValue v, Ornament o)                { return orn(n, 7, v, o); }
-    public StaffPhraseBuilder o7(NoteName n, Accidental a, BaseValue v, Ornament o)  { return orn(n, a, 7, v, o); }
+    public StaffPhraseBuilder o7(Note... ns)                  { return notes(7, currentDur(), ns); }
+    public StaffPhraseBuilder o7(Duration d, Note... ns)      { return notes(7, d, ns); }
+    public StaffPhraseBuilder o7(Note n, BaseValue v, Ornament o)  { return orn(n, 7, v, o); }
 
     // ── Grace note ──
 
-    public StaffPhraseBuilder grace(NoteName n, int oct)                            { return addGrace(n, resolve(n), oct, false); }
-    public StaffPhraseBuilder grace(NoteName n, Accidental a, int oct)              { return addGrace(n, a, oct, false); }
-    public StaffPhraseBuilder accentedGrace(NoteName n, int oct)                    { return addGrace(n, resolve(n), oct, true); }
-    public StaffPhraseBuilder accentedGrace(NoteName n, Accidental a, int oct)      { return addGrace(n, a, oct, true); }
+    public StaffPhraseBuilder grace(Note n, int oct)          { return addGrace(n, oct, false); }
+    public StaffPhraseBuilder accentedGrace(Note n, int oct)  { return addGrace(n, oct, true); }
 
     // ── Rest ──
+
+    /** Rest using the current active duration (per-bar or builder default). */
+    public StaffPhraseBuilder r() {
+        current.add(new RestNode(currentDur()));
+        return this;
+    }
 
     public StaffPhraseBuilder r(Duration d) {
         current.add(new RestNode(d));
@@ -230,43 +384,78 @@ public final class StaffPhraseBuilder {
 
     // ── Internals ──
 
-    private Accidental resolve(NoteName n) {
-        return keyAccidentals.getOrDefault(n, Accidental.NATURAL);
+    /** Per-bar duration if set, otherwise the builder-level default. */
+    private Duration currentDur() {
+        return activeDur != null ? activeDur : defaultDur;
+    }
+
+    private Pitch resolve(Note n, int oct) {
+        final int effectiveOct = oct + n.octaveShift();
+        final NoteName name = n.noteName();
+        final Accidental acc = resolveAccidental(n);
+        return Pitch.of(name, acc, effectiveOct);
+    }
+
+    private Accidental resolveAccidental(Note n) {
+        return switch (n) {
+            case NoteName name -> keyAccidentals.getOrDefault(name, Accidental.NATURAL);
+            case AccidentedNote an -> an.accidental();
+            case ShiftedNote sn -> resolveAccidental(sn.base());
+        };
     }
 
     private void flush() {
         if (current != null) {
-            bars.add(new Bar(ts.barSixtyFourths(), current));
+            List<PhraseNode> barNodes;
+            List<AuxBar> barAuxBars;
+
+            if (inAux) {
+                // Wrap final aux bar
+                pendingAuxBars.add(new AuxBar(current));
+                barNodes = primaryNodes;
+                barAuxBars = List.copyOf(pendingAuxBars);
+                // Reset aux state
+                primaryNodes = null;
+                pendingAuxBars = new ArrayList<>();
+                inAux = false;
+            } else {
+                barNodes = current;
+                barAuxBars = List.of();
+            }
+
+            boolean wasPickup = isPickup;
+            if (isPickup) {
+                final int noteTotal = barNodes.stream().mapToInt(Bar::nodeSixtyFourths).sum();
+                final int padding = ts.barSixtyFourths() - noteTotal;
+                if (padding > 0) {
+                    barNodes.addFirst(new PaddingNode(Duration.ofSixtyFourths(padding)));
+                }
+                isPickup = false;
+            }
+
+            bars.add(new Bar(ts.barSixtyFourths(), barNodes, barAuxBars));
+            allBarAuxBars.add(barAuxBars);
+            pickupFlags.add(wasPickup);
             current = null;
         }
     }
 
-    private StaffPhraseBuilder notes(int oct, Duration dur, NoteName... ns) {
+    private StaffPhraseBuilder notes(int oct, Duration dur, Note... ns) {
         final var pitches = new ArrayList<Pitch>(ns.length);
-        for (final NoteName n : ns) {
-            pitches.add(Pitch.of(n, resolve(n), oct));
+        for (final Note n : ns) {
+            pitches.add(resolve(n, oct));
         }
         current.add(NoteNode.poly(dur, pitches));
         return this;
     }
 
-    private StaffPhraseBuilder acc(NoteName n, Accidental a, int oct, Duration dur) {
-        current.add(NoteNode.of(Pitch.of(n, a, oct), dur));
+    private StaffPhraseBuilder orn(Note n, int oct, BaseValue dur, Ornament ornament) {
+        current.add(NoteNode.ornamented(resolve(n, oct), Duration.of(dur), ornament));
         return this;
     }
 
-    private StaffPhraseBuilder orn(NoteName n, int oct, BaseValue dur, Ornament ornament) {
-        current.add(NoteNode.ornamented(Pitch.of(n, resolve(n), oct), Duration.of(dur), ornament));
-        return this;
-    }
-
-    private StaffPhraseBuilder addGrace(NoteName n, Accidental a, int oct, boolean accented) {
-        current.add(new GraceNote(Pitch.of(n, a, oct), accented));
-        return this;
-    }
-
-    private StaffPhraseBuilder orn(NoteName n, Accidental a, int oct, BaseValue dur, Ornament ornament) {
-        current.add(NoteNode.ornamented(Pitch.of(n, a, oct), Duration.of(dur), ornament));
+    private StaffPhraseBuilder addGrace(Note n, int oct, boolean accented) {
+        current.add(new GraceNote(resolve(n, oct), accented));
         return this;
     }
 }

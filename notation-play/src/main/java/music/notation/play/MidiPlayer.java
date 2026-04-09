@@ -1,7 +1,7 @@
 package music.notation.play;
 
 import music.notation.event.Instrument;
-import music.notation.phrase.Phrase;
+import music.notation.phrase.*;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
 
@@ -43,59 +43,21 @@ public final class MidiPlayer {
             throws InvalidMidiDataException {
         Sequence sequence = new Sequence(Sequence.PPQ, MidiMapper.TICKS_PER_QUARTER);
 
-        int nextChannel = 0;
-        boolean tempoAdded = false;
+        int[] nextChannel = {0};
+        boolean[] tempoAdded = {false};
         List<Track> tracks = piece.tracks();
 
         for (int t = 0; t < tracks.size(); t++) {
             Track track = tracks.get(t);
             List<Instrument> instruments = trackInstruments.get(t);
 
-            // Interpret phrases once — shared across all instruments on this track
-            PhraseInterpreter interpreter = new PhraseInterpreter(0, 80);
-            for (Phrase phrase : track.phrases()) {
-                interpreter.interpret(phrase);
-            }
-            List<PlayEvent> noteEvents = interpreter.getEvents().stream()
-                    .filter(e -> !(e instanceof PlayEvent.ProgramChange))
-                    .toList();
+            // Interpret and render main track
+            renderTrack(sequence, track, instruments, nextChannel, tempoAdded, piece);
 
-            // Create a MIDI track for each instrument assigned to this track
-            for (Instrument instrument : instruments) {
-                javax.sound.midi.Track midiTrack = sequence.createTrack();
-
-                boolean isDrum = instrument == Instrument.DRUM_KIT;
-                int channel = isDrum ? 9 : nextChannel++;
-                if (!isDrum && channel == 9) {
-                    channel = nextChannel++;
-                }
-
-                if (!tempoAdded) {
-                    addTempoEvent(midiTrack, piece.tempo().bpm());
-                    tempoAdded = true;
-                }
-
-                if (!isDrum) {
-                    ShortMessage pcMsg = new ShortMessage();
-                    pcMsg.setMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument.program(), 0);
-                    midiTrack.add(new MidiEvent(pcMsg, 0));
-                }
-
-                for (PlayEvent event : noteEvents) {
-                    switch (event) {
-                        case PlayEvent.NoteOn on -> {
-                            ShortMessage msg = new ShortMessage();
-                            msg.setMessage(ShortMessage.NOTE_ON, channel, on.midiNote(), on.velocity());
-                            midiTrack.add(new MidiEvent(msg, on.tick()));
-                        }
-                        case PlayEvent.NoteOff off -> {
-                            ShortMessage msg = new ShortMessage();
-                            msg.setMessage(ShortMessage.NOTE_OFF, channel, off.midiNote(), 0);
-                            midiTrack.add(new MidiEvent(msg, off.tick()));
-                        }
-                        case PlayEvent.ProgramChange pc -> {} // handled above
-                    }
-                }
+            // Render aux tracks — each uses its own default instrument
+            for (Track auxTrack : track.auxTracks()) {
+                renderTrack(sequence, auxTrack, List.of(auxTrack.defaultInstrument()),
+                        nextChannel, tempoAdded, piece);
             }
         }
         return sequence;
@@ -122,6 +84,13 @@ public final class MidiPlayer {
         sequencer.open();
         sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
         sequencer.setSequence(sequence);
+
+        // Skip leading padding so pickup bars don't produce silence
+        long paddingOffset = computeLeadingPaddingTicks(piece);
+        if (paddingOffset > 0) {
+            sequencer.setTickPosition(paddingOffset);
+        }
+
         sequencer.start();
     }
 
@@ -220,6 +189,118 @@ public final class MidiPlayer {
             Thread.sleep(500);
         } finally {
             player.stop();
+        }
+    }
+
+    /**
+     * Compute the global leading-padding offset in ticks.
+     *
+     * <p>For each track, walk phrases/nodes from the start and sum
+     * PaddingNode durations until a non-padding, duration-taking node
+     * is encountered. The global offset is the minimum across all tracks.
+     * If a track has no leading padding, the offset is 0.</p>
+     */
+    public static long computeLeadingPaddingTicks(Piece piece) {
+        long globalMin = Long.MAX_VALUE;
+        for (Track track : piece.tracks()) {
+            globalMin = Math.min(globalMin, leadingPaddingForTrack(track));
+            for (Track auxTrack : track.auxTracks()) {
+                globalMin = Math.min(globalMin, leadingPaddingForTrack(auxTrack));
+            }
+        }
+        return globalMin == Long.MAX_VALUE ? 0 : globalMin;
+    }
+
+    private static long leadingPaddingForTrack(Track track) {
+        long padding = 0;
+        for (Phrase phrase : track.phrases()) {
+            long[] result = leadingPaddingForPhrase(phrase);
+            padding += result[0];
+            if (result[1] == 0) {
+                // Hit a non-padding node — done
+                return padding;
+            }
+            // result[1] == 1 means entire phrase was padding, continue
+        }
+        return padding;
+    }
+
+    /**
+     * Returns [paddingTicks, allPadding] where allPadding is 1 if the
+     * entire phrase consisted of only padding (and zero-duration markers).
+     */
+    private static long[] leadingPaddingForPhrase(Phrase phrase) {
+        return switch (phrase) {
+            case MelodicPhrase mp -> leadingPaddingForNodes(mp.nodes());
+            case DrumPhrase dp -> leadingPaddingForNodes(dp.nodes());
+            case ChordPhrase cp -> new long[]{0, cp.chords().isEmpty() ? 1 : 0};
+            case RestPhrase rp -> new long[]{0, 0}; // rest is real content
+            case LyricPhrase lp -> new long[]{0, 0}; // lyrics are real content
+            case ShiftedPhrase sp -> leadingPaddingForPhrase(sp.source());
+        };
+    }
+
+    private static long[] leadingPaddingForNodes(List<PhraseNode> nodes) {
+        long padding = 0;
+        for (PhraseNode node : nodes) {
+            switch (node) {
+                case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
+                case DynamicNode d -> {} // zero duration, skip
+                case GraceNote g -> { return new long[]{padding, 0}; }
+                case SlurStart s -> {}
+                case SlurEnd s -> {}
+                default -> { return new long[]{padding, 0}; } // NoteNode, RestNode, etc.
+            }
+        }
+        return new long[]{padding, 1}; // all padding
+    }
+
+    private static void renderTrack(Sequence sequence, Track track, List<Instrument> instruments,
+                                     int[] nextChannel, boolean[] tempoAdded, Piece piece)
+            throws InvalidMidiDataException {
+        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80);
+        for (Phrase phrase : track.phrases()) {
+            interpreter.interpret(phrase);
+        }
+        List<PlayEvent> noteEvents = interpreter.getEvents().stream()
+                .filter(e -> !(e instanceof PlayEvent.ProgramChange))
+                .toList();
+
+        for (Instrument instrument : instruments) {
+            javax.sound.midi.Track midiTrack = sequence.createTrack();
+
+            boolean isDrum = instrument == Instrument.DRUM_KIT;
+            int channel = isDrum ? 9 : nextChannel[0]++;
+            if (!isDrum && channel == 9) {
+                channel = nextChannel[0]++;
+            }
+
+            if (!tempoAdded[0]) {
+                addTempoEvent(midiTrack, piece.tempo().bpm());
+                tempoAdded[0] = true;
+            }
+
+            if (!isDrum) {
+                ShortMessage pcMsg = new ShortMessage();
+                pcMsg.setMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument.program(), 0);
+                midiTrack.add(new MidiEvent(pcMsg, 0));
+            }
+
+            for (PlayEvent event : noteEvents) {
+                switch (event) {
+                    case PlayEvent.NoteOn on -> {
+                        ShortMessage msg = new ShortMessage();
+                        msg.setMessage(ShortMessage.NOTE_ON, channel, on.midiNote(), on.velocity());
+                        midiTrack.add(new MidiEvent(msg, on.tick()));
+                    }
+                    case PlayEvent.NoteOff off -> {
+                        ShortMessage msg = new ShortMessage();
+                        msg.setMessage(ShortMessage.NOTE_OFF, channel, off.midiNote(), 0);
+                        midiTrack.add(new MidiEvent(msg, off.tick()));
+                    }
+                    case PlayEvent.ProgramChange pc -> {} // handled above
+                }
+            }
         }
     }
 
