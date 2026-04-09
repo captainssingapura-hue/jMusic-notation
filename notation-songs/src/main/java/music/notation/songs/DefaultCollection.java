@@ -2,8 +2,10 @@ package music.notation.songs;
 
 import music.notation.songs.anthem.internationale.Internationale;
 import music.notation.songs.anthem.internationale.ManualInternationale;
+import music.notation.songs.anthem.internationale.RockInternationale;
 import music.notation.songs.classical.bachinvention.BachInvention13;
 import music.notation.songs.classical.bachinvention.DefaultBachInvention13;
+import music.notation.songs.classical.bachinvention.ManualBachInvention13;
 import music.notation.songs.classical.odetojoy.DefaultOdeToJoy;
 import music.notation.songs.classical.odetojoy.OdeToJoy;
 import music.notation.songs.classical.pachelbelcanon.DefaultPachelbelCanon;
@@ -51,9 +53,9 @@ public final class DefaultCollection implements Collection {
                 Entry.of(new BlueLotus(), new DefaultBlueLotus()),
                 Entry.of(new TwoTigers(), new DefaultTwoTigers(), new DefaultTwoTigersCanon(), new RockTwoTigers()),
                 Entry.of(new TheRock(), new DefaultTheRock()),
-                Entry.of(new BachInvention13(), new DefaultBachInvention13()),
+                Entry.of(new BachInvention13(), new DefaultBachInvention13(), new ManualBachInvention13()),
                 Entry.of(new NovemberStorm(), new DefaultNovemberStorm()),
-                Entry.of(new Internationale(), new ManualInternationale()),
+                Entry.of(new Internationale(), new ManualInternationale(), new RockInternationale()),
                 Entry.of(new Traumerei(), new DefaultTraumerei())
         );
     }

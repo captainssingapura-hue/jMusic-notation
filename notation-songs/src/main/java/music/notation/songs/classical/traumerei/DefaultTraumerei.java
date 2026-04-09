@@ -75,8 +75,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                 .aux()
                     .r(WHOLE)                       // alto silent during pickup
                 .build(attacca());
-        var aux = R.buildAuxPhrases(attacca());
-        return new Section(main, aux.getFirst());
+        return new Section(main, R.auxPhrases().getFirst());
     }
 
     private Section buildRhA() {
@@ -137,8 +136,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                 .aux()
                     .o4(HALF, C, F).o4(HALF, C, E)
                 .build(attacca());
-        var aux = R.buildAuxPhrases(attacca());
-        return new Section(main, aux.getFirst());
+        return new Section(main, R.auxPhrases().getFirst());
     }
 
     private Section buildRhB() {
@@ -201,8 +199,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                     .o4(QUARTER, B, E.higher(1)).o4(QUARTER, A, C.higher(1))
                     .o4(QUARTER, G, C.higher(1)).o4(QUARTER, F, B)
                 .build(attacca());
-        var aux = R.buildAuxPhrases(attacca());
-        return new Section(main, aux.getFirst());
+        return new Section(main, R.auxPhrases().getFirst());
     }
 
     private Section buildRhAp() {
@@ -263,8 +260,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                 .aux()
                     .o4(HALF, C, E).o4(HALF, C, A)
                 .build(end());
-        var aux = R.buildAuxPhrases(end());
-        return new Section(main, aux.getFirst());
+        return new Section(main, R.auxPhrases().getFirst());
     }
 
     // ── LEFT HAND: Bass (main) + Tenor (aux) ───────────────────────
@@ -277,8 +273,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                 .aux()
                     .r(WHOLE)                       // tenor silent during pickup
                 .build(attacca());
-        var aux = L.buildAuxPhrases(attacca());
-        return new Section(main, aux.getFirst());
+        return new Section(main, L.auxPhrases().getFirst());
     }
 
     private Section buildLhA() {
@@ -337,8 +332,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                     .o3(QUARTER, A, C.higher(1)).o3(QUARTER, G, B.n().higher(0))
                     .o3(HALF, G, C.higher(1))
                 .build(attacca());
-        var aux = L.buildAuxPhrases(attacca());
-        return new Section(main, aux.getFirst());
+        return new Section(main, L.auxPhrases().getFirst());
     }
 
     private Section buildLhB() {
@@ -401,8 +395,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                     .o3(QUARTER, G, B.n().higher(0)).o3(QUARTER, G, B.n().higher(0))
                     .o3(HALF, G, B.n().higher(0))
                 .build(attacca());
-        var aux = L.buildAuxPhrases(attacca());
-        return new Section(main, aux.getFirst());
+        return new Section(main, L.auxPhrases().getFirst());
     }
 
     private Section buildLhAp() {
@@ -462,8 +455,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                     .o3(QUARTER, E, G).o3(QUARTER, F, A)
                     .o3(HALF, F, A)
                 .build(end());
-        var aux = L.buildAuxPhrases(end());
-        return new Section(main, aux.getFirst());
+        return new Section(main, L.auxPhrases().getFirst());
     }
 
     /** Quick playback for audition. */

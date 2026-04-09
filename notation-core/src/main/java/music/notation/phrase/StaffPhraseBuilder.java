@@ -66,9 +66,8 @@ public final class StaffPhraseBuilder {
     private List<AuxBar> pendingAuxBars = new ArrayList<>();     // completed aux bars for current bar
     private boolean inAux;                                       // currently building aux content
     private List<List<AuxBar>> allBarAuxBars = new ArrayList<>(); // aux bars per bar, accumulated during build
-    private List<List<AuxBar>> lastBuildAuxBars = List.of();     // snapshot from most recent build()
     private final List<Boolean> pickupFlags = new ArrayList<>(); // true if bar at index was a pickup
-    private List<Boolean> lastBuildPickupFlags = List.of();      // snapshot from most recent build()
+    private List<MelodicPhrase> lastAuxPhrases = List.of();      // aux phrases from most recent build()
 
     private StaffPhraseBuilder(TimeSignature ts, Duration defaultDur,
                                Map<NoteName, Accidental> keyAccidentals) {
@@ -249,39 +248,39 @@ public final class StaffPhraseBuilder {
         flush();
         var result = MelodicPhrase.fromBars(ts, marking, bars.toArray(Bar[]::new));
         bars.clear();
-        // Snapshot aux bar data for buildAuxPhrases(); start fresh for next build
-        lastBuildAuxBars = allBarAuxBars;
-        lastBuildPickupFlags = List.copyOf(pickupFlags);
+        // Build aux phrases from collected aux bars, then reset
+        lastAuxPhrases = buildAuxPhrasesInternal(marking);
         allBarAuxBars = new ArrayList<>();
         pickupFlags.clear();
         return result;
     }
 
     /**
-     * Build aux phrases from aux bars collected across all bars in the
-     * most recent {@link #build(PhraseMarking)} call. Each aux voice index
-     * (1st aux bar per bar → voice 0, etc.) becomes a separate phrase.
-     * Bars without aux content at a given voice index get rest padding.
+     * Returns the aux phrases produced by the most recent {@link #build(PhraseMarking)}
+     * call. Each aux voice index (1st aux bar per bar → voice 0, etc.) becomes a
+     * separate phrase. Bars without aux content at a given voice index get rest padding.
      *
      * @return list of aux phrases (empty if no aux bars were used)
      */
-    public List<MelodicPhrase> buildAuxPhrases(PhraseMarking marking) {
+    public List<MelodicPhrase> auxPhrases() {
+        return lastAuxPhrases;
+    }
+
+    private List<MelodicPhrase> buildAuxPhrasesInternal(PhraseMarking marking) {
         int maxVoices = 0;
-        for (List<AuxBar> barAux : lastBuildAuxBars) {
+        for (List<AuxBar> barAux : allBarAuxBars) {
             maxVoices = Math.max(maxVoices, barAux.size());
         }
         if (maxVoices == 0) {
-            lastBuildAuxBars = List.of();
-            lastBuildPickupFlags = List.of();
             return List.of();
         }
 
         var result = new ArrayList<MelodicPhrase>(maxVoices);
         for (int v = 0; v < maxVoices; v++) {
             var auxBars = new ArrayList<Bar>();
-            for (int b = 0; b < lastBuildAuxBars.size(); b++) {
-                List<AuxBar> barAux = lastBuildAuxBars.get(b);
-                boolean pickup = b < lastBuildPickupFlags.size() && lastBuildPickupFlags.get(b);
+            for (int b = 0; b < allBarAuxBars.size(); b++) {
+                List<AuxBar> barAux = allBarAuxBars.get(b);
+                boolean pickup = b < pickupFlags.size() && pickupFlags.get(b);
                 int barSize = ts.barSixtyFourths();
                 if (v < barAux.size()) {
                     var nodes = new ArrayList<>(barAux.get(v).nodes());
@@ -305,8 +304,6 @@ public final class StaffPhraseBuilder {
             }
             result.add(MelodicPhrase.fromBars(ts, marking, auxBars.toArray(Bar[]::new)));
         }
-        lastBuildAuxBars = List.of();
-        lastBuildPickupFlags = List.of();
         return result;
     }
 
