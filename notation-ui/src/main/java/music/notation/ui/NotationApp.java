@@ -18,6 +18,7 @@ import music.notation.event.Instrument;
 import music.notation.play.MidiPlayer;
 import music.notation.songs.PieceLibrary;
 import music.notation.structure.Piece;
+import music.notation.structure.PieceContentProvider;
 import music.notation.structure.Track;
 
 import java.io.File;
@@ -30,6 +31,7 @@ public class NotationApp extends Application {
     private Piece currentPiece;
 
     private ComboBox<String> pieceSelector;
+    private ComboBox<PieceContentProvider<?>> providerSelector;
     private VBox trackControlsBox;
     private Button playButton;
     private Button pauseButton;
@@ -38,6 +40,7 @@ public class NotationApp extends Application {
     private Label statusLabel;
     private Label pieceInfoLabel;
     private PitchScroll pitchScroll;
+    private ScrollPane pianoRollScrollPane;
 
     /** Per-track list of instrument combos (outer = track index, inner = instrument slots). */
     private final List<List<ComboBox<Instrument>>> trackInstrumentCombos = new ArrayList<>();
@@ -97,11 +100,37 @@ public class NotationApp extends Application {
         pieceSelector.setOnAction(e -> onPieceSelected());
         selectorRow.getChildren().addAll(selectLabel, pieceSelector);
 
+        HBox providerRow = new HBox(10);
+        providerRow.setAlignment(Pos.CENTER_LEFT);
+        Label providerLabel = styledLabel("Arrangement:");
+        providerSelector = new ComboBox<>();
+        providerSelector.setStyle(comboStyle());
+        providerSelector.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(providerSelector, Priority.ALWAYS);
+        providerSelector.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(PieceContentProvider<?> item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.subtitle());
+                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
+            }
+        });
+        providerSelector.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(PieceContentProvider<?> item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.subtitle());
+                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
+            }
+        });
+        providerSelector.setOnAction(e -> onProviderSelected());
+        providerRow.getChildren().addAll(providerLabel, providerSelector);
+
         pieceInfoLabel = new Label("");
         pieceInfoLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
         pieceInfoLabel.setWrapText(true);
 
-        libraryContent.getChildren().addAll(selectorRow, pieceInfoLabel);
+        libraryContent.getChildren().addAll(selectorRow, providerRow, pieceInfoLabel);
 
         // -- Top-right: Tracks --
         trackControlsBox = new VBox(8);
@@ -137,7 +166,7 @@ public class NotationApp extends Application {
         );
         final Pane canvasHolder = new Pane(pitchScroll);
         canvasHolder.setStyle("-fx-background-color: #1e1e2e;");
-        final ScrollPane pianoRollScrollPane = new ScrollPane(canvasHolder);
+        pianoRollScrollPane = new ScrollPane(canvasHolder);
         scrollPaneRef[0] = pianoRollScrollPane;
         pianoRollScrollPane.setFitToHeight(true);
         pianoRollScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
@@ -220,12 +249,34 @@ public class NotationApp extends Application {
     }
 
     private void onPieceSelected() {
-        String selected = pieceSelector.getValue();
+        final String selected = pieceSelector.getValue();
         if (selected == null) return;
 
         onStop();
 
-        currentPiece = PieceLibrary.get(selected);
+        // Populate provider selector
+        final List<PieceContentProvider<?>> providers = PieceLibrary.providers(selected);
+        providerSelector.setItems(FXCollections.observableArrayList(providers));
+        if (!providers.isEmpty()) {
+            providerSelector.getSelectionModel().selectFirst();
+        }
+        providerSelector.setVisible(providers.size() > 1);
+        providerSelector.setManaged(providers.size() > 1);
+
+        loadFromSelectedProvider();
+    }
+
+    private void onProviderSelected() {
+        if (providerSelector.getValue() == null) return;
+        onStop();
+        loadFromSelectedProvider();
+    }
+
+    private void loadFromSelectedProvider() {
+        final PieceContentProvider<?> provider = providerSelector.getValue();
+        if (provider == null) return;
+
+        currentPiece = provider.create();
         pieceInfoLabel.setText(String.format("%s by %s\n%s  |  %d/%d  |  %d BPM",
                 currentPiece.title(), currentPiece.composer(),
                 currentPiece.key().tonic() + " " + currentPiece.key().mode(),
@@ -334,6 +385,7 @@ public class NotationApp extends Application {
         pieceSelector.setDisable(true);
         statusLabel.setText("Playing...");
         pitchScroll.load(PitchScrollData.fromPiece(currentPiece));
+        pianoRollScrollPane.setHvalue(0);
 
         Thread playThread = new Thread(() -> {
             try {

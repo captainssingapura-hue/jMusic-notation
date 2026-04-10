@@ -21,14 +21,16 @@ The central abstraction is a **phrase-centric** decomposition:
 ```
 Piece (title, composer, key, time signature, tempo)
   +-- Track* (named channel with instrument assignment)
+        +-- auxTracks: Track* (auxiliary voices sharing the same lane)
         +-- Phrase* (sealed: MelodicPhrase | RestPhrase | ChordPhrase)
-              +-- PhraseNode* (sealed: NoteNode | RestNode | SubPhrase | DynamicNode)
+              +-- PhraseNode* (sealed: NoteNode | RestNode | PaddingNode | SubPhrase | DynamicNode | GraceNote | PercussionNote | SlurStart | SlurEnd)
 ```
 
 - **Sealed interfaces** model sum types (`Phrase`, `PhraseNode`, `Chord`)
 - **Records** model product types (`Pitch`, `Duration`, `NoteNode`, `MajorTriad`, ...)
 - **Phrases are recursive** via `SubPhrase`, enabling hierarchical musical structure
 - **Dynamics are positional** -- `DynamicNode` markers flow inline among notes
+- **Aux tracks** allow multi-voice writing within a single staff (e.g. soprano + alto on the right hand). Aux bars are collected per-bar in the builder and extracted into separate `Track` objects for playback and display
 
 ### Chord ADT
 
@@ -45,6 +47,30 @@ A sealed `Chord` interface with records for common chord qualities:
 | `MinorSeventh` | root, m3, P5, m7 |
 
 Chord records compute correctly-spelled pitches via interval arithmetic (letter steps + semitone distance), so `MinorTriad(F#)` produces F#-A-C# rather than F#-G##-Db.
+
+### StaffPhraseBuilder
+
+A fluent builder for staff-notation melodic phrases using absolute pitch names. Key features:
+
+- **Key-aware accidentals** -- notes automatically use sharps/flats from the key signature
+- **Octave methods** -- `o2()` through `o7()` for concise pitch entry with poly chord support
+- **Bar management** -- `bar()`, `pickup()`, `ending()` with automatic bar-duration validation
+- **Per-bar default duration** -- `bar(QUARTER)` / `aux(HALF)` set a local default, reducing explicit `Duration` annotations. Plain `bar()` / `aux()` revert to the builder-level default
+- **Aux bars** -- `aux()` within a bar starts an auxiliary voice; `buildAuxPhrases()` extracts them into separate phrases for multi-voice tracks
+- **Slurs and ties** -- `slur()` / `slurEnd()` for cross-bar ties (auto-merged same-pitch)
+- **Grace notes** -- `grace()` / `accentedGrace()` for ornamental notes
+
+```java
+var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
+
+var melody = P
+    .pickup(QUARTER).o4(F)
+    .bar(QUARTER).mf().o4(A).o4(C).o5(F).o5(A)
+        .aux(HALF).o4(C, F).o4(E)
+    .bar().o5(QUARTER.dot(), A).o5(G).o5(F).o5(E)
+    .build(breath());
+var auxPhrases = P.buildAuxPhrases(breath());
+```
 
 ### Song Library
 
@@ -78,7 +104,7 @@ mvn javafx:run -pl notation-ui
 java -Dmusic.collections=collections.json -jar notation-ui/target/notation-ui-1.0-SNAPSHOT.jar
 ```
 
-The player opens with a list of available pieces. Select one to see a piano-roll visualization and control playback (play/pause, seek by dragging).
+The player opens with a list of available pieces. Select one to see a piano-roll visualization and control playback (play/pause, seek by dragging). Aux tracks are rendered in the same lane as their parent track with a slightly shifted color for visual distinction.
 
 ### Quick-play a single piece (no UI)
 
@@ -134,6 +160,8 @@ The `-Dmusic.collections` system property points to a JSON file that maps collec
 | We Will Rock You | Queen |
 | Invention No. 13 in A Minor (BWV 784) | J.S. Bach |
 | The Internationale | Pierre De Geyter |
+| November Storm | Xu Wei |
+| Traumerei (Op. 15 No. 7) | Robert Schumann |
 
 ## Design
 

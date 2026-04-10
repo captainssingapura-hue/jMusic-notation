@@ -11,10 +11,11 @@ import java.util.List;
  * <p>The constructor validates that the nodes' total duration equals
  * {@code expectedSixtyFourths}; any mismatch throws immediately.</p>
  */
-public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes) {
+public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes, List<AuxBar> auxBars) {
 
     public Bar {
         nodes = List.copyOf(nodes);
+        auxBars = List.copyOf(auxBars);
         int actual = 0;
         for (var node : nodes) {
             actual += nodeSixtyFourths(node);
@@ -27,7 +28,7 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes) {
     }
 
     public static Bar of(int expectedSixtyFourths, PhraseNode... nodes) {
-        return new Bar(expectedSixtyFourths, List.of(nodes));
+        return new Bar(expectedSixtyFourths, List.of(nodes), List.of());
     }
 
     /**
@@ -48,6 +49,7 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes) {
             case GraceNote g -> 0;
             case SlurStart s -> 0;
             case SlurEnd s -> 0;
+            case PaddingNode p -> p.duration().sixtyFourths();
             case SubPhrase s -> phraseSixtyFourths(s.phrase());
         };
     }
@@ -60,6 +62,7 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes) {
             case ChordPhrase cp -> cp.chords().stream().mapToInt(c -> c.duration().sixtyFourths()).sum();
             case RestPhrase rp -> rp.duration().sixtyFourths();
             case ShiftedPhrase sp -> phraseSixtyFourths(sp.source());
+            case LyricPhrase lp -> lp.syllables().stream().mapToInt(e -> e.duration().sixtyFourths()).sum();
         };
     }
 }

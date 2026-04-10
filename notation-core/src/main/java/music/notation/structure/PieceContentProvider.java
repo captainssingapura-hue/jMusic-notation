@@ -23,4 +23,14 @@ public interface PieceContentProvider<P extends MusicalPiece> {
 
     /** Build the full {@link Piece} (tracks, notes, tempo, etc.). */
     Piece create();
+
+    /**
+     * Short label distinguishing this provider from others for the same piece
+     * (e.g. "Default", "Manual", "Jazz arrangement").
+     *
+     * <p>Falls back to a cleaned-up version of the class name.</p>
+     */
+    default String subtitle() {
+        return getClass().getSimpleName();
+    }
 }

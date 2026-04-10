@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * structural invariants.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-abstract class PieceTestBase {
+public abstract class PieceTestBase {
 
     /** Return the provider under test. */
     protected abstract PieceContentProvider<?> provider();
@@ -98,6 +98,11 @@ abstract class PieceTestBase {
             for (final Phrase phrase : track.phrases()) {
                 checkMidiRange(track.name(), phrase);
             }
+            for (final Track auxTrack : track.auxTracks()) {
+                for (final Phrase phrase : auxTrack.phrases()) {
+                    checkMidiRange(auxTrack.name(), phrase);
+                }
+            }
         }
     }
 
@@ -115,6 +120,7 @@ abstract class PieceTestBase {
                 }
             });
             case RestPhrase rp -> {} // no pitches
+            case LyricPhrase lp -> {} // no pitches
             case ShiftedPhrase sp -> checkMidiRange(trackName, sp.source());
         }
     }
@@ -139,6 +145,7 @@ abstract class PieceTestBase {
                         trackName + ": percussion MIDI " + midi + " out of range");
             }
             case RestNode r -> {}
+            case PaddingNode p -> {}
             case DynamicNode d -> {}
             case SlurStart s -> {}
             case SlurEnd s -> {}

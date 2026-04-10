@@ -1,6 +1,6 @@
 package music.notation.phrase;
 
-public sealed interface Phrase permits MelodicPhrase, RestPhrase, ChordPhrase, DrumPhrase, ShiftedPhrase {
+public sealed interface Phrase permits MelodicPhrase, RestPhrase, ChordPhrase, DrumPhrase, ShiftedPhrase, LyricPhrase {
 
     PhraseMarking marking();
 }

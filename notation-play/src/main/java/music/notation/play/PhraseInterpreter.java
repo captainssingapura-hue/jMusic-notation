@@ -53,6 +53,12 @@ public final class PhraseInterpreter {
                 }
                 applyBoundaryGap(dp.marking());
             }
+            case LyricPhrase lp -> {
+                for (LyricEvent e : lp.syllables()) {
+                    tick += MidiMapper.toTicks(e.duration());
+                }
+                applyBoundaryGap(lp.marking());
+            }
             case ShiftedPhrase sp -> {
                 // Interpret the source phrase, then shift all MIDI notes emitted
                 int before = events.size();
@@ -92,6 +98,7 @@ public final class PhraseInterpreter {
                 long dur = MidiMapper.toTicks(pn.duration());
                 emitNote(midi, dur);
             }
+            case PaddingNode p -> tick += MidiMapper.toTicks(p.duration());
             case SlurStart s -> inSlur = true;
             case SlurEnd s -> inSlur = false;
         }

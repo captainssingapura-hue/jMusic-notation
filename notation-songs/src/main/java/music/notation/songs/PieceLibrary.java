@@ -163,7 +163,7 @@ public final class PieceLibrary {
         return PROVIDERS.getOrDefault(pieceType, List.of());
     }
 
-    /** Look up a {@link Piece} by title string (backward-compatible). */
+    /** Look up a {@link Piece} by title string (uses the default provider). */
     public static Piece get(final String title) {
         for (final var entry : IDENTITIES.entrySet()) {
             if (entry.getValue().title().equals(title)) {
@@ -171,5 +171,21 @@ public final class PieceLibrary {
             }
         }
         return null;
+    }
+
+    /** Look up the identity class for a piece title. */
+    public static Class<? extends MusicalPiece> identityClass(final String title) {
+        for (final var entry : IDENTITIES.entrySet()) {
+            if (entry.getValue().title().equals(title)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    /** All providers registered for a given piece title. */
+    public static List<PieceContentProvider<?>> providers(final String title) {
+        final var key = identityClass(title);
+        return key == null ? List.of() : providers(key);
     }
 }
