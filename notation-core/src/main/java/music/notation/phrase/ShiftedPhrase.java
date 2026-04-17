@@ -15,7 +15,12 @@ import music.notation.structure.Mode;
  * <p>The source phrase is immutable and unmodified; the shift is applied at playback
  * time by the MIDI interpreter.</p>
  */
-public record ShiftedPhrase(Phrase source, KeySignature sourceKey, KeySignature targetKey) implements Phrase {
+public record ShiftedPhrase(Phrase source, KeySignature sourceKey, KeySignature targetKey, int octaveShift) implements Phrase {
+
+    /** Backwards-compatible constructor with no octave shift. */
+    public ShiftedPhrase(Phrase source, KeySignature sourceKey, KeySignature targetKey) {
+        this(source, sourceKey, targetKey, 0);
+    }
 
     @Override
     public PhraseMarking marking() {
@@ -27,9 +32,12 @@ public record ShiftedPhrase(Phrase source, KeySignature sourceKey, KeySignature 
      * Captures source and target keys so transposition reads as
      * {@code shift.apply(motif)} instead of repeating both keys each time.
      */
-    public record Factory(KeySignature sourceKey, KeySignature targetKey) {
+    public record Factory(KeySignature sourceKey, KeySignature targetKey, int octaveShift) {
+        public Factory(KeySignature sourceKey, KeySignature targetKey) {
+            this(sourceKey, targetKey, 0);
+        }
         public ShiftedPhrase apply(Phrase source) {
-            return new ShiftedPhrase(source, sourceKey, targetKey);
+            return new ShiftedPhrase(source, sourceKey, targetKey, octaveShift);
         }
     }
 
@@ -56,8 +64,8 @@ public record ShiftedPhrase(Phrase source, KeySignature sourceKey, KeySignature 
      * {@code shifted = midiNote − fromScale[degree] − fromRoot + toScale[degree] + toRoot}</p>
      */
     public int shiftMidiNote(int midiNote) {
-        int fromRoot = noteNameSemitone(sourceKey.tonic());
-        int toRoot   = noteNameSemitone(targetKey.tonic());
+        int fromRoot = rootSemitone(sourceKey);
+        int toRoot   = rootSemitone(targetKey);
         int[] fromScale = scaleFor(sourceKey.mode());
         int[] toScale   = scaleFor(targetKey.mode());
 
@@ -73,13 +81,24 @@ public record ShiftedPhrase(Phrase source, KeySignature sourceKey, KeySignature 
             }
         }
 
-        return midiNote - fromRoot - fromScale[degree] + toRoot + toScale[degree];
+        return midiNote - fromRoot - fromScale[degree] + toRoot + toScale[degree] + octaveShift * 12;
+    }
+
+    static int rootSemitone(music.notation.structure.KeySignature key) {
+        return noteNameSemitone(key.tonic()) + accidentalOffset(key.accidental());
     }
 
     static int noteNameSemitone(music.notation.pitch.NoteName n) {
         return switch (n) {
             case C -> 0; case D -> 2; case E -> 4; case F -> 5;
             case G -> 7; case A -> 9; case B -> 11;
+        };
+    }
+
+    private static int accidentalOffset(music.notation.pitch.Accidental a) {
+        return switch (a) {
+            case DOUBLE_FLAT -> -2; case FLAT -> -1; case NATURAL -> 0;
+            case SHARP -> 1; case DOUBLE_SHARP -> 2;
         };
     }
 

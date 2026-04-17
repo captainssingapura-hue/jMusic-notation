@@ -152,6 +152,21 @@ public final class NumberedPhraseBuilder {
     public NumberedPhraseBuilder ff()  { return dyn(Dynamic.FF); }
     public NumberedPhraseBuilder fff() { return dyn(Dynamic.FFF); }
 
+    // ── Tempo ──
+
+    public NumberedPhraseBuilder tempo(int bpm) { current.add(new TempoChangeNode(bpm)); return this; }
+    public NumberedPhraseBuilder transitionStart() { current.add(new TempoTransitionStartNode()); return this; }
+    public NumberedPhraseBuilder transitionEnd(int targetBpm) {
+        current.add(new TempoTransitionEndNode(targetBpm, TransitionMethod.LINEAR)); return this;
+    }
+    public NumberedPhraseBuilder transitionEnd(int targetBpm, TransitionMethod method) {
+        current.add(new TempoTransitionEndNode(targetBpm, method)); return this;
+    }
+    public NumberedPhraseBuilder accelStart()         { return transitionStart(); }
+    public NumberedPhraseBuilder accel(int targetBpm) { return transitionEnd(targetBpm); }
+    public NumberedPhraseBuilder ritStart()           { return transitionStart(); }
+    public NumberedPhraseBuilder rit(int targetBpm)   { return transitionEnd(targetBpm); }
+
     // ── Internals ──
 
     private void flush() {

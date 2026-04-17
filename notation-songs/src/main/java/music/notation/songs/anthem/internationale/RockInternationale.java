@@ -29,7 +29,7 @@ public final class RockInternationale implements PieceContentProvider<Internatio
 
         return new Piece(id.title(), id.composer(),
                 KEY, TS,
-                new Tempo(120, QUARTER),
+                new Tempo(108, QUARTER),
                 List.of(melody(), harmony(), chords(), drums()));
     }
 

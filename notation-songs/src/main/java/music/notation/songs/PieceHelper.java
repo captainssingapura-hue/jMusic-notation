@@ -65,5 +65,6 @@ public final class PieceHelper {
 
     public static PhraseMarking breath()  { return new PhraseMarking(BREATH, true); }
     public static PhraseMarking attacca() { return new PhraseMarking(ATTACCA, true); }
+    public static PhraseMarking elision() { return new PhraseMarking(ELISION, true); }
     public static PhraseMarking end()     { return new PhraseMarking(CAESURA, true); }
 }

@@ -122,6 +122,7 @@ public abstract class PieceTestBase {
             case RestPhrase rp -> {} // no pitches
             case LyricPhrase lp -> {} // no pitches
             case ShiftedPhrase sp -> checkMidiRange(trackName, sp.source());
+            case LayeredPhrase lp -> checkMidiRange(trackName, lp.resolve());
         }
     }
 
@@ -133,11 +134,11 @@ public abstract class PieceTestBase {
                     assertTrue(midi >= 0 && midi <= 127,
                             trackName + ": note MIDI " + midi + " out of range");
                 }
-            }
-            case GraceNote g -> {
-                final int midi = MidiMapper.toMidiNote(g.pitch());
-                assertTrue(midi >= 0 && midi <= 127,
-                        trackName + ": grace note MIDI " + midi + " out of range");
+                for (final GraceNote g : n.graceNotes()) {
+                    final int midi = MidiMapper.toMidiNote(g.pitch());
+                    assertTrue(midi >= 0 && midi <= 127,
+                            trackName + ": grace note MIDI " + midi + " out of range");
+                }
             }
             case PercussionNote pn -> {
                 final int midi = pn.sound().midiNote();
@@ -150,6 +151,9 @@ public abstract class PieceTestBase {
             case SlurStart s -> {}
             case SlurEnd s -> {}
             case SubPhrase sp -> checkMidiRange(trackName, sp.phrase());
+            case TempoChangeNode t -> {}
+            case TempoTransitionStartNode t -> {}
+            case TempoTransitionEndNode t -> {}
         }
     }
 }

@@ -18,11 +18,18 @@ public final class PhraseInterpreter {
     private long tick;
     private int velocity;
     private boolean inSlur;
+    private boolean elisionPending;
+    private long elisionTrailingPad;   // trailing padding of the just-finished phrase (ticks)
+    private long elisionBarSize;       // size of prev phrase's last bar (ticks)
+    private int currentBpm;
+    private long transitionStartTick = -1;
+    private int transitionStartBpm;
     private final List<PlayEvent> events = new ArrayList<>();
 
-    public PhraseInterpreter(long startTick, int initialVelocity) {
+    public PhraseInterpreter(long startTick, int initialVelocity, int initialBpm) {
         this.tick = startTick;
         this.velocity = initialVelocity;
+        this.currentBpm = initialBpm;
     }
 
     public void emitProgramChange(Instrument instrument) {
@@ -30,35 +37,58 @@ public final class PhraseInterpreter {
     }
 
     public void interpret(Phrase phrase) {
+        // Elision: merge prev phrase's last bar with next phrase's first bar.
+        //   - Rewind past prev's trailing padding (already done in applyBoundaryGap)
+        //   - Insert a RestNode-equivalent gap if audible contents don't fill the bar
+        //   - Skip next phrase's leading padding (rewind by it)
+        //   - Throw if audible contents overlap
+        if (elisionPending) {
+            elisionPending = false;
+            long leadingPad = computeLeadingPadding(phrase);
+            long barSize = elisionBarSize;
+            long filler = elisionTrailingPad + leadingPad - barSize;
+            if (filler < 0) {
+                throw new IllegalStateException(String.format(
+                        "Elision overlap: prev trailing padding (%d ticks) + next leading padding (%d ticks) = %d, "
+                                + "but bar size is %d — audible contents overlap by %d ticks. "
+                                + "Shorten the ending bar's audible content or the pickup bar's audible content.",
+                        elisionTrailingPad, leadingPad, elisionTrailingPad + leadingPad, barSize, -filler));
+            }
+            tick += filler;      // rest filler between ending audible and pickup audible
+            tick -= leadingPad;  // skip pickup's leading padding (it will re-advance during interpret)
+            elisionTrailingPad = 0;
+            elisionBarSize = 0;
+        }
         switch (phrase) {
             case MelodicPhrase mp -> {
                 for (PhraseNode node : mp.nodes()) {
                     interpretNode(node);
                 }
-                applyBoundaryGap(mp.marking());
+                applyBoundaryGap(mp.marking(), mp);
             }
             case RestPhrase rp -> {
                 tick += MidiMapper.toTicks(rp.duration());
-                applyBoundaryGap(rp.marking());
+                applyBoundaryGap(rp.marking(), rp);
             }
             case ChordPhrase cp -> {
                 for (ChordEvent chord : cp.chords()) {
                     interpretChord(chord);
                 }
-                applyBoundaryGap(cp.marking());
+                applyBoundaryGap(cp.marking(), cp);
             }
             case DrumPhrase dp -> {
                 for (PhraseNode node : dp.nodes()) {
                     interpretNode(node);
                 }
-                applyBoundaryGap(dp.marking());
+                applyBoundaryGap(dp.marking(), dp);
             }
             case LyricPhrase lp -> {
                 for (LyricEvent e : lp.syllables()) {
                     tick += MidiMapper.toTicks(e.duration());
                 }
-                applyBoundaryGap(lp.marking());
+                applyBoundaryGap(lp.marking(), lp);
             }
+            case LayeredPhrase lp -> interpret(lp.resolve());
             case ShiftedPhrase sp -> {
                 // Interpret the source phrase, then shift all MIDI notes emitted
                 int before = events.size();
@@ -92,7 +122,6 @@ public final class PhraseInterpreter {
                 }
             }
             case SubPhrase sp -> interpret(sp.phrase());
-            case GraceNote g -> interpretGraceNote(g);
             case PercussionNote pn -> {
                 int midi = pn.sound().midiNote();
                 long dur = MidiMapper.toTicks(pn.duration());
@@ -101,27 +130,63 @@ public final class PhraseInterpreter {
             case PaddingNode p -> tick += MidiMapper.toTicks(p.duration());
             case SlurStart s -> inSlur = true;
             case SlurEnd s -> inSlur = false;
+            case TempoChangeNode t -> {
+                currentBpm = t.bpm();
+                events.add(new PlayEvent.TempoChange(tick, t.bpm()));
+            }
+            case TempoTransitionStartNode t -> {
+                transitionStartTick = tick;
+                transitionStartBpm = currentBpm;
+            }
+            case TempoTransitionEndNode t -> {
+                if (transitionStartTick >= 0) {
+                    emitTempoTransition(transitionStartTick, transitionStartBpm,
+                            tick, t.targetBpm(), t.method());
+                    transitionStartTick = -1;
+                }
+                currentBpm = t.targetBpm();
+            }
         }
     }
 
     private void interpretNote(NoteNode n) {
         long dur = MidiMapper.toTicks(n.duration());
 
+        // Grace notes precede the main note. In equal-division (tuplet) mode,
+        // each grace and the main note each take dur / (graceCount + 1).
+        // Otherwise each grace plays briefly and the main keeps the remainder.
+        long mainDur = dur;
+        if (!n.graceNotes().isEmpty()) {
+            int slots = n.graceNotes().size() + 1;
+            long graceDur = n.equalDivision() ? dur / slots : MidiMapper.GRACE_NOTE_TICK;
+            long graceTotal = 0;
+            for (GraceNote g : n.graceNotes()) {
+                int gMidi = MidiMapper.toMidiNote(g.pitch());
+                int gVel = g.accented() ? velocity : (int) (velocity * 0.7);
+                events.add(new PlayEvent.NoteOn(tick, gMidi, gVel));
+                events.add(new PlayEvent.NoteOff(tick + graceDur, gMidi));
+                tick += graceDur;
+                graceTotal += graceDur;
+            }
+            // Main note absorbs any leftover (division remainder)
+            mainDur = Math.max(dur - graceTotal, MidiMapper.GRACE_NOTE_TICK);
+        }
+
         if (n.isPolyphonic()) {
             // Poly: emit all pitches simultaneously (like a chord)
             for (Pitch p : n.pitches()) {
                 int midi = MidiMapper.toMidiNote(p);
                 events.add(new PlayEvent.NoteOn(tick, midi, velocity));
-                long offTick = tick + dur + (inSlur ? LEGATO_OVERLAP_TICKS : 0);
+                long offTick = tick + mainDur + (inSlur ? LEGATO_OVERLAP_TICKS : 0);
                 events.add(new PlayEvent.NoteOff(offTick, midi));
             }
-            tick += dur;
+            tick += mainDur;
         } else {
             int midi = MidiMapper.toMidiNote(n.pitch());
             if (n.ornament().isPresent()) {
-                emitOrnament(n.ornament().get(), midi, dur);
+                emitOrnament(n.ornament().get(), midi, mainDur);
             } else {
-                emitNote(midi, dur);
+                emitNote(midi, mainDur);
             }
         }
     }
@@ -208,15 +273,6 @@ public final class PhraseInterpreter {
         }
     }
 
-    private void interpretGraceNote(GraceNote g) {
-        int midi = MidiMapper.toMidiNote(g.pitch());
-        long dur = MidiMapper.GRACE_NOTE_TICK;
-        int graceVelocity = g.accented() ? velocity : (int) (velocity * 0.7);
-        events.add(new PlayEvent.NoteOn(tick, midi, graceVelocity));
-        events.add(new PlayEvent.NoteOff(tick + dur, midi));
-        tick += dur;
-    }
-
     private void interpretChord(ChordEvent chord) {
         long dur = MidiMapper.toTicks(chord.duration());
         for (Pitch p : chord.pitches()) {
@@ -227,14 +283,125 @@ public final class PhraseInterpreter {
         tick += dur;
     }
 
-    private void applyBoundaryGap(PhraseMarking marking) {
-        long gap = switch (marking.connection()) {
-            case BREATH -> MidiMapper.TICKS_PER_QUARTER / 4;
-            case CAESURA -> MidiMapper.TICKS_PER_QUARTER;
-            case ATTACCA -> 0;
-            case ELISION -> 0;
+    private void applyBoundaryGap(PhraseMarking marking, Phrase justFinished) {
+        switch (marking.connection()) {
+            case BREATH  -> tick += MidiMapper.TICKS_PER_QUARTER / 4;
+            case CAESURA -> tick += MidiMapper.TICKS_PER_QUARTER;
+            case ATTACCA -> {} // no gap
+            case ELISION -> {
+                // Capture state needed by the next interpret() call:
+                //  - trailing padding of this phrase's last bar (so we can rewind over it)
+                //  - bar size (to detect overlap / compute rest filler)
+                elisionPending = true;
+                elisionTrailingPad = trailingPaddingOf(justFinished);
+                elisionBarSize = barSizeOf(justFinished);
+                tick = Math.max(0, tick - elisionTrailingPad);
+            }
+        }
+    }
+
+    /**
+     * Compute the leading padding (anacrusis silence) of a phrase — the total
+     * duration of {@link PaddingNode}s at the start of its node list, before
+     * any audible content.
+     */
+    private long computeLeadingPadding(Phrase phrase) {
+        return switch (phrase) {
+            case MelodicPhrase mp -> leadingPaddingFromNodes(mp.nodes());
+            case DrumPhrase dp   -> leadingPaddingFromNodes(dp.nodes());
+            case ShiftedPhrase sp -> computeLeadingPadding(sp.source());
+            case LayeredPhrase lp -> computeLeadingPadding(lp.resolve());
+            default -> 0;
         };
-        tick += gap;
+    }
+
+    private static long leadingPaddingFromNodes(List<PhraseNode> nodes) {
+        long padding = 0;
+        for (PhraseNode node : nodes) {
+            switch (node) {
+                case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
+                case DynamicNode d -> {}
+                case SlurStart s -> {}
+                case SlurEnd s -> {}
+                case TempoChangeNode t -> {}
+                case TempoTransitionStartNode t -> {}
+                case TempoTransitionEndNode t -> {}
+                default -> { return padding; } // first audible node reached
+            }
+        }
+        return padding;
+    }
+
+    /**
+     * Total duration of trailing {@link PaddingNode}s in a phrase's node list.
+     * Used by elision to know how much silence the prev phrase added after its
+     * last audible node (from {@code ending()}).
+     */
+    private static long trailingPaddingOf(Phrase phrase) {
+        return switch (phrase) {
+            case MelodicPhrase mp -> trailingPaddingFromNodes(mp.nodes());
+            case DrumPhrase dp    -> trailingPaddingFromNodes(dp.nodes());
+            case ShiftedPhrase sp -> trailingPaddingOf(sp.source());
+            case LayeredPhrase lp -> trailingPaddingOf(lp.resolve());
+            default -> 0L;
+        };
+    }
+
+    private static long trailingPaddingFromNodes(List<PhraseNode> nodes) {
+        long padding = 0;
+        for (int i = nodes.size() - 1; i >= 0; i--) {
+            PhraseNode node = nodes.get(i);
+            switch (node) {
+                case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
+                case DynamicNode d -> {}
+                case SlurStart s -> {}
+                case SlurEnd s -> {}
+                case TempoChangeNode t -> {}
+                case TempoTransitionStartNode t -> {}
+                case TempoTransitionEndNode t -> {}
+                default -> { return padding; } // first audible node from the end
+            }
+        }
+        return padding;
+    }
+
+    /**
+     * Size of a phrase's last bar in ticks. Used by elision to validate that
+     * ending + pickup audible contents fit in one bar.
+     */
+    private static long barSizeOf(Phrase phrase) {
+        return switch (phrase) {
+            case MelodicPhrase mp -> melodicBarSize(mp.bars());
+            case DrumPhrase dp    -> 0L; // drums rarely use elision
+            case ShiftedPhrase sp -> barSizeOf(sp.source());
+            case LayeredPhrase lp -> barSizeOf(lp.resolve());
+            default -> 0L;
+        };
+    }
+
+    private static long melodicBarSize(List<Bar> bars) {
+        if (bars.isEmpty()) return 0L;
+        int sixtyFourths = bars.get(bars.size() - 1).expectedSixtyFourths();
+        return (long) sixtyFourths * MidiMapper.TICKS_PER_QUARTER / 16;
+    }
+
+    private void emitTempoTransition(long startTick, int startBpm,
+                                      long endTick, int endBpm,
+                                      TransitionMethod method) {
+        long range = endTick - startTick;
+        if (range <= 0) return;
+
+        // One step per quarter note
+        long stepTicks = MidiMapper.TICKS_PER_QUARTER;
+        int steps = Math.max(1, (int) (range / stepTicks));
+
+        for (int i = 0; i <= steps; i++) {
+            long t = startTick + (range * i / steps);
+            int bpm = switch (method) {
+                case LINEAR -> startBpm + (endBpm - startBpm) * i / steps;
+            };
+            events.add(new PlayEvent.TempoChange(t, bpm));
+        }
     }
 
     public long currentTick() {

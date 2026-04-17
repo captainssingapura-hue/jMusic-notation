@@ -3,8 +3,23 @@ package music.notation.songs;
 import music.notation.songs.anthem.internationale.Internationale;
 import music.notation.songs.anthem.internationale.ManualInternationale;
 import music.notation.songs.anthem.internationale.RockInternationale;
+import music.notation.songs.folk.tianheihei.ManualTianHeiHei;
+import music.notation.songs.game.contra.ContraBase;
+import music.notation.songs.game.contra.DefaultContraBase;
+import music.notation.songs.folk.katyusha.DefaultKatyusha;
+import music.notation.songs.folk.katyusha.Katyusha;
+import music.notation.songs.folk.katyusha.RockKatyusha;
+import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
+import music.notation.songs.folk.tianheihei.SoftRockTianHeiHei;
+import music.notation.songs.folk.tianheihei.ChopinTianHeiHei;
+import music.notation.songs.folk.tianheihei.HardRockTianHeiHei;
+import music.notation.songs.folk.tianheihei.U2RockTianHeiHei;
+import music.notation.songs.folk.tianheihei.TianHeiHei;
+import music.notation.songs.classical.furelise.FurElise;
+import music.notation.songs.classical.furelise.ManualFurElise;
+import music.notation.songs.classical.furelise.SoulTechnoFurElise;
 import music.notation.songs.classical.bachinvention.BachInvention13;
-import music.notation.songs.classical.bachinvention.DefaultBachInvention13;
+import music.notation.songs.classical.bachinvention.ColdplayBachInvention13;
 import music.notation.songs.classical.bachinvention.ManualBachInvention13;
 import music.notation.songs.classical.odetojoy.DefaultOdeToJoy;
 import music.notation.songs.classical.odetojoy.OdeToJoy;
@@ -53,10 +68,14 @@ public final class DefaultCollection implements Collection {
                 Entry.of(new BlueLotus(), new DefaultBlueLotus()),
                 Entry.of(new TwoTigers(), new DefaultTwoTigers(), new DefaultTwoTigersCanon(), new RockTwoTigers()),
                 Entry.of(new TheRock(), new DefaultTheRock()),
-                Entry.of(new BachInvention13(), new DefaultBachInvention13(), new ManualBachInvention13()),
+                Entry.of(new BachInvention13(), new ManualBachInvention13(), new ColdplayBachInvention13()),
                 Entry.of(new NovemberStorm(), new DefaultNovemberStorm()),
                 Entry.of(new Internationale(), new ManualInternationale(), new RockInternationale()),
-                Entry.of(new Traumerei(), new DefaultTraumerei())
+                Entry.of(new Traumerei(), new DefaultTraumerei()),
+                Entry.of(new Katyusha(), new DefaultKatyusha(), new RockKatyusha()),
+                Entry.of(new TianHeiHei(), new PianoTianHeiHei(), new ChopinTianHeiHei(), new SoftRockTianHeiHei(), new U2RockTianHeiHei(), new HardRockTianHeiHei(), new ManualTianHeiHei()),
+                Entry.of(new FurElise(), new ManualFurElise(), new SoulTechnoFurElise()),
+                Entry.of(new ContraBase(), new DefaultContraBase())
         );
     }
 }

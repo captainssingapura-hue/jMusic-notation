@@ -49,10 +49,10 @@ record PitchScrollData(
         for (int i = 0; i < audioTracks.size(); i++) {
             Track track = audioTracks.get(i);
             names.add(track.name());
-            extractNoteRects(track, i, false, rects);
-            // Aux tracks share the parent's lane index
+            extractNoteRects(track, track.name(), false, rects);
+            // Aux tracks share the parent's track key
             for (Track auxTrack : track.auxTracks()) {
-                extractNoteRects(auxTrack, i, true, rects);
+                extractNoteRects(auxTrack, track.name(), true, rects);
             }
         }
 
@@ -84,8 +84,8 @@ record PitchScrollData(
     }
 
     /** Extract note rectangles from a track into the given list. */
-    private static void extractNoteRects(Track track, int trackIndex, boolean aux, List<NoteRect> out) {
-        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80);
+    private static void extractNoteRects(Track track, String trackKey, boolean aux, List<NoteRect> out) {
+        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80, 120);
         for (Phrase phrase : track.phrases()) {
             interpreter.interpret(phrase);
         }
@@ -96,10 +96,11 @@ record PitchScrollData(
                 case PlayEvent.NoteOff off -> {
                     Long start = pending.remove(off.midiNote());
                     if (start != null) {
-                        out.add(new NoteRect(start, off.tick(), off.midiNote(), trackIndex, aux));
+                        out.add(new NoteRect(start, off.tick(), off.midiNote(), trackKey, aux));
                     }
                 }
                 case PlayEvent.ProgramChange ignored -> {}
+                case PlayEvent.TempoChange ignored -> {}
             }
         }
     }

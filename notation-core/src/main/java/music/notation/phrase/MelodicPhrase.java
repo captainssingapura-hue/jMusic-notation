@@ -6,12 +6,18 @@ import music.notation.structure.TimeSignature;
 import java.util.ArrayList;
 import java.util.List;
 
-public record MelodicPhrase(List<PhraseNode> nodes, PhraseMarking marking) implements Phrase {
+public record MelodicPhrase(List<PhraseNode> nodes, List<Bar> bars, PhraseMarking marking) implements Phrase {
     public MelodicPhrase {
         if (nodes.isEmpty()) {
             throw new IllegalArgumentException("MelodicPhrase must contain at least one node");
         }
         nodes = List.copyOf(nodes);
+        bars = List.copyOf(bars);
+    }
+
+    /** Backwards-compatible constructor for phrases built without bar structure. */
+    public MelodicPhrase(List<PhraseNode> nodes, PhraseMarking marking) {
+        this(nodes, List.of(), marking);
     }
 
     /**
@@ -47,7 +53,7 @@ public record MelodicPhrase(List<PhraseNode> nodes, PhraseMarking marking) imple
         for (Bar bar : bars) {
             flat.addAll(bar.nodes());
         }
-        return new MelodicPhrase(resolveSlurs(flat), marking);
+        return new MelodicPhrase(resolveSlurs(flat), List.of(bars), marking);
     }
 
     // ── Slur / tie resolution ──────────────────────────────────────────────
@@ -116,7 +122,6 @@ public record MelodicPhrase(List<PhraseNode> nodes, PhraseMarking marking) imple
 
     private static boolean isZeroDurationMarker(PhraseNode node) {
         return node instanceof DynamicNode
-                || node instanceof GraceNote
                 || node instanceof SlurStart
                 || node instanceof SlurEnd;
     }

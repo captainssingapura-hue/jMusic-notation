@@ -1,0 +1,250 @@
+package music.notation.songs.folk.tianheihei;
+
+import music.notation.phrase.*;
+import music.notation.play.PlayPiece;
+import music.notation.structure.*;
+
+import java.util.List;
+
+import static music.notation.duration.BaseValue.*;
+import static music.notation.event.Instrument.*;
+import static music.notation.pitch.NoteName.*;
+import static music.notation.songs.PieceHelper.*;
+
+/**
+ * 天黑黑 (Tian Hei Hei) — Piano arrangement in G major.
+ */
+public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
+
+    static final KeySignature KEY = new KeySignature(G, Mode.MAJOR);
+    static final TimeSignature TS = new TimeSignature(4, 4);
+
+    private StaffPhraseBuilder newBuilder(){
+        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    }
+
+    @Override
+    public Piece create() {
+        final var id = new TianHeiHei();
+        return new Piece(id.title(), id.composer(),
+                KEY, TS,
+                new Tempo(120, QUARTER),
+                List.of(melody(), harmony()));
+    }
+
+    private Track melody() {
+        final var mainMelody1 = buildMelodyMain1();
+        final var tianHei1 = buildMelodyTianHeiHei1();
+        final var chorus1 = buildMelodyMain2();
+        final var ending = buildEnding();
+        var phrases = List.<Phrase>of(
+                buildMelodyPre(),
+                mainMelody1, tianHei1, mainMelody1, tianHei1,
+                chorus1, buildBridge(), chorus1,
+                overrideMelodyMain2(),
+                ending, tianHei1
+        );
+        return Track.of("Piano", ACOUSTIC_GRAND_PIANO, phrases);
+    }
+
+
+    MelodicPhrase buildMelodyPre() {
+        return newBuilder()
+                .bar().o2(G,D.higher(1)).o3(G,A).o2(G,D.higher(1)).o3(G,A)
+                .bar().o2(G,D.higher(1)).o3(G,A).o2(HALF,G,D.higher(1))
+                .bar().o2(G,D.higher(1)).o3(G,A).o2(G,D.higher(1)).o3(G,A)
+                .bar().o2(G,D.higher(1)).o3(HALF, G,A).r(QUARTER)
+                .aux().r(HALF).o2(HALF,G,D.higher(1))
+                .build(elision());
+    }
+
+    MelodicPhrase buildMelodyMain1() {
+        // TODO: fill in actual notes
+        return newBuilder()
+                .pickup(EIGHTH).o4(B).o5(C)
+                .bar().o5(D).o5(D).o5(D).o4(EIGHTH,B).o5(EIGHTH,C)
+                .bar(EIGHTH).o5(D).o5(E).o5(C).o4(B).o5(QUARTER,C).o4(A).o4(B)
+                .bar(EIGHTH).o5(QUARTER,C).o5(QUARTER,C).o5(D).o5(C).o4(B).o4(A)
+                .bar().o4(B).o4(QUARTER.dot(),D).r(EIGHTH).o4(EIGHTH,B).o5(EIGHTH,C)
+                .bar().o5(D).o5(D).o5(D).o4(EIGHTH,B).o5(EIGHTH,C)
+                .bar(EIGHTH).o5(D).o5(E).o5(C).o4(B).o5(QUARTER,C).o4(A).o4(B)
+                .bar().o5(C).o4(EIGHTH,B).o5(EIGHTH,C).o5(D).o4(F)
+                .bar().o4(A).o4(HALF.dot(),G) // hold G through the transition
+                .build(attacca());
+    }
+
+    MelodicPhrase buildMelodyTianHeiHei1() {
+        return newBuilder()
+                .bar().o5(D).o5(C).o5(HALF,D) //天黑黑
+                .bar().o5(D).o4(G).o4(HALF,B.f())
+                .bar().o4(B.f()).o4(A).o4(HALF,G) // fill: resolve Bb down to G
+                .bar().o5(D).o5(C).o5(HALF,D)
+                .bar().r().o5(C).o5(HALF,D)
+                .bar().o4(G).o4(A).o4(QUARTER.dot(),B).o4(EIGHTH,A).slurStart() // fill: ascending preparation
+                .bar().o4(EIGHTH,A).o4(EIGHTH.dot(),G).slurEnd().ending()
+                .build(elision());
+    }
+
+    MelodicPhrase buildBridge(){
+        return newBuilder()
+                .pickup(EIGHTH).o4(B).o5(C)
+                .bar(EIGHTH).o5(QUARTER.dot(),D).o4(SIXTEENTH,B).o5(SIXTEENTH,C).o5(D).o5(G).o4(D).o4(B)
+                .bar(EIGHTH).o5(D).o5(E).o5(SIXTEENTH,C).o5(SIXTEENTH,D).o5(SIXTEENTH,C).o4(SIXTEENTH,B).o5(QUARTER,C).o4(A).o4(B)
+                .bar(EIGHTH).o5(QUARTER,C).o4(SIXTEENTH,A).o5(SIXTEENTH,D).o5(SIXTEENTH,F).o5(SIXTEENTH,A).o6(D).o6(C).o5(B).o5(A)
+                .bar(EIGHTH).o5(QUARTER.dot(),B).o4(SIXTEENTH,B).o5(SIXTEENTH,C).o4(A).o5(D).o5(D).o5(F)
+                .bar(EIGHTH).o4(HALF,B,G.higher(1)).o4(B.lower(1),G).o4(D,B).o4(D,B).o4(G,D.higher(1))
+                .bar(EIGHTH).o4(G,D.higher(1)).o4(G,E.higher(1)).o4(E,C.higher(1)).o4(D,B).o4(HALF,E,C.higher(1))
+                .bar(EIGHTH).o4(QUARTER,A).o3(EIGHTH,A).o4(A).o4(HALF,C,G)
+                .bar(QUARTER).o4(A.lower(1),D,F).o4(G.lower(1),C,E).o3(EIGHTH,F,A,D.higher(1)).ending()
+                .build(elision());
+    }
+
+    MelodicPhrase buildMelodyMain2(){
+        return newBuilder()
+                .pickup(EIGHTH).o5(D).o5(A).o5(G)
+                .bar(EIGHTH).o5(F).o5(G).o5(A).o5(G).o5(F).o5(D).o4(B).o4(A)
+                .bar(EIGHTH).o4(QUARTER,B).o5(QUARTER.dot(),D).o5(D).o5(A).o5(G)
+                .bar(EIGHTH).o5(F).o5(G).o5(A).o5(G).o5(F).o5(D).o4(B).o4(A)
+                .bar(EIGHTH).o4(QUARTER,A).o5(QUARTER.dot(),G).o5(D).o5(D).o5(E)
+                .bar(EIGHTH).o5(QUARTER,G).o5(E).o5(QUARTER.dot(),G).o5(G).o5(E)
+                .bar(EIGHTH).o5(QUARTER,G).o5(E).o5(QUARTER,G).o5(D).o5(D).o5(E)
+                .bar(EIGHTH).o5(A).o5(G).o5(A).o5(G).o5(A).o5(QUARTER,G).o5(A).slurStart()
+                    .aux().o5(HALF,C).o4(QUARTER,G).o5(QUARTER,C)
+                .bar(EIGHTH).o5(A).slurEnd().o5(G).o5(B).o5(A).ending()
+                .build(elision());
+    }
+
+    Phrase overrideMelodyMain2(){
+        return OverlayBuilder.over(buildMelodyMain2(), KEY, TS, QUARTER)
+                .endingAt(8, b -> b.o5(EIGHTH,A).slurEnd().o5(G).o5(QUARTER.dot(),A))
+                .build(elision());
+    }
+
+    MelodicPhrase buildEnding(){
+        return newBuilder()
+                .pickup(EIGHTH).o4(B).o5(C)
+                .bar().o5(D).o5(D).o5(D).o4(EIGHTH,B).o5(EIGHTH,C)
+                .bar(EIGHTH).o5(D).o5(E).o5(C).o4(B).o5(QUARTER,C).o4(A).o4(B)
+                .bar(EIGHTH).o5(QUARTER,C).o5(QUARTER,C).o5(D).o5(C).o4(B).o4(A)
+                .bar().o4(B).o4(HALF,D).o4(EIGHTH,B).o5(EIGHTH,C)
+                .bar(EIGHTH).o5(D).o5(QUARTER,D).o5(D).o5(G).o5(QUARTER,D).o5(E)
+                .bar(EIGHTH).o5(D).o5(C).o5(C).o4(B).o5(QUARTER,C).o4(A).o4(B)
+                .bar().o5(G.lower(1),C).o4(EIGHTH,B).o5(EIGHTH,C).o5(D).o4(F)
+                .bar().o4(C,A).o4(HALF,G).o4(EIGHTH,A).o4(EIGHTH,B)
+                .bar().o5(G.lower(1),C).o4(EIGHTH,B).o5(EIGHTH,C).o5(D).o4(F)
+                .bar().o4(A).o4(G).o5(D,G).o4(EIGHTH,A).o4(EIGHTH,B)
+                .bar().o5(G.lower(1),C).o4(EIGHTH,B).o5(EIGHTH,C).o5(F.lower(1),D).o4(F)
+                .bar().o4(HALF,G).ending()
+                .build(end());
+    }
+
+
+
+    // ── Harmony track: broken chord arpeggios ──
+
+    private Track harmony() {
+        final var harmMain1 = buildHarmonyMain1();
+        final var harmTianHei = buildHarmonyTianHei();
+        final var harmChorus = buildHarmonyChorus();
+        final var harmEnding = buildHarmonyEnding();
+        var phrases = List.<Phrase>of(
+                buildHarmonyPre(),
+                harmMain1, harmTianHei, harmMain1, harmTianHei,
+                harmChorus, buildHarmonyBridge(), harmChorus,
+                overrideHarmonyChorus(),
+                harmEnding, harmTianHei
+        );
+        return Track.of("Harmony", ACOUSTIC_GRAND_PIANO, phrases);
+    }
+
+    MelodicPhrase buildHarmonyPre() {
+        return newBuilder()
+                .bar(EIGHTH).o3(D).o3(G).o4(B).o4(D).o4(G).o4(D).o4(B).o3(G)
+                .bar(EIGHTH).o3(D).o3(G).o4(B).o4(D).o3(HALF,G,B)
+                .bar(EIGHTH).o3(D).o3(G).o4(B).o4(D).o4(G).o4(D).o4(B).o3(G)
+                .bar(EIGHTH).o3(D).o3(G).o4(HALF,B).r(QUARTER)
+                .build(elision());
+    }
+
+    MelodicPhrase buildHarmonyMain1() {
+        return newBuilder()
+                .pickup(EIGHTH).o2(G).o3(D)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o2(A).o3(E).o4(C).o4(E).o4(A).o4(E).o4(C).o3(E)
+                .bar(EIGHTH).o3(C).o3(G).o4(C).o4(E).o4(G).o4(E).o4(C).o3(G)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o2(A).o3(E).o4(C).o4(E).o4(A).o4(E).o4(C).o3(E)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F).o4(A).o4(F).o4(D).o3(A)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D) // full arpeggio through transition
+                .build(attacca());
+    }
+
+    MelodicPhrase buildHarmonyTianHei() {
+        return newBuilder()
+                .bar().o2(G).o3(D).o3(G).o3(B)
+                .bar().o2(G).o3(D).o3(G).o3(B.f())
+                .bar().o3(C).o3(G).o4(C).o4(E.f()) // fill: Cm — sustains the minor mood
+                .bar().o2(G).o3(D).o3(G).o3(B)
+                .bar().o3(C).o3(G).o4(C).o4(E)
+                .bar().o3(D).o3(A).o4(D).o4(F) // fill: D major — dominant leading forward
+                .bar().o2(EIGHTH,G).o3(EIGHTH.dot(),D,B).ending() // resolve to G
+                .build(elision());
+    }
+
+    MelodicPhrase buildHarmonyChorus() {
+        return newBuilder()
+                .pickup(EIGHTH).o3(D).o3(A).o4(D)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F).o4(A).o4(F).o4(D).o3(A)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F).o4(A).o4(F).o4(D).o3(A)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o3(C).o3(G).o4(C).o4(E).o4(G).o5(C).o4(G).o4(E)
+                .bar(EIGHTH).o2(A).o3(E).o4(C).o4(E).o4(A).o4(E).o4(C).o3(E)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F).o4(A).o4(F).o4(D).o3(A)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).ending()
+                .build(elision());
+    }
+
+    MelodicPhrase buildHarmonyBridge() {
+        return newBuilder()
+                .pickup(EIGHTH).o2(G).o3(D)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(B).o4(G).o4(D)
+                .bar(EIGHTH).o2(A).o3(E).o4(C).o4(E).o4(A).o4(E).o4(C).o3(E)
+                .bar(EIGHTH).o3(C).o3(G).o4(E).o4(G).o3(D).o3(A).o4(F).o4(A)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(B).o4(G).o4(D)
+                .bar(EIGHTH).o2(E).o3(B).o4(E).o4(G).o4(B).o4(G).o4(E).o3(B)
+                .bar(EIGHTH).o2(A).o3(E).o4(C).o4(E).o4(A).o4(E).o4(C).o3(E)
+                .bar(EIGHTH).o3(C).o3(G).o4(C).o4(E).o4(G).o4(E).o4(C).o3(G)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F.n()).o3(QUARTER,A).ending()
+                .build(elision());
+    }
+
+    Phrase overrideHarmonyChorus() {
+        return OverlayBuilder.over(buildHarmonyChorus(), KEY, TS, QUARTER)
+                .endingAt(8, EIGHTH, b -> b.o2(G).o3(D).o3(QUARTER.dot(),B))
+                .build(elision());
+    }
+
+    MelodicPhrase buildHarmonyEnding() {
+        return newBuilder()
+                .pickup(EIGHTH).o2(G).o3(D)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o2(A).o3(E).o4(C).o4(E).o4(A).o4(E).o4(C).o3(E)
+                .bar(EIGHTH).o3(C).o3(G).o4(C).o4(E).o4(G).o4(E).o4(C).o3(G)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(B).o4(G).o4(D)
+                .bar(EIGHTH).o2(A).o3(E).o4(C).o4(E).o4(A).o4(E).o4(C).o3(E)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F).o4(A).o4(F).o4(D).o3(A)
+                .bar(EIGHTH).o3(C).o3(G).o4(E).o4(G).o2(G).o3(D).o3(B).o4(D)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F).o4(A).o4(F).o4(D).o3(A)
+                .bar(EIGHTH).o2(G).o3(D).o3(B).o4(D).o4(G).o4(D).o3(B).o3(D)
+                .bar(EIGHTH).o3(D).o3(A).o4(D).o4(F).o4(A).o4(F).o4(D).o3(A)
+                .bar().o2(HALF,G).o3(HALF,D,G,B)
+                .build(end());
+    }
+
+    public static void main(final String[] args) throws Exception {
+        PlayPiece.play(new PianoTianHeiHei());
+    }
+}
