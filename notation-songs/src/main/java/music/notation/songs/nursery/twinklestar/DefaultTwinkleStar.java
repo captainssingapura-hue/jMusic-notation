@@ -37,13 +37,13 @@ public final class DefaultTwinkleStar implements PieceContentProvider<TwinkleSta
                 breath());
         var phrase3 = new MelodicPhrase(
                 List.of(new DynamicNode(Dynamic.F),
-                        new GraceNote(p(A,5), false),
-                        n(G,5,QUARTER), n(G,5,QUARTER), n(F,5,QUARTER), n(F,5,QUARTER),
+                        NoteNode.graced(List.of(new GraceNote(p(A,5), false)), QUARTER, List.of(p(G,5))),
+                        n(G,5,QUARTER), n(F,5,QUARTER), n(F,5,QUARTER),
                         orn(E,5,QUARTER, TRILL), n(E,5,QUARTER), n(D,5,HALF)),
                 breath());
         var phrase4 = new MelodicPhrase(
-                List.of(new GraceNote(p(A,5), true),
-                        n(G,5,QUARTER), n(G,5,QUARTER), n(F,5,QUARTER), n(F,5,QUARTER),
+                List.of(NoteNode.graced(List.of(new GraceNote(p(A,5), true)), QUARTER, List.of(p(G,5))),
+                        n(G,5,QUARTER), n(F,5,QUARTER), n(F,5,QUARTER),
                         n(E,5,QUARTER), n(E,5,QUARTER), orn(D,5,HALF, MORDENT)),
                 breath());
         var m5b = new MelodicPhrase(

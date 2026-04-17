@@ -69,6 +69,7 @@ public final class StaffPhraseBuilder {
     private final List<Boolean> pickupFlags = new ArrayList<>(); // true if bar at index was a pickup
     private List<MelodicPhrase> lastAuxPhrases = List.of();      // aux phrases from most recent build()
 
+
     private StaffPhraseBuilder(TimeSignature ts, Duration defaultDur,
                                Map<NoteName, Accidental> keyAccidentals) {
         this.ts = ts;
@@ -313,6 +314,12 @@ public final class StaffPhraseBuilder {
     public StaffPhraseBuilder slurEnd()   { current.add(new SlurEnd());   return this; }
     public StaffPhraseBuilder slur()      { return slurStart(); }
 
+    // ── Octave 1 ──
+
+    public StaffPhraseBuilder o1(Note... ns)                  { return notes(1, currentDur(), ns); }
+    public StaffPhraseBuilder o1(Duration d, Note... ns)      { return notes(1, d, ns); }
+    public StaffPhraseBuilder o1(Note n, BaseValue v, Ornament o)  { return orn(n, 1, v, o); }
+
     // ── Octave 2 ──
 
     public StaffPhraseBuilder o2(Note... ns)                  { return notes(2, currentDur(), ns); }
@@ -349,10 +356,77 @@ public final class StaffPhraseBuilder {
     public StaffPhraseBuilder o7(Duration d, Note... ns)      { return notes(7, d, ns); }
     public StaffPhraseBuilder o7(Note n, BaseValue v, Ornament o)  { return orn(n, 7, v, o); }
 
-    // ── Grace note ──
+    // ── Grace note (sub-builder pattern) ──
 
-    public StaffPhraseBuilder grace(Note n, int oct)          { return addGrace(n, oct, false); }
-    public StaffPhraseBuilder accentedGrace(Note n, int oct)  { return addGrace(n, oct, true); }
+    /**
+     * Begin a grace-note sequence. Returns a {@link GraceNoteBuilder} that
+     * collects grace pitches; call {@code .main(oct, note)} to emit the
+     * main note and return to this builder.
+     */
+    public GraceNoteBuilder grace(Note n, int oct)          { return new GraceNoteBuilder(this, new GraceNote(resolve(n, oct), false)); }
+    public GraceNoteBuilder accentedGrace(Note n, int oct)  { return new GraceNoteBuilder(this, new GraceNote(resolve(n, oct), true)); }
+
+    // ── Triplet (direct single-call) ──
+
+    /**
+     * Emit a triplet: three notes sharing {@code dur} equally (each plays {@code dur/3}).
+     * All three notes share the same octave.
+     */
+    public StaffPhraseBuilder triplet(Duration dur, int oct, Note note1, Note note2, Note note3) {
+        var graces = java.util.List.of(
+                new GraceNote(resolve(note1, oct), false),
+                new GraceNote(resolve(note2, oct), false)
+        );
+        current.add(NoteNode.tuplet(graces, dur, java.util.List.of(resolve(note3, oct))));
+        return this;
+    }
+
+    /** Triplet using the builder's current default duration. */
+    public StaffPhraseBuilder triplet(int oct, Note note1, Note note2, Note note3) {
+        return triplet(currentDur(), oct, note1, note2, note3);
+    }
+
+    /**
+     * Collects one or more grace notes, then terminates with {@code main()}
+     * to create a single {@link NoteNode} whose duration absorbs the graces.
+     * Each grace plays briefly; the main note keeps the remaining duration.
+     */
+    public static final class GraceNoteBuilder {
+        private final StaffPhraseBuilder parent;
+        private final java.util.ArrayList<GraceNote> graces = new java.util.ArrayList<>();
+
+        GraceNoteBuilder(StaffPhraseBuilder parent, GraceNote first) {
+            this.parent = parent;
+            graces.add(first);
+        }
+
+        public GraceNoteBuilder grace(Note n, int oct) {
+            graces.add(new GraceNote(parent.resolve(n, oct), false));
+            return this;
+        }
+
+        public GraceNoteBuilder accentedGrace(Note n, int oct) {
+            graces.add(new GraceNote(parent.resolve(n, oct), true));
+            return this;
+        }
+
+        /** Emit the main note using the builder's current default duration. */
+        public StaffPhraseBuilder main(int oct, Note... ns) {
+            return emit(parent.currentDur(), oct, ns);
+        }
+
+        /** Emit the main note with an explicit duration. */
+        public StaffPhraseBuilder main(Duration d, int oct, Note... ns) {
+            return emit(d, oct, ns);
+        }
+
+        private StaffPhraseBuilder emit(Duration dur, int oct, Note... ns) {
+            final var pitches = new java.util.ArrayList<Pitch>(ns.length);
+            for (final Note n : ns) pitches.add(parent.resolve(n, oct));
+            parent.current.add(NoteNode.graced(graces, dur, pitches));
+            return parent;
+        }
+    }
 
     // ── Rest ──
 
@@ -378,6 +452,21 @@ public final class StaffPhraseBuilder {
     public StaffPhraseBuilder f()   { return dyn(Dynamic.F); }
     public StaffPhraseBuilder ff()  { return dyn(Dynamic.FF); }
     public StaffPhraseBuilder fff() { return dyn(Dynamic.FFF); }
+
+    // ── Tempo ──
+
+    public StaffPhraseBuilder tempo(int bpm) { current.add(new TempoChangeNode(bpm)); return this; }
+    public StaffPhraseBuilder transitionStart() { current.add(new TempoTransitionStartNode()); return this; }
+    public StaffPhraseBuilder transitionEnd(int targetBpm) {
+        current.add(new TempoTransitionEndNode(targetBpm, TransitionMethod.LINEAR)); return this;
+    }
+    public StaffPhraseBuilder transitionEnd(int targetBpm, TransitionMethod method) {
+        current.add(new TempoTransitionEndNode(targetBpm, method)); return this;
+    }
+    public StaffPhraseBuilder accelStart()         { return transitionStart(); }
+    public StaffPhraseBuilder accel(int targetBpm) { return transitionEnd(targetBpm); }
+    public StaffPhraseBuilder ritStart()           { return transitionStart(); }
+    public StaffPhraseBuilder rit(int targetBpm)   { return transitionEnd(targetBpm); }
 
     // ── Internals ──
 
@@ -437,6 +526,10 @@ public final class StaffPhraseBuilder {
         }
     }
 
+    private static boolean isPickupBar(Bar bar) {
+        return !bar.nodes().isEmpty() && bar.nodes().getFirst() instanceof PaddingNode;
+    }
+
     private StaffPhraseBuilder notes(int oct, Duration dur, Note... ns) {
         final var pitches = new ArrayList<Pitch>(ns.length);
         for (final Note n : ns) {
@@ -451,8 +544,4 @@ public final class StaffPhraseBuilder {
         return this;
     }
 
-    private StaffPhraseBuilder addGrace(Note n, int oct, boolean accented) {
-        current.add(new GraceNote(resolve(n, oct), accented));
-        return this;
-    }
 }

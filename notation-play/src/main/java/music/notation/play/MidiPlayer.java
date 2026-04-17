@@ -41,6 +41,23 @@ public final class MidiPlayer {
      */
     public static Sequence buildSequence(Piece piece, List<List<Instrument>> trackInstruments)
             throws InvalidMidiDataException {
+        // Default all volumes to 100 (out of 127)
+        var defaultVolumes = new ArrayList<List<Integer>>();
+        for (var instruments : trackInstruments) {
+            defaultVolumes.add(instruments.stream().map(i -> 100).toList());
+        }
+        return buildSequence(piece, trackInstruments, defaultVolumes);
+    }
+
+    /**
+     * Build a MIDI Sequence with explicit instrument and volume assignments per track.
+     *
+     * @param trackInstruments per-track list of instruments
+     * @param trackVolumes     per-track list of volumes (0–127), parallel to trackInstruments
+     */
+    public static Sequence buildSequence(Piece piece, List<List<Instrument>> trackInstruments,
+                                         List<List<Integer>> trackVolumes)
+            throws InvalidMidiDataException {
         Sequence sequence = new Sequence(Sequence.PPQ, MidiMapper.TICKS_PER_QUARTER);
 
         int[] nextChannel = {0};
@@ -50,13 +67,14 @@ public final class MidiPlayer {
         for (int t = 0; t < tracks.size(); t++) {
             Track track = tracks.get(t);
             List<Instrument> instruments = trackInstruments.get(t);
+            List<Integer> volumes = trackVolumes.get(t);
 
             // Interpret and render main track
-            renderTrack(sequence, track, instruments, nextChannel, tempoAdded, piece);
+            renderTrack(sequence, track, instruments, volumes, nextChannel, tempoAdded, piece);
 
-            // Render aux tracks — each uses its own default instrument
+            // Render aux tracks — inherit parent's instrument and volume assignment
             for (Track auxTrack : track.auxTracks()) {
-                renderTrack(sequence, auxTrack, List.of(auxTrack.defaultInstrument()),
+                renderTrack(sequence, auxTrack, instruments, volumes,
                         nextChannel, tempoAdded, piece);
             }
         }
@@ -74,10 +92,18 @@ public final class MidiPlayer {
 
     /** Start playback with explicit instrument assignments. Non-blocking. */
     public void start(Piece piece, List<List<Instrument>> trackInstruments) throws Exception {
+        start(piece, trackInstruments, null);
+    }
+
+    /** Start playback with explicit instrument and volume assignments. Non-blocking. */
+    public void start(Piece piece, List<List<Instrument>> trackInstruments,
+                      List<List<Integer>> trackVolumes) throws Exception {
         stop();
         paused = false;
 
-        Sequence sequence = buildSequence(piece, trackInstruments);
+        Sequence sequence = trackVolumes != null
+                ? buildSequence(piece, trackInstruments, trackVolumes)
+                : buildSequence(piece, trackInstruments);
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
@@ -160,6 +186,17 @@ public final class MidiPlayer {
      * @throws InvalidMidiDataException if the sequence cannot be built
      * @throws IOException              if the file cannot be written
      */
+    public static void exportMidi(Piece piece, List<List<Instrument>> trackInstruments,
+                                   List<List<Integer>> trackVolumes, File file)
+            throws InvalidMidiDataException, IOException {
+        Sequence sequence = trackVolumes != null
+                ? buildSequence(piece, trackInstruments, trackVolumes)
+                : buildSequence(piece, trackInstruments);
+        int[] types = MidiSystem.getMidiFileTypes(sequence);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(sequence, fileType, file);
+    }
+
     public static void exportMidi(Piece piece, List<List<Instrument>> trackInstruments, File file)
             throws InvalidMidiDataException, IOException {
         Sequence sequence = buildSequence(piece, trackInstruments);
@@ -237,6 +274,7 @@ public final class MidiPlayer {
             case RestPhrase rp -> new long[]{0, 0}; // rest is real content
             case LyricPhrase lp -> new long[]{0, 0}; // lyrics are real content
             case ShiftedPhrase sp -> leadingPaddingForPhrase(sp.source());
+            case LayeredPhrase lp -> leadingPaddingForPhrase(lp.resolve());
         };
     }
 
@@ -246,9 +284,11 @@ public final class MidiPlayer {
             switch (node) {
                 case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
                 case DynamicNode d -> {} // zero duration, skip
-                case GraceNote g -> { return new long[]{padding, 0}; }
                 case SlurStart s -> {}
                 case SlurEnd s -> {}
+                case TempoChangeNode t -> {}
+                case TempoTransitionStartNode t -> {}
+                case TempoTransitionEndNode t -> {}
                 default -> { return new long[]{padding, 0}; } // NoteNode, RestNode, etc.
             }
         }
@@ -256,17 +296,27 @@ public final class MidiPlayer {
     }
 
     private static void renderTrack(Sequence sequence, Track track, List<Instrument> instruments,
-                                     int[] nextChannel, boolean[] tempoAdded, Piece piece)
+                                     List<Integer> volumes, int[] nextChannel,
+                                     boolean[] tempoAdded, Piece piece)
             throws InvalidMidiDataException {
-        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80);
+        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80, piece.tempo().bpm());
         for (Phrase phrase : track.phrases()) {
             interpreter.interpret(phrase);
         }
-        List<PlayEvent> noteEvents = interpreter.getEvents().stream()
-                .filter(e -> !(e instanceof PlayEvent.ProgramChange))
+        List<PlayEvent> allEvents = interpreter.getEvents();
+        List<PlayEvent> noteEvents = allEvents.stream()
+                .filter(e -> !(e instanceof PlayEvent.ProgramChange)
+                        && !(e instanceof PlayEvent.TempoChange))
+                .toList();
+        List<PlayEvent.TempoChange> tempoEvents = allEvents.stream()
+                .filter(e -> e instanceof PlayEvent.TempoChange)
+                .map(e -> (PlayEvent.TempoChange) e)
                 .toList();
 
-        for (Instrument instrument : instruments) {
+        for (int idx = 0; idx < instruments.size(); idx++) {
+            Instrument instrument = instruments.get(idx);
+            int volume = idx < volumes.size() ? volumes.get(idx) : 100;
+
             javax.sound.midi.Track midiTrack = sequence.createTrack();
 
             boolean isDrum = instrument == Instrument.DRUM_KIT;
@@ -276,7 +326,13 @@ public final class MidiPlayer {
             }
 
             if (!tempoAdded[0]) {
-                addTempoEvent(midiTrack, piece.tempo().bpm());
+                boolean hasTempoAtZero = tempoEvents.stream().anyMatch(t -> t.tick() == 0);
+                if (!hasTempoAtZero) {
+                    addTempoEvent(midiTrack, 0, piece.tempo().bpm());
+                }
+                for (PlayEvent.TempoChange tc : tempoEvents) {
+                    addTempoEvent(midiTrack, tc.tick(), tc.bpm());
+                }
                 tempoAdded[0] = true;
             }
 
@@ -285,6 +341,12 @@ public final class MidiPlayer {
                 pcMsg.setMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument.program(), 0);
                 midiTrack.add(new MidiEvent(pcMsg, 0));
             }
+
+            // Set channel volume (MIDI CC #7)
+            ShortMessage volMsg = new ShortMessage();
+            volMsg.setMessage(ShortMessage.CONTROL_CHANGE, channel, 7,
+                    Math.clamp(volume, 0, 127));
+            midiTrack.add(new MidiEvent(volMsg, 0));
 
             for (PlayEvent event : noteEvents) {
                 switch (event) {
@@ -299,12 +361,14 @@ public final class MidiPlayer {
                         midiTrack.add(new MidiEvent(msg, off.tick()));
                     }
                     case PlayEvent.ProgramChange pc -> {} // handled above
+                    case PlayEvent.TempoChange tc -> {} // handled above, per-track
                 }
             }
         }
     }
 
-    private static void addTempoEvent(javax.sound.midi.Track track, int bpm) throws InvalidMidiDataException {
+    private static void addTempoEvent(javax.sound.midi.Track track, long tick, int bpm)
+            throws InvalidMidiDataException {
         int mpq = 60_000_000 / bpm;
         byte[] data = new byte[]{
                 (byte) ((mpq >> 16) & 0xFF),
@@ -313,6 +377,6 @@ public final class MidiPlayer {
         };
         MetaMessage tempo = new MetaMessage();
         tempo.setMessage(0x51, data, 3);
-        track.add(new MidiEvent(tempo, 0));
+        track.add(new MidiEvent(tempo, tick));
     }
 }

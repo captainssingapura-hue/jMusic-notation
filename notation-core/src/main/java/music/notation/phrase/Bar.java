@@ -46,9 +46,11 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes, List<AuxBar>
             case RestNode r -> r.duration().sixtyFourths();
             case PercussionNote p -> p.duration().sixtyFourths();
             case DynamicNode d -> 0;
-            case GraceNote g -> 0;
             case SlurStart s -> 0;
             case SlurEnd s -> 0;
+            case TempoChangeNode t -> 0;
+            case TempoTransitionStartNode t -> 0;
+            case TempoTransitionEndNode t -> 0;
             case PaddingNode p -> p.duration().sixtyFourths();
             case SubPhrase s -> phraseSixtyFourths(s.phrase());
         };
@@ -62,6 +64,7 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes, List<AuxBar>
             case ChordPhrase cp -> cp.chords().stream().mapToInt(c -> c.duration().sixtyFourths()).sum();
             case RestPhrase rp -> rp.duration().sixtyFourths();
             case ShiftedPhrase sp -> phraseSixtyFourths(sp.source());
+            case LayeredPhrase lp -> phraseSixtyFourths(lp.base());
             case LyricPhrase lp -> lp.syllables().stream().mapToInt(e -> e.duration().sixtyFourths()).sum();
         };
     }

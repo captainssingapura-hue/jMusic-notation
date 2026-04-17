@@ -23,6 +23,7 @@ final class PitchScroll extends Canvas {
     private static final double NOTE_HEIGHT = 4.0;
     private static final double LANE_HEADER = 18.0;
     private static final double LANE_GAP = 2.0;
+    private static final double FIXED_LANE_HEIGHT = 120.0;
     private static final double PADDING_LEFT = 40.0;
     private static final double PADDING_RIGHT = 20.0;
     private static final double DEFAULT_MIN_QUARTER_PX = 4.0;
@@ -90,6 +91,14 @@ final class PitchScroll extends Canvas {
         this.minQuarterPx = value;
     }
 
+    /** Total canvas height required to render all track lanes at fixed height. */
+    double computeContentHeight() {
+        if (data == null || data.trackCount() == 0) return 0;
+        final boolean hasLyrics = !data.lyricRects().isEmpty();
+        final double lyricsOffset = hasLyrics ? LYRICS_HEIGHT : 0;
+        return lyricsOffset + data.trackCount() * FIXED_LANE_HEIGHT + (data.trackCount() - 1) * LANE_GAP;
+    }
+
     /** Minimum canvas width so that a quarter note is at least {@code minQuarterPx} wide. */
     double getMinContentWidth() {
         if (data == null || data.totalTicks() == 0) return 0;
@@ -155,7 +164,7 @@ final class PitchScroll extends Canvas {
 
         // ── Track lanes ──
         final int trackCount = data.trackCount();
-        final double laneHeight = (h - lyricsOffset - (trackCount - 1) * LANE_GAP) / trackCount;
+        final double laneHeight = FIXED_LANE_HEIGHT;
         final int noteRange = data.maxNote() - data.minNote() + 1;
         final List<NoteRect> noteRects = data.noteRects();
 
@@ -163,6 +172,7 @@ final class PitchScroll extends Canvas {
             final double laneY = lyricsOffset + t * (laneHeight + LANE_GAP);
             final Color trackColor = TRACK_COLORS[t % TRACK_COLORS.length];
             final double notePixelHeight = (laneHeight - LANE_HEADER) / noteRange;
+            final String trackKey = data.trackNames().get(t);
 
             // Pitch grid lines (every octave C)
             gc.setStroke(GRID_LINE);
@@ -191,7 +201,7 @@ final class PitchScroll extends Canvas {
             // Notes
             final Color auxColor = trackColor.deriveColor(30, 0.55, 1.15, 1.0);
             for (final NoteRect r : noteRects) {
-                if (r.trackIndex() != t) continue;
+                if (!r.trackKey().equals(trackKey)) continue;
 
                 final double x = PADDING_LEFT + r.startTick() * ppt;
                 final double rw = (r.endTick() - r.startTick()) * ppt;
