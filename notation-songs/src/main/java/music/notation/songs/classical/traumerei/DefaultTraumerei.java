@@ -1,10 +1,8 @@
 package music.notation.songs.classical.traumerei;
 
-import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.structure.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static music.notation.duration.BaseValue.*;
@@ -33,55 +31,34 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
     public Piece create() {
         final var id = new Traumerei();
 
-        // ── Build each section for RH (soprano + alto) ──────────────
-        final var rhPickup  = buildRhPickup();
-
-
-        // ── Build each section for LH (bass + tenor) ────────────────
-        final var lhPickup  = buildLhPickup();
-
+        // Aux voices declared via .aux(...) inside each builder section are
+        // now carried along on the returned MelodicPhrase as VoiceOverlays —
+        // no extraction or rest-padding gymnastics required.
         final var soprano = List.<Phrase>of(
-                rhPickup, buildSopranoSectionA1(),
+                buildRhPickup(), buildSopranoSectionA1(),
                 buildSopranoSectionB(),
                 buildSopranoSectionC()
         );
-        final var altoPickupPhrase = buildAltoPickup();
-        final var altoA1Phrase     = buildAltoSectionA1();
-        final var altoBPhrase      = buildAltoSectionB();
-        final var altoCPhrase      = buildAltoSectionC();
-        final var altoPhrases = List.of(altoPickupPhrase, altoA1Phrase, altoBPhrase, altoCPhrase);
-
-        // Aux voice(s) for alto section B — previously dropped because the
-        // builder's .auxPhrases() was never extracted. The aux Track mirrors
-        // alto's per-section timing with rest phrases for sections that have
-        // no aux content, so it plays in parallel with the alto main line.
-        final List<Track> altoAuxTracks = new ArrayList<>();
-        final var altoBAux = altoSectionBAux();
-        for (int voice = 0; voice < altoBAux.size(); voice++) {
-            final var auxPhrases = List.<Phrase>of(
-                    restMatching(altoPickupPhrase),
-                    restMatching(altoA1Phrase),
-                    altoBAux.get(voice),
-                    restMatching(altoCPhrase)
-            );
-            altoAuxTracks.add(new Track(
-                    "Alto Aux " + (voice + 1), ACOUSTIC_GRAND_PIANO, auxPhrases, List.of()));
-        }
+        final var altoPhrases = List.<Phrase>of(
+                buildAltoPickup(), buildAltoSectionA1(),
+                buildAltoSectionB(),
+                buildAltoSectionC()
+        );
         final var tenor = List.<Phrase>of(
-                lhPickup, buildTenorSectionA1(),
+                buildLhPickup(), buildTenorSectionA1(),
                 buildTenorSectionB(),
                 buildTenorSectionC()
         );
-        final var bass = List.of(
+        final var bass = List.<Phrase>of(
                 buildTenorPickup(), buildBassSectionA1(),
                 buildBassSectionB(),
                 buildBassSectionC()
         );
 
-        final var rightHand = new Track("Soprano", ACOUSTIC_GRAND_PIANO, soprano, List.of());
-        final var alto = new Track("Alto", ACOUSTIC_GRAND_PIANO, altoPhrases, altoAuxTracks);
-        final var leftHand  = new Track("Tenor", ACOUSTIC_GRAND_PIANO, tenor, List.of());
-        final var tenorHand = new Track("Bass", ACOUSTIC_GRAND_PIANO, bass, List.of());
+        final var rightHand = Track.of("Soprano", ACOUSTIC_GRAND_PIANO, soprano);
+        final var alto      = Track.of("Alto",    ACOUSTIC_GRAND_PIANO, altoPhrases);
+        final var leftHand  = Track.of("Tenor",   ACOUSTIC_GRAND_PIANO, tenor);
+        final var tenorHand = Track.of("Bass",    ACOUSTIC_GRAND_PIANO, bass);
 
         return new Piece(id.title(), id.composer(), KEY, TS,
                 new Tempo(66, QUARTER),
@@ -185,24 +162,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                     .aux(EIGHTH).r(HALF).r(QUARTER.dot()).o4(C)  //For the small note to start next section.
                 .build(attacca());
     }
-    /** Alto section B. Returns the main line; aux voices are extracted via {@link #altoSectionBAux}. */
     private  Phrase buildAltoSectionB() {
-        return buildAltoSectionBBuilder().build(attacca());
-    }
-
-    /** Aux voices for alto section B (the {@code .aux(...)} content on the 6th bar). */
-    private  List<MelodicPhrase> altoSectionBAux() {
-        var P = buildAltoSectionBBuilder();
-        P.build(attacca());            // must call build() to populate auxPhrases()
-        return P.auxPhrases();
-    }
-
-    /**
-     * Shared builder for alto section B. Exposed so both the main phrase and
-     * the aux phrases can be extracted (aux content is otherwise silently
-     * dropped when only {@code build()} is called).
-     */
-    private  StaffPhraseBuilder buildAltoSectionBBuilder() {
         return newBuilder()
                 .bar(EIGHTH).r(QUARTER).o4(HALF.dot(),C,F.lower(1))
                 .bar(EIGHTH).f().o5(C).o4(B.f()).ff().o4(HALF,A).tieNext().o4(QUARTER,A)
@@ -212,7 +172,8 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                 .bar(QUARTER).r().o5(HALF,E).o5(E)
                     .aux(EIGHTH).r(HALF).r().o5(QUARTER,C.s()).r()
                 .bar(EIGHTH).o5(QUARTER.dot(),D).o4(B).o4(A).o5(D).o4(F).o4(G)
-                .bar(EIGHTH).o4(F).o4(A).o4(D).o4(C.s(),E).o4(QUARTER,F).o4(QUARTER,E);
+                .bar(EIGHTH).o4(F).o4(A).o4(D).o4(C.s(),E).o4(QUARTER,F).o4(QUARTER,E)
+                .build(attacca());
     }
 
     private  Phrase buildTenorSectionB() {
@@ -297,15 +258,6 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                 .build(end());
     }
 
-
-    /**
-     * Build a silent phrase whose total duration matches the given phrase, so
-     * an aux Track's timeline aligns bar-for-bar with its parent voice Track.
-     */
-    private static Phrase restMatching(Phrase phrase) {
-        int sf = Bar.phraseSixtyFourths(phrase);
-        return new RestPhrase(Duration.ofSixtyFourths(sf), attacca());
-    }
 
     /** Quick playback for audition. */
     public static void main(String[] args) throws Exception {

@@ -174,11 +174,8 @@ final class InternationaleTracks {
                 .ending()
                 .build(end());
 
-        var auxTracks = P.auxPhrases().stream()
-                .map(p -> Track.of("Harmony Aux", FRENCH_HORN, List.of(p)))
-                .toList();
-
-        return new Track("Harmony", FRENCH_HORN, List.of(main), auxTracks);
+        // Aux voices travel with `main` as VoiceOverlays on the MelodicPhrase.
+        return Track.of("Harmony", FRENCH_HORN, List.of(main));
     }
 
     // ── Chords (with aux voice) ───────────────────────────────────
@@ -224,11 +221,7 @@ final class InternationaleTracks {
                 .bar().o3(HALF.dot(),A.lower(1),E,A).o2(QUARTER,A.lower(1))
                 .build(end());
 
-        var auxTracks = P.auxPhrases().stream()
-                .map(p -> Track.of("Chords Aux", STRING_ENSEMBLE_1, List.of(p)))
-                .toList();
-
-        return new Track("Chords", STRING_ENSEMBLE_1, List.of(main), auxTracks);
+        return Track.of("Chords", STRING_ENSEMBLE_1, List.of(main));
     }
 
     /** Total number of bars (including pickup). */

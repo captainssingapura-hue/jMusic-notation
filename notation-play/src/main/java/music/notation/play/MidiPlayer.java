@@ -272,6 +272,7 @@ public final class MidiPlayer {
             case DrumPhrase dp -> leadingPaddingForNodes(dp.nodes());
             case ChordPhrase cp -> new long[]{0, cp.chords().isEmpty() ? 1 : 0};
             case RestPhrase rp -> new long[]{0, 0}; // rest is real content
+            case VoidPhrase vp -> new long[]{0, 0}; // void is real (silent) content
             case LyricPhrase lp -> new long[]{0, 0}; // lyrics are real content
             case ShiftedPhrase sp -> leadingPaddingForPhrase(sp.source());
             case LayeredPhrase lp -> leadingPaddingForPhrase(lp.resolve());

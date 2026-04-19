@@ -242,7 +242,7 @@ final class PitchScroll extends Canvas {
                 final double y = laneY + LANE_HEADER + (data.maxNote() - r.midiNote()) * notePixelHeight;
 
                 final boolean active = currentTick >= r.startTick() && currentTick < r.endTick();
-                final Color base = r.aux() ? auxColor : trackColor;
+                final Color base = r.isAux() ? auxColor : trackColor;
                 gc.setFill(active ? base : base.deriveColor(0, 1, 1, 0.6));
                 gc.fillRoundRect(x, y - NOTE_HEIGHT / 2, Math.max(rw, 2), NOTE_HEIGHT, 2, 2);
             }
@@ -340,7 +340,7 @@ final class PitchScroll extends Canvas {
         }
 
         sb.append("  ·  ").append(r.trackKey());
-        if (r.aux()) sb.append(" (aux)");
+        if (r.isAux()) sb.append(" (voice ").append(r.voice()).append(')');
         return sb.toString();
     }
 

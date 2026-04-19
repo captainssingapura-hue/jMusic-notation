@@ -62,12 +62,16 @@ public final class StaffPhraseBuilder {
     private Duration activeDur;  // per-bar override; null → use builder defaultDur
 
     // ── Aux bar state ──
+    //
+    // Aux (voice overlay) is bar-aligned: one or more aux slots per main bar,
+    // each carrying a whole bar's worth of content. When the caller opens aux
+    // via .aux() the main bar's nodes are stashed in `primaryNodes`; subsequent
+    // aux() calls cycle the accumulated slot into `pendingAuxBars`. On bar
+    // close (flush/ending), the completed slots are attached to the Bar and
+    // eventually surfaced as VoiceOverlays on the resulting MelodicPhrase.
     private List<PhraseNode> primaryNodes;                       // saved when first aux() is called
     private List<AuxBar> pendingAuxBars = new ArrayList<>();     // completed aux bars for current bar
     private boolean inAux;                                       // currently building aux content
-    private List<List<AuxBar>> allBarAuxBars = new ArrayList<>(); // aux bars per bar, accumulated during build
-    private final List<Boolean> pickupFlags = new ArrayList<>(); // true if bar at index was a pickup
-    private List<MelodicPhrase> lastAuxPhrases = List.of();      // aux phrases from most recent build()
 
 
     private StaffPhraseBuilder(TimeSignature ts, Duration defaultDur,
@@ -279,8 +283,6 @@ public final class StaffPhraseBuilder {
             barNodes.add(new PaddingNode(Duration.ofSixtyFourths(padding)));
         }
         bars.add(new Bar(ts.barSixtyFourths(), barNodes, barAuxBars));
-        allBarAuxBars.add(barAuxBars);
-        pickupFlags.add(false); // ending() is never a pickup
         current = null;
         return this;
     }
@@ -314,66 +316,18 @@ public final class StaffPhraseBuilder {
         return this;
     }
 
+    /**
+     * Finalize the current build into a {@link MelodicPhrase}.
+     *
+     * <p>Any {@code .aux(...)} overlays declared during construction travel
+     * with the returned phrase as {@link VoiceOverlay}s — there is no side
+     * channel to extract. Bars without overlay content at a given voice index
+     * are simply silent (no rest-padding synthesis).</p>
+     */
     public MelodicPhrase build(PhraseMarking marking) {
         flush();
         var result = MelodicPhrase.fromBars(ts, marking, bars.toArray(Bar[]::new));
         bars.clear();
-        // Build aux phrases from collected aux bars, then reset
-        lastAuxPhrases = buildAuxPhrasesInternal(marking);
-        allBarAuxBars = new ArrayList<>();
-        pickupFlags.clear();
-        return result;
-    }
-
-    /**
-     * Returns the aux phrases produced by the most recent {@link #build(PhraseMarking)}
-     * call. Each aux voice index (1st aux bar per bar → voice 0, etc.) becomes a
-     * separate phrase. Bars without aux content at a given voice index get rest padding.
-     *
-     * @return list of aux phrases (empty if no aux bars were used)
-     */
-    public List<MelodicPhrase> auxPhrases() {
-        return lastAuxPhrases;
-    }
-
-    private List<MelodicPhrase> buildAuxPhrasesInternal(PhraseMarking marking) {
-        int maxVoices = 0;
-        for (List<AuxBar> barAux : allBarAuxBars) {
-            maxVoices = Math.max(maxVoices, barAux.size());
-        }
-        if (maxVoices == 0) {
-            return List.of();
-        }
-
-        var result = new ArrayList<MelodicPhrase>(maxVoices);
-        for (int v = 0; v < maxVoices; v++) {
-            var auxBars = new ArrayList<Bar>();
-            for (int b = 0; b < allBarAuxBars.size(); b++) {
-                List<AuxBar> barAux = allBarAuxBars.get(b);
-                boolean pickup = b < pickupFlags.size() && pickupFlags.get(b);
-                int barSize = ts.barSixtyFourths();
-                if (v < barAux.size()) {
-                    var nodes = new ArrayList<>(barAux.get(v).nodes());
-                    int total = nodes.stream().mapToInt(Bar::nodeSixtyFourths).sum();
-                    int gap = barSize - total;
-                    if (gap > 0) {
-                        // Use PaddingNode for pickup bars so leading-padding detection works
-                        PhraseNode fill = pickup
-                                ? new PaddingNode(Duration.ofSixtyFourths(gap))
-                                : new RestNode(Duration.ofSixtyFourths(gap));
-                        nodes.add(fill);
-                    }
-                    auxBars.add(new Bar(barSize, nodes, List.of()));
-                } else {
-                    // No aux at this voice index — fill entire bar
-                    PhraseNode fill = pickup
-                            ? new PaddingNode(Duration.ofSixtyFourths(barSize))
-                            : new RestNode(Duration.ofSixtyFourths(barSize));
-                    auxBars.add(new Bar(barSize, List.of(fill), List.of()));
-                }
-            }
-            result.add(MelodicPhrase.fromBars(ts, marking, auxBars.toArray(Bar[]::new)));
-        }
         return result;
     }
 
@@ -601,7 +555,6 @@ public final class StaffPhraseBuilder {
                 barAuxBars = List.of();
             }
 
-            boolean wasPickup = isPickup;
             if (isPickup) {
                 final int noteTotal = barNodes.stream().mapToInt(Bar::nodeSixtyFourths).sum();
                 final int padding = ts.barSixtyFourths() - noteTotal;
@@ -612,8 +565,6 @@ public final class StaffPhraseBuilder {
             }
 
             bars.add(new Bar(ts.barSixtyFourths(), barNodes, barAuxBars));
-            allBarAuxBars.add(barAuxBars);
-            pickupFlags.add(wasPickup);
             current = null;
         }
     }

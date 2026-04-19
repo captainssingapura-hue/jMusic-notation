@@ -66,23 +66,17 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
     private static Track melody() {
         var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
         var template = buildVerse(P, attacca());
-        var templateAux = P.auxPhrases();
         var phrases = new ArrayList<Phrase>();
-        var auxPhrases = new ArrayList<Phrase>();
 
-        for (int i = 0; i < VERSES.length; i++) {
-            var v = VERSES[i];
-
-            // Override bar 0 to inject dynamic; all verses attacca (coda follows)
+        for (VerseSpec v : VERSES) {
+            // Override bar 0 to inject dynamic; all verses attacca (coda follows).
+            // Voice overlays ride along on the MelodicPhrase — ShiftedPhrase
+            // post-shifts all emitted MIDI notes, so voices shift with the main.
             var overridden = OverlayBuilder.over(template, KEY, TS, EIGHTH)
                     .at(0, b -> b.dyn(v.dyn)
                         .o4(QUARTER.dot(), D).o4(EIGHTH, E)
                         .o5(QUARTER.dot(), F).o4(EIGHTH, D))
                     .build(attacca());
-            for (var aux : templateAux) {
-                auxPhrases.add(shift(aux, v));
-            }
-
             phrases.add(shift(overridden, v));
         }
 
@@ -95,16 +89,9 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
                 .bar(EIGHTH).r(EIGHTH).o4(QUARTER,B).o4(G).o4(QUARTER.dot(),A).o4(F)
                 .bar(EIGHTH).o4(E).o3(A).o4(F).o4(E).rit(80).o4(QUARTER,D).r(QUARTER)
                 .build(end());
-        for (var aux : P.auxPhrases()) {
-            auxPhrases.add(shift(aux, CODA));
-        }
         phrases.add(shift(coda, CODA));
 
-        if (auxPhrases.isEmpty()) {
-            return Track.of("Melody", DISTORTION_GUITAR, phrases);
-        }
-        var auxTracks = List.of(Track.of("Melody Aux", DISTORTION_GUITAR, auxPhrases));
-        return new Track("Melody", DISTORTION_GUITAR, phrases, auxTracks);
+        return Track.of("Melody", DISTORTION_GUITAR, phrases);
     }
 
     // ── Bass ─────────────────────────────────────────────────────

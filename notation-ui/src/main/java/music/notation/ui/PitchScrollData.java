@@ -49,10 +49,14 @@ record PitchScrollData(
         for (int i = 0; i < audioTracks.size(); i++) {
             Track track = audioTracks.get(i);
             names.add(track.name());
-            extractNoteRects(track, track.name(), false, rects);
-            // Aux tracks share the parent's track key
+            // Voice overlays are already carried on each MelodicPhrase and
+            // emitted by the interpreter with a non-zero `voice` index —
+            // one pass over the track is all that's needed.
+            extractNoteRects(track, track.name(), rects);
+            // Legacy auxTracks (cross-instrument parallel voices) — still
+            // rendered at voice 0 under the parent's track key.
             for (Track auxTrack : track.auxTracks()) {
-                extractNoteRects(auxTrack, track.name(), true, rects);
+                extractNoteRects(auxTrack, track.name(), rects);
             }
         }
 
@@ -83,20 +87,29 @@ record PitchScrollData(
         );
     }
 
-    /** Extract note rectangles from a track into the given list. */
-    private static void extractNoteRects(Track track, String trackKey, boolean aux, List<NoteRect> out) {
+    /**
+     * Extract note rectangles from a track into the given list. Each emitted
+     * event carries its own {@code voice} index (0 = main line, 1..N = voice
+     * overlays); the rect inherits it directly.
+     */
+    private static void extractNoteRects(Track track, String trackKey, List<NoteRect> out) {
         PhraseInterpreter interpreter = new PhraseInterpreter(0, 80, 120);
         for (Phrase phrase : track.phrases()) {
             interpreter.interpret(phrase);
         }
+        // Pending key = (midi << 8) | voice so concurrent notes on the same
+        // pitch but different voices don't collide.
         var pending = new HashMap<Integer, Long>();
         for (PlayEvent event : interpreter.getEvents()) {
             switch (event) {
-                case PlayEvent.NoteOn on -> pending.put(on.midiNote(), on.tick());
+                case PlayEvent.NoteOn on ->
+                        pending.put((on.midiNote() << 8) | (on.voice() & 0xFF), on.tick());
                 case PlayEvent.NoteOff off -> {
-                    Long start = pending.remove(off.midiNote());
+                    int key = (off.midiNote() << 8) | (off.voice() & 0xFF);
+                    Long start = pending.remove(key);
                     if (start != null) {
-                        out.add(new NoteRect(start, off.tick(), off.midiNote(), trackKey, aux));
+                        out.add(new NoteRect(start, off.tick(), off.midiNote(),
+                                trackKey, off.voice()));
                     }
                 }
                 case PlayEvent.ProgramChange ignored -> {}

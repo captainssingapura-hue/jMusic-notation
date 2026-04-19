@@ -63,19 +63,14 @@ final class KatyushaTracks {
     static Track melody(int verses) {
         var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
         var phrases = new java.util.ArrayList<Phrase>();
-        var auxPhrases = new java.util.ArrayList<Phrase>();
 
         for (int v = 0; v < verses; v++) {
             var ending = (v < verses - 1) ? attacca() : end();
+            // Aux voices ride along on each verse's MelodicPhrase.
             phrases.add(buildVerse(P, ending));
-            auxPhrases.addAll(P.auxPhrases());
         }
 
-        if (auxPhrases.isEmpty()) {
-            return Track.of("Melody", ACCORDION, phrases);
-        }
-        var auxTracks = List.of(Track.of("Melody Aux", ACCORDION, auxPhrases));
-        return new Track("Melody", ACCORDION, phrases, auxTracks);
+        return Track.of("Melody", ACCORDION, phrases);
     }
 
     // ── Bass line (one verse) ─────────────────────────────────────
