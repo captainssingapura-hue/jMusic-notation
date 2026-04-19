@@ -3,16 +3,12 @@ package music.notation.songs;
 import music.notation.songs.anthem.internationale.Internationale;
 import music.notation.songs.anthem.internationale.ManualInternationale;
 import music.notation.songs.anthem.internationale.RockInternationale;
-import music.notation.songs.folk.tianheihei.ManualTianHeiHei;
 import music.notation.songs.game.contra.ContraBase;
 import music.notation.songs.game.contra.DefaultContraBase;
 import music.notation.songs.folk.katyusha.DefaultKatyusha;
 import music.notation.songs.folk.katyusha.Katyusha;
 import music.notation.songs.folk.katyusha.RockKatyusha;
 import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
-import music.notation.songs.folk.tianheihei.SoftRockTianHeiHei;
-import music.notation.songs.folk.tianheihei.ChopinTianHeiHei;
-import music.notation.songs.folk.tianheihei.HardRockTianHeiHei;
 import music.notation.songs.folk.tianheihei.U2RockTianHeiHei;
 import music.notation.songs.folk.tianheihei.TianHeiHei;
 import music.notation.songs.classical.furelise.FurElise;
@@ -43,6 +39,14 @@ import music.notation.songs.rock.novemberstorm.DefaultNovemberStorm;
 import music.notation.songs.rock.novemberstorm.NovemberStorm;
 import music.notation.songs.rock.therock.DefaultTheRock;
 import music.notation.songs.rock.therock.TheRock;
+import music.notation.songs.traditional.happybirthday.BeethovenHappyBirthday;
+import music.notation.songs.traditional.happybirthday.BrahmsHappyBirthday;
+import music.notation.songs.traditional.happybirthday.ChopinHappyBirthday;
+import music.notation.songs.traditional.happybirthday.CombinedHappyBirthday;
+import music.notation.songs.traditional.happybirthday.DefaultHappyBirthday;
+import music.notation.songs.traditional.happybirthday.HappyBirthday;
+import music.notation.songs.traditional.happybirthday.MozartHappyBirthday;
+import music.notation.songs.traditional.happybirthday.SoulTechnoCombinedHappyBirthday;
 import music.notation.structure.Collection;
 
 import java.util.List;
@@ -73,9 +77,12 @@ public final class DefaultCollection implements Collection {
                 Entry.of(new Internationale(), new ManualInternationale(), new RockInternationale()),
                 Entry.of(new Traumerei(), new DefaultTraumerei()),
                 Entry.of(new Katyusha(), new DefaultKatyusha(), new RockKatyusha()),
-                Entry.of(new TianHeiHei(), new PianoTianHeiHei(), new ChopinTianHeiHei(), new SoftRockTianHeiHei(), new U2RockTianHeiHei(), new HardRockTianHeiHei(), new ManualTianHeiHei()),
+                Entry.of(new TianHeiHei(), new PianoTianHeiHei(), new U2RockTianHeiHei()),
                 Entry.of(new FurElise(), new ManualFurElise(), new SoulTechnoFurElise()),
-                Entry.of(new ContraBase(), new DefaultContraBase())
+                Entry.of(new ContraBase(), new DefaultContraBase()),
+                Entry.of(new HappyBirthday(), new DefaultHappyBirthday(), new MozartHappyBirthday(),
+                        new ChopinHappyBirthday(), new BeethovenHappyBirthday(), new BrahmsHappyBirthday(),
+                        new CombinedHappyBirthday(), new SoulTechnoCombinedHappyBirthday())
         );
     }
 }

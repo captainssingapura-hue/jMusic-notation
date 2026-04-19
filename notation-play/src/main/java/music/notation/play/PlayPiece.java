@@ -125,8 +125,10 @@ public final class PlayPiece {
     }
 
     private static long phraseDurationTicks(Phrase phrase) {
-        return MidiMapper.toTicks(
-                Duration.ofSixtyFourths(Bar.phraseSixtyFourths(phrase)));
+        final int sf = Bar.phraseSixtyFourths(phrase);
+        // Zero-duration phrases (e.g. tempo-marker phrases containing only a
+        // TempoChangeNode) advance the timeline by 0 ticks.
+        return sf > 0 ? MidiMapper.toTicks(Duration.ofSixtyFourths(sf)) : 0L;
     }
 
     private static long boundaryGapTicks(PhraseMarking marking) {

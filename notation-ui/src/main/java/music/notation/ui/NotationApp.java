@@ -79,20 +79,11 @@ public class NotationApp extends Application {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #1e1e2e;");
 
-        // === Top toolbar: title + playback controls ===
-        HBox toolbar = new HBox(16);
-        toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setPadding(new Insets(10, 16, 10, 16));
-        toolbar.setStyle("-fx-background-color: #181825;");
-
-        Label title = new Label("Music Notation Player");
-        title.setFont(Font.font("System", FontWeight.BOLD, 16));
-        title.setStyle("-fx-text-fill: #cdd6f4;");
-
-        playButton = styledButton("Play");
-        pauseButton = styledButton("Pause");
-        stopButton = styledButton("Stop");
-        exportButton = styledButton("Export MIDI");
+        // === Playback controls (icon-only; placed inside the Library panel below) ===
+        playButton   = iconButton("▶", "Play (Space)");
+        pauseButton  = iconButton("⏸", "Pause");
+        stopButton   = iconButton("⏹", "Stop");
+        exportButton = iconButton("⬇", "Export MIDI…");
         playButton.setOnAction(e -> onPlay());
         pauseButton.setOnAction(e -> onPause());
         stopButton.setOnAction(e -> onStop());
@@ -104,12 +95,6 @@ public class NotationApp extends Application {
 
         statusLabel = new Label("Select a piece to begin");
         statusLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        toolbar.getChildren().addAll(title, spacer, playButton, pauseButton, stopButton, exportButton, statusLabel);
-        root.setTop(toolbar);
 
         // === 2x2 SplitPane workspace ===
 
@@ -219,7 +204,17 @@ public class NotationApp extends Application {
         pieceInfoLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
         pieceInfoLabel.setWrapText(true);
 
-        libraryContent.getChildren().addAll(selectorRow, providerRow, scaleRow, bpmRow, pieceInfoLabel);
+        // -- Playback row: icon-only transport + export, equal-width flex --
+        HBox playbackRow = new HBox(8);
+        playbackRow.setAlignment(Pos.CENTER_LEFT);
+        for (Button btn : new Button[] {playButton, pauseButton, stopButton, exportButton}) {
+            HBox.setHgrow(btn, Priority.ALWAYS);
+            btn.setMaxWidth(Double.MAX_VALUE);
+        }
+        playbackRow.getChildren().addAll(playButton, pauseButton, stopButton, exportButton);
+
+        libraryContent.getChildren().addAll(
+                selectorRow, providerRow, scaleRow, bpmRow, playbackRow, statusLabel, pieceInfoLabel);
 
         // -- Top-right: Tracks --
         trackControlsBox = new VBox(8);
@@ -925,6 +920,27 @@ public class NotationApp extends Application {
                 + "-fx-font-size: 13; -fx-padding: 6 18; -fx-background-radius: 6;"));
         b.setOnMouseExited(e -> b.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; "
                 + "-fx-font-size: 13; -fx-padding: 6 18; -fx-background-radius: 6;"));
+        return b;
+    }
+
+    /**
+     * Icon-only playback button. Uses a Unicode glyph as the button "icon" —
+     * no icon font dependency needed. Tooltip carries the textual meaning so
+     * keyboard/screen-reader users still get the action name.
+     */
+    private static Button iconButton(String icon, String tooltipText) {
+        Button b = new Button(icon);
+        final String base = "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; "
+                + "-fx-font-size: 18; -fx-padding: 6 10; -fx-background-radius: 6;";
+        final String hover = "-fx-background-color: #585b70; -fx-text-fill: #cdd6f4; "
+                + "-fx-font-size: 18; -fx-padding: 6 10; -fx-background-radius: 6;";
+        b.setStyle(base);
+        b.setOnMouseEntered(e -> b.setStyle(hover));
+        b.setOnMouseExited(e -> b.setStyle(base));
+        Tooltip tip = new Tooltip(tooltipText);
+        tip.setShowDelay(javafx.util.Duration.millis(300));
+        tip.setStyle("-fx-font-size: 12; -fx-background-color: #313244; -fx-text-fill: #cdd6f4;");
+        Tooltip.install(b, tip);
         return b;
     }
 

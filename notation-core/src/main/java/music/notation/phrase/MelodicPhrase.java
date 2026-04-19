@@ -53,7 +53,83 @@ public record MelodicPhrase(List<PhraseNode> nodes, List<Bar> bars, PhraseMarkin
         for (Bar bar : bars) {
             flat.addAll(bar.nodes());
         }
-        return new MelodicPhrase(resolveSlurs(flat), List.of(bars), marking);
+        // Two-stage resolution:
+        //   1. resolveTies — merge consecutive NoteNodes flagged by .tieNext()
+        //      (preferred for same-pitch ties; chains naturally).
+        //   2. resolveSlurs — legacy same-pitch merge via SlurStart/SlurEnd;
+        //      also preserves different-pitch legato markers.
+        return new MelodicPhrase(resolveSlurs(resolveTies(flat)), List.of(bars), marking);
+    }
+
+    // ── Tie resolution (melody-level) ──────────────────────────────────────
+
+    /**
+     * Merge {@link NoteNode}s flagged with {@code tiedToNext} into their
+     * successor same-pitch {@link NoteNode}. Zero-duration markers between
+     * the tied pair (dynamics, legacy slur markers, tempo markers) are
+     * preserved in place and don't break the tie.
+     *
+     * <p>Ties chain: after merging a pair, the merged node carries the
+     * second note's tie flag, so a sequence of three (each flagged) collapses
+     * into one in a single left-to-right pass.</p>
+     *
+     * <p>Throws {@link IllegalStateException} if a tied note has no same-pitch
+     * successor (different pitches, non-note follow-up, or end of phrase).</p>
+     */
+    static List<PhraseNode> resolveTies(List<PhraseNode> nodes) {
+        var result = new ArrayList<PhraseNode>(nodes.size());
+        int i = 0;
+        while (i < nodes.size()) {
+            if (!(nodes.get(i) instanceof NoteNode first) || !first.hasTie()) {
+                result.add(nodes.get(i));
+                i++;
+                continue;
+            }
+            // first is tied — walk forward, absorbing same-pitch notes until the chain ends.
+            int combined = first.duration().sixtyFourths();
+            var interleavedMarkers = new ArrayList<PhraseNode>();
+            int scan = i + 1;
+            boolean stillTied = true;
+            while (stillTied) {
+                // Skip zero-duration markers between tied notes.
+                while (scan < nodes.size() && isZeroDurationMarker(nodes.get(scan))) {
+                    interleavedMarkers.add(nodes.get(scan));
+                    scan++;
+                }
+                if (scan >= nodes.size()) {
+                    throw new IllegalStateException(
+                            "tieNext() at phrase index " + i
+                                    + " has no following note to tie to (pitches " + first.pitches() + ")");
+                }
+                if (!(nodes.get(scan) instanceof NoteNode next)) {
+                    throw new IllegalStateException(
+                            "tieNext() at phrase index " + i
+                                    + " requires a following note, but found "
+                                    + nodes.get(scan).getClass().getSimpleName());
+                }
+                if (!first.pitches().equals(next.pitches())) {
+                    throw new IllegalStateException(
+                            "tieNext() pitch mismatch at phrase index " + i
+                                    + ": previous " + first.pitches() + " ≠ next " + next.pitches());
+                }
+                combined += next.duration().sixtyFourths();
+                scan++;
+                stillTied = next.hasTie();
+            }
+            var merged = new NoteNode(
+                    first.pitches(),
+                    Duration.ofSixtyFourths(combined),
+                    first.articulations(),
+                    first.ornament(),
+                    first.graceNotes(),
+                    first.equalDivision(),
+                    false // chain terminated
+            );
+            result.add(merged);
+            result.addAll(interleavedMarkers);
+            i = scan;
+        }
+        return result;
     }
 
     // ── Slur / tie resolution ──────────────────────────────────────────────
