@@ -24,10 +24,17 @@ import java.util.Optional;
  * (2 graces + main = triplet, 3 graces + main = quadruplet, etc.).
  * When {@code false} (default), each grace plays for a fixed short
  * duration and the main note keeps the remainder.</p>
+ *
+ * <p>When {@code tiedToNext} is {@code true}, this note will be fused with
+ * the following same-pitch {@code NoteNode} at phrase-construction time
+ * (see {@link MelodicPhrase#resolveTies}). The two notes sound as one
+ * sustained note of combined duration. Ties chain: the merged note
+ * inherits the second note's tie flag, so {@code tieNext().tieNext()}
+ * collapses three notes into one.</p>
  */
 public record NoteNode(List<Pitch> pitches, Duration duration, List<Articulation> articulations,
                        Optional<Ornament> ornament, List<GraceNote> graceNotes,
-                       boolean equalDivision) implements PhraseNode {
+                       boolean equalDivision, boolean tiedToNext) implements PhraseNode {
     public NoteNode {
         if (pitches.isEmpty()) {
             throw new IllegalArgumentException("NoteNode must have at least one pitch");
@@ -43,31 +50,39 @@ public record NoteNode(List<Pitch> pitches, Duration duration, List<Articulation
     /** True when this node carries more than one pitch. */
     public boolean isPolyphonic() { return pitches.size() > 1; }
 
+    /** True when this note is tied into the next same-pitch note. */
+    public boolean hasTie() { return tiedToNext; }
+
+    /** Return a copy of this note with {@code tiedToNext = true}. */
+    public NoteNode withTiedToNext() {
+        return new NoteNode(pitches, duration, articulations, ornament, graceNotes, equalDivision, true);
+    }
+
     // ── Single-pitch factories (backward compatible) ──
 
     public static NoteNode of(Pitch pitch, Duration duration) {
-        return new NoteNode(List.of(pitch), duration, List.of(), Optional.empty(), List.of(), false);
+        return new NoteNode(List.of(pitch), duration, List.of(), Optional.empty(), List.of(), false, false);
     }
 
     public static NoteNode ornamented(Pitch pitch, Duration duration, Ornament ornament) {
-        return new NoteNode(List.of(pitch), duration, List.of(), Optional.of(ornament), List.of(), false);
+        return new NoteNode(List.of(pitch), duration, List.of(), Optional.of(ornament), List.of(), false, false);
     }
 
     // ── Poly-pitch factories ──
 
     public static NoteNode poly(Duration duration, Pitch... pitches) {
-        return new NoteNode(List.of(pitches), duration, List.of(), Optional.empty(), List.of(), false);
+        return new NoteNode(List.of(pitches), duration, List.of(), Optional.empty(), List.of(), false, false);
     }
 
     public static NoteNode poly(Duration duration, List<Pitch> pitches) {
-        return new NoteNode(pitches, duration, List.of(), Optional.empty(), List.of(), false);
+        return new NoteNode(pitches, duration, List.of(), Optional.empty(), List.of(), false, false);
     }
 
     // ── Grace-note factories ──
 
     /** Create a note preceded by grace notes that play briefly and steal time from its duration. */
     public static NoteNode graced(List<GraceNote> graces, Duration duration, List<Pitch> pitches) {
-        return new NoteNode(pitches, duration, List.of(), Optional.empty(), graces, false);
+        return new NoteNode(pitches, duration, List.of(), Optional.empty(), graces, false, false);
     }
 
     /**
@@ -75,6 +90,6 @@ public record NoteNode(List<Pitch> pitches, Duration duration, List<Articulation
      * For example, 2 graces + main note with QUARTER = 3 notes of 1/3 quarter each (triplet).
      */
     public static NoteNode tuplet(List<GraceNote> graces, Duration duration, List<Pitch> pitches) {
-        return new NoteNode(pitches, duration, List.of(), Optional.empty(), graces, true);
+        return new NoteNode(pitches, duration, List.of(), Optional.empty(), graces, true, false);
     }
 }

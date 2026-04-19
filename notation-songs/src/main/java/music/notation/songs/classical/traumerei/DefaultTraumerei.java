@@ -1,5 +1,6 @@
 package music.notation.songs.classical.traumerei;
 
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.structure.*;
 
@@ -24,438 +25,286 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
     private static final KeySignature KEY = new KeySignature(F, Mode.MAJOR);
     private static final TimeSignature TS  = new TimeSignature(4, 4);
 
+    StaffPhraseBuilder newBuilder(){
+        return StaffPhraseBuilder.in(KEY, TS, EIGHTH);
+    }
+
     @Override
     public Piece create() {
         final var id = new Traumerei();
 
         // ── Build each section for RH (soprano + alto) ──────────────
-        var rhPickup  = buildRhPickup();
-        var rhA       = buildRhA();
-        var rhB       = buildRhB();
-        var rhAp      = buildRhAp();
+        final var rhPickup  = buildRhPickup();
+
 
         // ── Build each section for LH (bass + tenor) ────────────────
-        var lhPickup  = buildLhPickup();
-        var lhA       = buildLhA();
-        var lhB       = buildLhB();
-        var lhAp      = buildLhAp();
+        final var lhPickup  = buildLhPickup();
 
-        // ── Assemble tracks: pickup, A, A (repeat), B, A' ───────────
-        // Main voices
-        var rhPhrases = List.<Phrase>of(rhPickup.main, rhA.main, rhA.main, rhB.main, rhAp.main);
-        var lhPhrases = List.<Phrase>of(lhPickup.main, lhA.main, lhA.main, lhB.main, lhAp.main);
+        final var soprano = List.<Phrase>of(
+                rhPickup, buildSopranoSectionA1(),
+                buildSopranoSectionB(),
+                buildSopranoSectionC()
+        );
+        final var altoPickupPhrase = buildAltoPickup();
+        final var altoA1Phrase     = buildAltoSectionA1();
+        final var altoBPhrase      = buildAltoSectionB();
+        final var altoCPhrase      = buildAltoSectionC();
+        final var altoPhrases = List.of(altoPickupPhrase, altoA1Phrase, altoBPhrase, altoCPhrase);
 
-        // Aux voices (alto for RH, tenor for LH)
-        var rhAuxPhrases = List.<Phrase>of(rhPickup.aux, rhA.aux, rhA.aux, rhB.aux, rhAp.aux);
-        var lhAuxPhrases = List.<Phrase>of(lhPickup.aux, lhA.aux, lhA.aux, lhB.aux, lhAp.aux);
+        // Aux voice(s) for alto section B — previously dropped because the
+        // builder's .auxPhrases() was never extracted. The aux Track mirrors
+        // alto's per-section timing with rest phrases for sections that have
+        // no aux content, so it plays in parallel with the alto main line.
+        final List<Track> altoAuxTracks = new ArrayList<>();
+        final var altoBAux = altoSectionBAux();
+        for (int voice = 0; voice < altoBAux.size(); voice++) {
+            final var auxPhrases = List.<Phrase>of(
+                    restMatching(altoPickupPhrase),
+                    restMatching(altoA1Phrase),
+                    altoBAux.get(voice),
+                    restMatching(altoCPhrase)
+            );
+            altoAuxTracks.add(new Track(
+                    "Alto Aux " + (voice + 1), ACOUSTIC_GRAND_PIANO, auxPhrases, List.of()));
+        }
+        final var tenor = List.<Phrase>of(
+                lhPickup, buildTenorSectionA1(),
+                buildTenorSectionB(),
+                buildTenorSectionC()
+        );
+        final var bass = List.of(
+                buildTenorPickup(), buildBassSectionA1(),
+                buildBassSectionB(),
+                buildBassSectionC()
+        );
 
-        var rhAuxTrack = Track.of("Alto", ACOUSTIC_GRAND_PIANO, rhAuxPhrases);
-        var lhAuxTrack = Track.of("Tenor", ACOUSTIC_GRAND_PIANO, lhAuxPhrases);
-
-        var rightHand = new Track("Right Hand", ACOUSTIC_GRAND_PIANO, rhPhrases, List.of(rhAuxTrack));
-        var leftHand  = new Track("Left Hand", ACOUSTIC_GRAND_PIANO, lhPhrases, List.of(lhAuxTrack));
+        final var rightHand = new Track("Soprano", ACOUSTIC_GRAND_PIANO, soprano, List.of());
+        final var alto = new Track("Alto", ACOUSTIC_GRAND_PIANO, altoPhrases, altoAuxTracks);
+        final var leftHand  = new Track("Tenor", ACOUSTIC_GRAND_PIANO, tenor, List.of());
+        final var tenorHand = new Track("Bass", ACOUSTIC_GRAND_PIANO, bass, List.of());
 
         return new Piece(id.title(), id.composer(), KEY, TS,
                 new Tempo(66, QUARTER),
-                List.of(rightHand, leftHand));
+                List.of(rightHand, alto, leftHand, tenorHand));
     }
-
-    // ── Section record ──────────────────────────────────────────────
-
-    /** A section's main phrase and its single aux voice phrase. */
-    private record Section(MelodicPhrase main, MelodicPhrase aux) {}
 
     // ── RIGHT HAND: Soprano (main) + Alto (aux) ────────────────────
-
-    private Section buildRhPickup() {
-        var R = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-        var main = R
+    // --- Pick up ---
+    private  Phrase buildRhPickup() {
+       return newBuilder()
                 .pickup().p()
-                    .o4(F)                          // pickup: eighth note F4
-                .aux()
-                    .r(WHOLE)                       // alto silent during pickup
+                    .o4(QUARTER,C)   // pickup: quarter note C4
                 .build(attacca());
-        return new Section(main, R.auxPhrases().getFirst());
     }
 
-    private Section buildRhA() {
-        var R = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-        var main = R
-                // Bar 1: rising arpeggio F4 → C5 → F5
-                .bar()
-                    .o4(A).o4(C.higher(1)).o4(EIGHTH.dot(), C.higher(1)).o5(SIXTEENTH, D)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, F, A)
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, A, C.higher(1))
-                // Bar 2: melody continues up
-                .bar()
-                    .o5(EIGHTH.dot(), F).o5(SIXTEENTH, A).o5(QUARTER, G)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, C.higher(1), E.higher(1))
-                    .o4(QUARTER, C.higher(1), E.higher(1)).o4(QUARTER, A, C.higher(1))
-                // Bar 3: descent
-                .bar()
-                    .o5(QUARTER, D).o5(EIGHTH.dot(), C).o4(SIXTEENTH, B.n())
-                    .o4(QUARTER, A).o4(QUARTER, G)
-                .aux()
-                    .o4(QUARTER, F, B).o4(QUARTER, E, G)
-                    .o4(QUARTER, C, F).o4(QUARTER, C, E)
-                // Bar 4: resolution to F
-                .bar()
-                    .o4(HALF, F).o4(QUARTER, E)
-                    .o4(EIGHTH, F).o4(EIGHTH, A)
-                .aux()
-                    .o4(HALF, C, A).o4(QUARTER, C)
-                    .o3(QUARTER, A, C.higher(1))
-                // Bar 5: = Bar 1 (second statement)
-                .bar()
-                    .o4(A).o4(C.higher(1)).o4(EIGHTH.dot(), C.higher(1)).o5(SIXTEENTH, D)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, F, A)
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, A, C.higher(1))
-                // Bar 6: higher peak (A5)
-                .bar()
-                    .o5(EIGHTH.dot(), F).o5(SIXTEENTH, A).o5(QUARTER, G)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, A, C.higher(1)).o5(QUARTER, C, F)
-                    .o5(QUARTER, C, E).o4(QUARTER, A, C.higher(1))
-                // Bar 7: chromatic descent
-                .bar()
-                    .o5(QUARTER, E).o5(QUARTER, D)
-                    .o5(EIGHTH, C).o4(EIGHTH, B.n()).o4(EIGHTH, A).o4(EIGHTH, G)
-                .aux()
-                    .o4(QUARTER, G, C.higher(1)).o4(QUARTER, F, B)
-                    .o4(QUARTER, E, G).o4(QUARTER, C, E)
-                // Bar 8: half cadence
-                .bar()
-                    .o4(HALF, A).o4(HALF, G)
-                .aux()
-                    .o4(HALF, C, F).o4(HALF, C, E)
-                .build(attacca());
-        return new Section(main, R.auxPhrases().getFirst());
-    }
-
-    private Section buildRhB() {
-        var R = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-        var main = R
-                // Bar 9
-                .bar()
-                    .o4(QUARTER, A).o4(EIGHTH.dot(), B.n()).o4(SIXTEENTH, C.higher(1))
-                    .o5(QUARTER, D).o5(QUARTER, C)
-                .aux()
-                    .o4(QUARTER, C, F).o4(QUARTER, D, F)
-                    .o4(QUARTER, F, A).o4(QUARTER, E, G)
-                // Bar 10
-                .bar()
-                    .o4(EIGHTH.dot(), B.n()).o4(SIXTEENTH, A)
-                    .o4(QUARTER, G.s()).o4(HALF, A)
-                .aux()
-                    .o4(QUARTER, D, F).o4(QUARTER, D, E)
-                    .o4(HALF, C, E)
-                // Bar 11
-                .bar()
-                    .o4(QUARTER, A).o4(EIGHTH.dot(), B.n()).o4(SIXTEENTH, C.higher(1))
-                    .o5(QUARTER, E).o5(QUARTER, D)
-                .aux()
-                    .o4(QUARTER, C, F).o4(QUARTER, D, F)
-                    .o4(QUARTER, G, C.higher(1)).o4(QUARTER, F, B)
-                // Bar 12
-                .bar()
-                    .o5(EIGHTH.dot(), C).o4(SIXTEENTH, B.n())
-                    .o4(QUARTER, A).o4(HALF, G)
-                .aux()
-                    .o4(QUARTER, E, G).o4(QUARTER, C, F)
-                    .o4(HALF, C, E)
-                // Bar 13: pp espressivo
-                .bar().pp()
-                    .o5(QUARTER, C).o5(EIGHTH.dot(), D).o5(SIXTEENTH, E)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, F, B)
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, G, C.higher(1))
-                // Bar 14
-                .bar()
-                    .o5(EIGHTH.dot(), D).o5(SIXTEENTH, C)
-                    .o4(QUARTER, B.n()).o4(HALF, A)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, D, G)
-                    .o4(HALF, C, F)
-                // Bar 15
-                .bar().p()
-                    .o5(QUARTER, C).o5(EIGHTH.dot(), D).o5(SIXTEENTH, E)
-                    .o5(QUARTER, F).o5(QUARTER, A)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, F, B)
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, C.higher(1), F.higher(1))
-                // Bar 16: transition
-                .bar()
-                    .o5(QUARTER, G).o5(QUARTER, F)
-                    .o5(QUARTER, E).o5(QUARTER, D)
-                .aux()
-                    .o4(QUARTER, B, E.higher(1)).o4(QUARTER, A, C.higher(1))
-                    .o4(QUARTER, G, C.higher(1)).o4(QUARTER, F, B)
-                .build(attacca());
-        return new Section(main, R.auxPhrases().getFirst());
-    }
-
-    private Section buildRhAp() {
-        var R = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-        var main = R
-                // Bar 17 = Bar 1
-                .bar().p()
-                    .o4(A).o4(C.higher(1)).o4(EIGHTH.dot(), C.higher(1)).o5(SIXTEENTH, D)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, F, A)
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, A, C.higher(1))
-                // Bar 18 = Bar 2
-                .bar()
-                    .o5(EIGHTH.dot(), F).o5(SIXTEENTH, A).o5(QUARTER, G)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, C.higher(1), E.higher(1))
-                    .o4(QUARTER, C.higher(1), E.higher(1)).o4(QUARTER, A, C.higher(1))
-                // Bar 19 = Bar 3
-                .bar()
-                    .o5(QUARTER, D).o5(EIGHTH.dot(), C).o4(SIXTEENTH, B.n())
-                    .o4(QUARTER, A).o4(QUARTER, G)
-                .aux()
-                    .o4(QUARTER, F, B).o4(QUARTER, E, G)
-                    .o4(QUARTER, C, F).o4(QUARTER, C, E)
-                // Bar 20 = Bar 4
-                .bar()
-                    .o4(HALF, F).o4(QUARTER, E)
-                    .o4(EIGHTH, F).o4(EIGHTH, A)
-                .aux()
-                    .o4(HALF, C, A).o4(QUARTER, C)
-                    .o3(QUARTER, A, C.higher(1))
-                // Bar 21: second statement
-                .bar()
-                    .o4(A).o4(C.higher(1)).o4(EIGHTH.dot(), C.higher(1)).o5(SIXTEENTH, D)
-                    .o5(QUARTER, F).o5(QUARTER, E)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, F, A)
-                    .o4(QUARTER, A, C.higher(1)).o4(QUARTER, A, C.higher(1))
-                // Bar 22: ritardando
-                .bar()
-                    .o5(EIGHTH.dot(), D).o5(SIXTEENTH, C)
-                    .o4(QUARTER, B.n()).o4(HALF, A)
-                .aux()
-                    .o4(QUARTER, F, A).o4(QUARTER, D, G)
-                    .o4(HALF, C, F)
-                // Bar 23
-                .bar()
-                    .o4(QUARTER, G).o4(EIGHTH.dot(), A).o4(SIXTEENTH, B)
-                    .o5(QUARTER, C).o4(QUARTER, A)
-                .aux()
-                    .o4(QUARTER, C, E).o4(QUARTER, C, F)
-                    .o4(QUARTER, E, G).o4(QUARTER, C, F)
-                // Bar 24: final cadence
-                .bar()
-                    .o4(HALF, G).o4(HALF, F)
-                .aux()
-                    .o4(HALF, C, E).o4(HALF, C, A)
-                .build(end());
-        return new Section(main, R.auxPhrases().getFirst());
-    }
-
-    // ── LEFT HAND: Bass (main) + Tenor (aux) ───────────────────────
-
-    private Section buildLhPickup() {
-        var L = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var main = L
+    private  Phrase buildAltoPickup() {
+        return newBuilder()
                 .pickup().p()
-                    .r(EIGHTH)                      // bass silent during pickup
-                .aux()
-                    .r(WHOLE)                       // tenor silent during pickup
+                .r(QUARTER)   // pickup: quarter note E4
                 .build(attacca());
-        return new Section(main, L.auxPhrases().getFirst());
     }
 
-    private Section buildLhA() {
-        var L = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var main = L
-                // Bar 1
-                .bar().p()
-                    .o2(F).o3(QUARTER, C).o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 2
-                .bar()
-                    .o2(F).o3(QUARTER, C).o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 3
-                .bar()
-                    .o2(QUARTER, C).o2(QUARTER, D)
-                    .o2(QUARTER, B).o2(QUARTER, C)
-                .aux()
-                    .o3(QUARTER, G, B.n().higher(0)).o3(QUARTER, F, A)
-                    .o3(QUARTER, F, B).o3(QUARTER, E, G)
-                // Bar 4
-                .bar()
-                    .o2(HALF, F).o2(QUARTER, C)
-                    .o2(QUARTER, F)
-                .aux()
-                    .o3(HALF, A, C.higher(1)).o3(QUARTER, G)
-                    .o3(QUARTER, A, C.higher(1))
-                // Bar 5 = Bar 1
-                .bar()
-                    .o2(F).o3(QUARTER, C).o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 6 = Bar 2
-                .bar()
-                    .o2(F).o3(QUARTER, C).o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 7
-                .bar()
-                    .o2(QUARTER, C).o2(QUARTER, D)
-                    .o2(QUARTER, F).o2(QUARTER, E)
-                .aux()
-                    .o3(QUARTER, G, B.n().higher(0)).o3(QUARTER, F, B)
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, G, B.n().higher(0))
-                // Bar 8
-                .bar()
-                    .o2(QUARTER, F).o2(QUARTER, C)
-                    .o2(HALF, C)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, G, B.n().higher(0))
-                    .o3(HALF, G, C.higher(1))
+    private  Phrase buildLhPickup() {
+        return newBuilder()
+                .pickup().r(QUARTER)// pickup: quarter rest
                 .build(attacca());
-        return new Section(main, L.auxPhrases().getFirst());
     }
 
-    private Section buildLhB() {
-        var L = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var main = L
-                // Bar 9
-                .bar()
-                    .o2(QUARTER, F).o2(QUARTER, D)
-                    .o2(QUARTER, G).o2(QUARTER, C)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, F, A)
-                    .o3(QUARTER, B, D.higher(1)).o3(QUARTER, G, B.n().higher(0))
-                // Bar 10
-                .bar()
-                    .o2(QUARTER, D).o2(QUARTER, E)
-                    .o2(HALF, A)
-                .aux()
-                    .o3(QUARTER, F, A).o3(QUARTER, E, G.s())
-                    .o3(HALF, E, A)
-                // Bar 11
-                .bar()
-                    .o2(QUARTER, D).o2(QUARTER, G)
-                    .o2(QUARTER, C).o2(QUARTER, D)
-                .aux()
-                    .o3(QUARTER, F, A).o3(QUARTER, B, D.higher(1))
-                    .o3(QUARTER, G, C.higher(1)).o3(QUARTER, F, B)
-                // Bar 12
-                .bar()
-                    .o2(QUARTER, E).o2(QUARTER, F)
-                    .o2(HALF, C)
-                .aux()
-                    .o3(QUARTER, G, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(HALF, G, B.n().higher(0))
-                // Bar 13: pp
-                .bar().pp()
-                    .o2(QUARTER, B).o2(QUARTER, A)
-                    .o2(QUARTER, D).o2(QUARTER, C)
-                .aux()
-                    .o3(QUARTER, D, F).o3(QUARTER, C, F)
-                    .o3(QUARTER, F, A).o3(QUARTER, E, G)
-                // Bar 14
-                .bar()
-                    .o2(QUARTER, D).o2(QUARTER, G)
-                    .o2(HALF, C)
-                .aux()
-                    .o3(QUARTER, F, A).o3(QUARTER, D, G)
-                    .o3(HALF, E, G)
-                // Bar 15
-                .bar().p()
-                    .o2(QUARTER, B).o2(QUARTER, A)
-                    .o2(QUARTER, F).o2(QUARTER, F)
-                .aux()
-                    .o3(QUARTER, D, F).o3(QUARTER, C, F)
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 16
-                .bar()
-                    .o2(QUARTER, C).o2(QUARTER, C)
-                    .o2(HALF, C)
-                .aux()
-                    .o3(QUARTER, G, B.n().higher(0)).o3(QUARTER, G, B.n().higher(0))
-                    .o3(HALF, G, B.n().higher(0))
+    private  Phrase buildTenorPickup() {
+        return newBuilder()
+                .pickup().p()
+                .r(QUARTER)   // pickup: quarter note E4
                 .build(attacca());
-        return new Section(main, L.auxPhrases().getFirst());
     }
 
-    private Section buildLhAp() {
-        var L = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var main = L
-                // Bar 17 = Bar 1
-                .bar().p()
-                    .o2(F).o3(QUARTER, C).o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 18 = Bar 2
-                .bar()
-                    .o2(F).o3(QUARTER, C).o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 19 = Bar 3
-                .bar()
-                    .o2(QUARTER, C).o2(QUARTER, D)
-                    .o2(QUARTER, B).o2(QUARTER, C)
-                .aux()
-                    .o3(QUARTER, G, B.n().higher(0)).o3(QUARTER, F, A)
-                    .o3(QUARTER, F, B).o3(QUARTER, E, G)
-                // Bar 20 = Bar 4
-                .bar()
-                    .o2(HALF, F).o2(QUARTER, C)
-                    .o2(QUARTER, F)
-                .aux()
-                    .o3(HALF, A, C.higher(1)).o3(QUARTER, G)
-                    .o3(QUARTER, A, C.higher(1))
-                // Bar 21
-                .bar()
-                    .o2(F).o3(QUARTER, C).o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                    .o3(QUARTER, A, C.higher(1)).o3(QUARTER, A, C.higher(1))
-                // Bar 22
-                .bar()
-                    .o2(QUARTER, D).o2(QUARTER, G)
-                    .o2(HALF, C)
-                .aux()
-                    .o3(QUARTER, F, A).o3(QUARTER, D, G)
-                    .o3(HALF, E, G)
-                // Bar 23
-                .bar()
-                    .o2(QUARTER, B).o2(QUARTER, C)
-                    .o2(QUARTER, C).o2(QUARTER, F)
-                .aux()
-                    .o3(QUARTER, D, F).o3(QUARTER, E, G)
-                    .o3(QUARTER, G, B.n().higher(0)).o3(QUARTER, A, C.higher(1))
-                // Bar 24: final
-                .bar()
-                    .o2(QUARTER, C).o2(QUARTER, F)
-                    .o2(HALF, F)
-                .aux()
-                    .o3(QUARTER, E, G).o3(QUARTER, F, A)
-                    .o3(HALF, F, A)
+
+    //Section A1
+    private  Phrase buildSopranoSectionA1() {
+        return newBuilder()
+                .bar(EIGHTH).o4(HALF,F).tieNext().o4(F).o4(E).o4(F).o4(A)
+                .bar(EIGHTH).o5(C).o5(F).o5(HALF,F).o5(E).o5(D)
+                .bar(EIGHTH).o5(C).o5(F).o4(G).o4(A).o4(B).o5(D).o4(F).o4(E,G)
+                .bar(EIGHTH).o4(F,A).o5(C).o4(HALF,E,G).o4(QUARTER,C)
+                .bar(EIGHTH).o4(HALF,F).tieNext().o4(F).o4(E).o4(F).o4(A)
+                .bar(EIGHTH).o5(C).o5(A).o5(QUARTER.dot(),A).o5(G).o5(F).o5(E)
+                .bar(EIGHTH).o5(F).o5(A).o5(D).o5(F).o5(QUARTER.dot(),E).o5(E.s())
+                .bar(QUARTER).o5(D).o5(E).o5(HALF,C)
+                .build(attacca());
+    }
+    private  Phrase buildAltoSectionA1() {
+        return newBuilder()
+                .bar(EIGHTH).r(QUARTER).o4(HALF.dot(),C,F.lower(1))
+                .bar(QUARTER).r().o4(HALF.dot(),F).tieNext()
+                .bar(QUARTER).o4(F).o4(HALF,E).o4(C).tieNext()
+                .bar(QUARTER).o4(C).o4(HALF,C).o4(C)
+                .bar(EIGHTH).r(QUARTER).o4(HALF.dot(),C,F.lower(1))
+                .bar(QUARTER).r().o4(HALF.dot(),G,A)
+                .bar(EIGHTH).o4(QUARTER.dot(),G).o4(A.f()).o4(G).o5(C).o4(E).o4(F.s())
+                .bar().o4(HALF,F).o4(QUARTER.dot(),E).o4(EIGHTH,C)
+                .build(attacca());
+    }
+
+    private  Phrase buildTenorSectionA1() {
+        return newBuilder()
+                .bar(QUARTER).o2(F).o3(HALF.dot(),C,A).tieNext()
+                .bar(EIGHTH).o3(QUARTER,C,A).o4(HALF,D).o4(C).o3(B)
+                .bar(EIGHTH).o3(QUARTER,A).o3(B).o3(A).o3(QUARTER,G).o3(F).o3(G)
+                .bar(QUARTER).o3(A).o3(HALF,G).r()
+                .bar(QUARTER).o2(F).o3(HALF.dot(),C,A).tieNext()
+                .bar(EIGHTH).o3(QUARTER,C,A).o4(HALF.dot(),E)
+                .bar(EIGHTH).o4(QUARTER.dot(),D).o4(C).tieNext().o4(QUARTER.dot(),C).o4(C)
+                .bar(EIGHTH).o3(B.n()).o4(G).o3(A).o3(B.n()).o4(HALF,C)
+                .build(attacca());
+    }
+
+    private  Phrase buildBassSectionA1() {
+        return newBuilder()
+                .bar(WHOLE).o2(F).tieNext()
+                .bar().o2(QUARTER,F).o3(HALF.dot(),F) //TODO Add grace notes later
+                .bar(EIGHTH).o3(QUARTER,C).o3(HALF,C).o2(A).o3(C)
+                .bar(EIGHTH).o3(QUARTER,F).o3(C).o3(D).o3(C).o2(B).o2(G).o2(A)
+                .bar(WHOLE).o2(F).tieNext()
+                .bar().o2(QUARTER,F).o3(HALF.dot(),A)
+                .bar(EIGHTH).o3(QUARTER.dot(),D,A).o3(F).o3(QUARTER.dot(),G).o3(A.n())
+                .bar().o3(HALF,G).o3(C).o3(D).o2(B.f()).o2(G)
+                .build(attacca());
+    }
+
+
+    //Section B
+    private  Phrase buildSopranoSectionB() {
+        return newBuilder()
+                .bar(EIGHTH).o4(HALF,F).tieNext().o4(F).o4(E).o4(F).o4(A)
+                .bar(EIGHTH).f().o5(C).o5(E.f()).o5(HALF,E.f()).o5(D).o5(C)
+                .bar(EIGHTH).o4(B).o5(D).o4(G).o4(A).o4(QUARTER.dot(),B).o4(A)
+                .bar(EIGHTH).o4(QUARTER.dot(),G).o4(QUARTER.dot(),D).r().o4(F)
+                .bar(EIGHTH).o4(HALF,B).tieNext().o4(B).o4(A).o4(B).o5(D)
+                .bar(EIGHTH).o5(F).o5(B).o5(HALF,B).o5(A).o5(G)
+                .bar(EIGHTH).o5(F).o5(A).o5(D).o5(E).o5(QUARTER.dot(),F).o5(E)
+                .bar(EIGHTH).o5(QUARTER.dot(),D).o4(A).o4(QUARTER,A).o4(QUARTER,G)
+                    .aux(EIGHTH).r(HALF).r(QUARTER.dot()).o4(C)  //For the small note to start next section.
+                .build(attacca());
+    }
+    /** Alto section B. Returns the main line; aux voices are extracted via {@link #altoSectionBAux}. */
+    private  Phrase buildAltoSectionB() {
+        return buildAltoSectionBBuilder().build(attacca());
+    }
+
+    /** Aux voices for alto section B (the {@code .aux(...)} content on the 6th bar). */
+    private  List<MelodicPhrase> altoSectionBAux() {
+        var P = buildAltoSectionBBuilder();
+        P.build(attacca());            // must call build() to populate auxPhrases()
+        return P.auxPhrases();
+    }
+
+    /**
+     * Shared builder for alto section B. Exposed so both the main phrase and
+     * the aux phrases can be extracted (aux content is otherwise silently
+     * dropped when only {@code build()} is called).
+     */
+    private  StaffPhraseBuilder buildAltoSectionBBuilder() {
+        return newBuilder()
+                .bar(EIGHTH).r(QUARTER).o4(HALF.dot(),C,F.lower(1))
+                .bar(EIGHTH).f().o5(C).o4(B.f()).ff().o4(HALF,A).tieNext().o4(QUARTER,A)
+                .bar(EIGHTH).o4(QUARTER.dot(),G).o4(E.f()).o4(D).o4(G).o3(B).o4(C)
+                .bar(EIGHTH).o3(B).o4(D).o3(G).o3(QUARTER,A).o3(G).o2(G).o2(A)
+                .bar().r(QUARTER).ff().o5(HALF.dot(), B.lower(1),F)
+                .bar(QUARTER).r().o5(HALF,E).o5(E)
+                    .aux(EIGHTH).r(HALF).r().o5(QUARTER,C.s()).r()
+                .bar(EIGHTH).o5(QUARTER.dot(),D).o4(B).o4(A).o5(D).o4(F).o4(G)
+                .bar(EIGHTH).o4(F).o4(A).o4(D).o4(C.s(),E).o4(QUARTER,F).o4(QUARTER,E);
+    }
+
+    private  Phrase buildTenorSectionB() {
+        return newBuilder()
+                .bar(QUARTER).o2(F).o3(HALF.dot(),C,A)
+                .bar(EIGHTH).r().o3(G).o3(F.s()).o3(A).o4(HALF,D).tieNext()
+                    .aux(EIGHTH).r().r().o3(F.s()).o3(A).o4(D).o4(F.s()).r()
+                .bar(EIGHTH).o4(QUARTER.dot(),D).r().r(HALF)
+                .bar().r(WHOLE)
+                .bar().r(WHOLE)
+                .bar(EIGHTH).r().o3(G,D.higher(1)).o4(C.s()).o4(E).o4(HALF,A).tieNext()
+                .bar(QUARTER).o4(A).r(HALF.dot())
+                .bar(EIGHTH).o4(F).o4(A).o4(D).o4(C.s(),E).o4(QUARTER,D).o4(QUARTER,C)
+                .build(attacca());
+    }
+
+    private  Phrase buildBassSectionB() {
+        return newBuilder()
+                .bar(WHOLE).o2(F)
+                .bar(EIGHTH).r().o3(C).o3(HALF,D).tieNext().o3(D).o3(F.s())
+                .bar(EIGHTH).o3(QUARTER.dot(),G).o3(C,F.s()).o3(QUARTER.dot(), D,G).o3(E.f())
+                .bar(EIGHTH).o3(QUARTER.dot(),D).o3(QUARTER,D).o3(G).o2(G).o2(A)
+                .bar(QUARTER).fff().o1(B).o3(HALF.dot(),F,D.higher(1))
+                .bar(EIGHTH).r().o3(G,D.higher(1)).o3(HALF,A).tieNext().o3(A).o4(C.s())
+                .bar(EIGHTH).o4(QUARTER.dot(),D).o3(G,C.s().higher(1)).o3(QUARTER.dot(),A,D.higher(1)).o3(B)
+                .bar(EIGHTH).o3(HALF,A).tieNext().o3(A).o3(B).tieNext().o3(B).o3(C)
+                .build(attacca());
+    }
+
+
+    //-----Section C -----//
+    //Section A1
+    private  Phrase buildSopranoSectionC() {
+        return newBuilder()
+                .bar(EIGHTH).o4(HALF,F).tieNext().o4(F).o4(E).o4(F).o4(A)
+                .bar(EIGHTH).o5(C).o5(F).o5(HALF,F).o5(E).o5(D)
+                .bar(EIGHTH).o5(C).o5(F).o4(G).o4(A).o4(B).o5(D).o4(F).o4(E,G)
+                .bar(EIGHTH).o4(F,A).o5(C).o4(HALF,E,G).o4(QUARTER,C)
+                .bar(EIGHTH).o4(HALF,F).tieNext().o4(F).o4(E).o4(F).o4(A)
+                .bar(EIGHTH).o5(C).o5(A).ff().o5(QUARTER.dot(),A).o5(G).o5(F).o5(D)
+                .bar(EIGHTH).ritStart().o5(C).o5(F).o4(G).o4(A).o4(B).o5(D).o4(G).o4(A,F.s())
+                .bar(EIGHTH).o4(G,B).o5(D).f().o4(D).p().o4(E).ppp().o4(HALF,F).rit(33)
                 .build(end());
-        return new Section(main, L.auxPhrases().getFirst());
+    }
+    private  Phrase buildAltoSectionC() {
+        return newBuilder()
+                .bar(EIGHTH).r(QUARTER).o4(HALF.dot(),C,F.lower(1))
+                .bar(QUARTER).r().o4(HALF.dot(),F).tieNext()
+                .bar(QUARTER).o4(F).o4(HALF,E).o4(C).tieNext()
+                .bar(QUARTER).o4(C).o4(HALF,C).o4(C)
+                .bar(EIGHTH).r(QUARTER).o4(HALF.dot(),C,F.lower(1))
+                .bar(QUARTER).r().o4(HALF.dot(),F,G,D.higher(1))
+                .bar(QUARTER).o4(QUARTER,F).o4(HALF,E).o4(D).tieNext()
+                .bar(QUARTER).o4(D).o3(B).o3(HALF,A)
+                .build(end());
+    }
+
+    private  Phrase buildTenorSectionC() {
+        return newBuilder()
+                .bar(QUARTER).o2(F).o3(HALF.dot(),C,A).tieNext()
+                .bar(EIGHTH).o3(QUARTER,C,A).o4(HALF,D).o4(C).o3(B)
+                .bar(EIGHTH).o3(QUARTER,A).o3(B).o3(A).o3(QUARTER,G).o3(F).o3(G)
+                .bar(QUARTER).o3(A).o3(HALF,G).r()
+                .bar(QUARTER).o2(F).o3(HALF.dot(),C,A).tieNext()
+                .bar(EIGHTH).o3(QUARTER,C,A).o3(HALF.dot(),B.n())
+                .bar(EIGHTH).o3(QUARTER,A,C.higher(1)).o3(B).o3(A).o3(QUARTER,G).o3(G).o3(A)
+                    .aux(QUARTER).r().o4(HALF,C.f()).r()
+                .bar(QUARTER).o3(B).o3(C,G).o3(HALF,C)
+                .build(end());
+    }
+
+    private  Phrase buildBassSectionC() {
+        return newBuilder()
+                .bar(WHOLE).o2(F).tieNext()
+                .bar().o2(QUARTER,F).o3(HALF.dot(),F) //TODO Add grace notes later
+                .bar(EIGHTH).o3(QUARTER,C).o3(HALF,C).o2(A).o3(C)
+                .bar(EIGHTH).o3(QUARTER,F).o3(C).o3(D).o3(C).o2(B).o2(G).o2(A)
+                .bar(WHOLE).o2(F).tieNext()
+                .bar().o2(QUARTER,F).o2(HALF.dot(),G,B.n())
+                .bar(EIGHTH).o3(QUARTER,C).o3(HALF,C).o2(B).o3(D)
+                .bar(QUARTER).o3(G).o3(EIGHTH,C).o2(EIGHTH,C).o2(HALF,F)
+                .build(end());
+    }
+
+
+    /**
+     * Build a silent phrase whose total duration matches the given phrase, so
+     * an aux Track's timeline aligns bar-for-bar with its parent voice Track.
+     */
+    private static Phrase restMatching(Phrase phrase) {
+        int sf = Bar.phraseSixtyFourths(phrase);
+        return new RestPhrase(Duration.ofSixtyFourths(sf), attacca());
     }
 
     /** Quick playback for audition. */

@@ -3,8 +3,10 @@ package music.notation.ui;
 import javafx.animation.AnimationTimer;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.util.Duration;
 
 import java.util.List;
 import java.util.function.DoubleConsumer;
@@ -45,9 +47,14 @@ final class PitchScroll extends Canvas {
             Color.web("#94e2d5"), Color.web("#f2cdcd")
     };
 
+    private static final String[] NOTE_NAMES = {
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+    };
+
     private final LongConsumer onSeek;
     private final DoubleConsumer onCursorMove;
     private final AnimationTimer timer;
+    private final Tooltip hoverTooltip = new Tooltip();
 
     private PitchScrollData data;
     private LongSupplier tickSource;
@@ -65,6 +72,10 @@ final class PitchScroll extends Canvas {
             }
         };
 
+        hoverTooltip.setShowDelay(Duration.millis(100));
+        hoverTooltip.setHideDelay(Duration.ZERO);
+        hoverTooltip.setStyle("-fx-font-size: 12; -fx-background-color: #313244; -fx-text-fill: #cdd6f4;");
+
         // Click or drag to seek — render immediately for instant visual feedback
         final javafx.event.EventHandler<javafx.scene.input.MouseEvent> seekFromMouse = event -> {
             if (data == null) return;
@@ -73,9 +84,27 @@ final class PitchScroll extends Canvas {
                     0, data.totalTicks());
             onSeek.accept(tick);
             render(tick);
+            hoverTooltip.hide();
         };
         setOnMousePressed(seekFromMouse::handle);
         setOnMouseDragged(seekFromMouse::handle);
+
+        // Hover: show a tooltip with the exact note name + bar/beat + track
+        setOnMouseMoved(event -> {
+            final NoteRect r = hitTest(event.getX(), event.getY());
+            if (r != null) {
+                hoverTooltip.setText(formatNoteInfo(r));
+                if (hoverTooltip.isShowing()) {
+                    hoverTooltip.setX(event.getScreenX() + 12);
+                    hoverTooltip.setY(event.getScreenY() + 14);
+                } else {
+                    hoverTooltip.show(this, event.getScreenX() + 12, event.getScreenY() + 14);
+                }
+            } else {
+                hoverTooltip.hide();
+            }
+        });
+        setOnMouseExited(event -> hoverTooltip.hide());
 
         // Re-render when canvas is resized
         widthProperty().addListener((obs, o, n) -> render(currentTick()));
@@ -187,12 +216,17 @@ final class PitchScroll extends Canvas {
                 }
             }
 
-            // Bar lines
+            // Bar lines — aligned to absolute bar boundaries (multiples of barWidth
+            // from tick 0). When a piece has a pickup, the first bar [0, barWidth)
+            // is the pickup/anacrusis bar; the first "true" music bar starts at
+            // tick == barWidth. Drawing lines from tick 0 gives the exact staff
+            // layout: the pickup audible content sits to the RIGHT of the first
+            // bar line, and the downbeat of bar 1 lands precisely on the second.
             final long barTickWidth = data.barTickWidth();
             if (barTickWidth > 0) {
                 gc.setStroke(BAR_LINE);
                 gc.setLineWidth(0.5);
-                for (long tick = data.pickupOffsetTicks(); tick <= data.totalTicks(); tick += barTickWidth) {
+                for (long tick = 0; tick <= data.totalTicks(); tick += barTickWidth) {
                     final double bx = PADDING_LEFT + tick * ppt;
                     gc.strokeLine(bx, laneY + LANE_HEADER, bx, laneY + laneHeight);
                 }
@@ -231,5 +265,88 @@ final class PitchScroll extends Canvas {
         gc.setStroke(CURSOR_COLOR);
         gc.setLineWidth(1.5);
         gc.strokeLine(cursorX, 0, cursorX, h);
+    }
+
+    /**
+     * Find the {@link NoteRect} under the given canvas-local position, if any.
+     * Returns the closest match within a small vertical tolerance (so thin
+     * {@code NOTE_HEIGHT}=4 rectangles are still easy to target with a mouse).
+     */
+    private NoteRect hitTest(final double x, final double y) {
+        if (data == null || data.trackCount() == 0) return null;
+        final double ppt = pixelsPerTick();
+        if (ppt <= 0) return null;
+
+        final boolean hasLyrics = !data.lyricRects().isEmpty();
+        final double lyricsOffset = hasLyrics ? LYRICS_HEIGHT : 0;
+        final double laneHeight = FIXED_LANE_HEIGHT;
+        final int trackCount = data.trackCount();
+        final int noteRange = data.maxNote() - data.minNote() + 1;
+
+        // Which lane is the cursor in?
+        final double yInLanes = y - lyricsOffset;
+        if (yInLanes < 0) return null;
+        final int trackIdx = (int) (yInLanes / (laneHeight + LANE_GAP));
+        if (trackIdx < 0 || trackIdx >= trackCount) return null;
+
+        final double laneY = lyricsOffset + trackIdx * (laneHeight + LANE_GAP);
+        final double notePixelHeight = (laneHeight - LANE_HEADER) / noteRange;
+        final String trackKey = data.trackNames().get(trackIdx);
+
+        // Vertical tolerance: note rects are only 4px tall — give the hit-test ±4px.
+        final double tolerance = NOTE_HEIGHT;
+
+        NoteRect best = null;
+        double bestDy = Double.POSITIVE_INFINITY;
+        for (final NoteRect r : data.noteRects()) {
+            if (!r.trackKey().equals(trackKey)) continue;
+            final double rx = PADDING_LEFT + r.startTick() * ppt;
+            final double rw = Math.max((r.endTick() - r.startTick()) * ppt, 2);
+            if (x < rx || x > rx + rw) continue;
+
+            final double ry = laneY + LANE_HEADER + (data.maxNote() - r.midiNote()) * notePixelHeight;
+            final double dy = Math.abs(y - ry);
+            if (dy <= tolerance && dy < bestDy) {
+                best = r;
+                bestDy = dy;
+            }
+        }
+        return best;
+    }
+
+    /** Format "C#5 · bar 3 beat 2 · Track Name" for the hover tooltip. */
+    private String formatNoteInfo(final NoteRect r) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(noteName(r.midiNote()));
+
+        // Bar/beat derived from absolute tick position. Bar boundaries are
+        // multiples of barWidth from tick 0; when the piece has a pickup, the
+        // first bar [0, barWidth) is the anacrusis ("pickup" / bar 0) and the
+        // first full music bar is bar 1. Without a pickup, we shift to 1-index
+        // the opening bar as bar 1.
+        if (data != null && data.barTickWidth() > 0 && data.ticksPerQuarter() > 0) {
+            final long barWidth = data.barTickWidth();
+            final boolean hasPickup = data.pickupOffsetTicks() > 0;
+            final long rawBar = r.startTick() / barWidth;
+            final long tickInBar = r.startTick() % barWidth;
+            final long beat = tickInBar / data.ticksPerQuarter() + 1;
+            sb.append("  ·  ");
+            if (hasPickup && rawBar == 0) {
+                sb.append("pickup beat ").append(beat);
+            } else {
+                final long barIdx = hasPickup ? rawBar : rawBar + 1;
+                sb.append("bar ").append(barIdx).append(" beat ").append(beat);
+            }
+        }
+
+        sb.append("  ·  ").append(r.trackKey());
+        if (r.aux()) sb.append(" (aux)");
+        return sb.toString();
+    }
+
+    /** Convert a MIDI note number (0-127) to scientific pitch notation (e.g. 60 → "C4"). */
+    private static String noteName(final int midi) {
+        final int octave = midi / 12 - 1;
+        return NOTE_NAMES[((midi % 12) + 12) % 12] + octave;
     }
 }

@@ -300,88 +300,22 @@ public final class PhraseInterpreter {
         }
     }
 
-    /**
-     * Compute the leading padding (anacrusis silence) of a phrase — the total
-     * duration of {@link PaddingNode}s at the start of its node list, before
-     * any audible content.
-     */
-    private long computeLeadingPadding(Phrase phrase) {
-        return switch (phrase) {
-            case MelodicPhrase mp -> leadingPaddingFromNodes(mp.nodes());
-            case DrumPhrase dp   -> leadingPaddingFromNodes(dp.nodes());
-            case ShiftedPhrase sp -> computeLeadingPadding(sp.source());
-            case LayeredPhrase lp -> computeLeadingPadding(lp.resolve());
-            default -> 0;
-        };
+    // Thin ticks wrappers over PhraseMetrics (single source of truth).
+    // 1 sixty-fourth = TICKS_PER_QUARTER / 16 ticks.
+
+    private static long computeLeadingPadding(Phrase phrase) {
+        return sfToTicks(PhraseMetrics.leadingPaddingSixtyFourths(phrase));
     }
 
-    private static long leadingPaddingFromNodes(List<PhraseNode> nodes) {
-        long padding = 0;
-        for (PhraseNode node : nodes) {
-            switch (node) {
-                case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
-                case DynamicNode d -> {}
-                case SlurStart s -> {}
-                case SlurEnd s -> {}
-                case TempoChangeNode t -> {}
-                case TempoTransitionStartNode t -> {}
-                case TempoTransitionEndNode t -> {}
-                default -> { return padding; } // first audible node reached
-            }
-        }
-        return padding;
-    }
-
-    /**
-     * Total duration of trailing {@link PaddingNode}s in a phrase's node list.
-     * Used by elision to know how much silence the prev phrase added after its
-     * last audible node (from {@code ending()}).
-     */
     private static long trailingPaddingOf(Phrase phrase) {
-        return switch (phrase) {
-            case MelodicPhrase mp -> trailingPaddingFromNodes(mp.nodes());
-            case DrumPhrase dp    -> trailingPaddingFromNodes(dp.nodes());
-            case ShiftedPhrase sp -> trailingPaddingOf(sp.source());
-            case LayeredPhrase lp -> trailingPaddingOf(lp.resolve());
-            default -> 0L;
-        };
+        return sfToTicks(PhraseMetrics.trailingPaddingSixtyFourths(phrase));
     }
 
-    private static long trailingPaddingFromNodes(List<PhraseNode> nodes) {
-        long padding = 0;
-        for (int i = nodes.size() - 1; i >= 0; i--) {
-            PhraseNode node = nodes.get(i);
-            switch (node) {
-                case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
-                case DynamicNode d -> {}
-                case SlurStart s -> {}
-                case SlurEnd s -> {}
-                case TempoChangeNode t -> {}
-                case TempoTransitionStartNode t -> {}
-                case TempoTransitionEndNode t -> {}
-                default -> { return padding; } // first audible node from the end
-            }
-        }
-        return padding;
-    }
-
-    /**
-     * Size of a phrase's last bar in ticks. Used by elision to validate that
-     * ending + pickup audible contents fit in one bar.
-     */
     private static long barSizeOf(Phrase phrase) {
-        return switch (phrase) {
-            case MelodicPhrase mp -> melodicBarSize(mp.bars());
-            case DrumPhrase dp    -> 0L; // drums rarely use elision
-            case ShiftedPhrase sp -> barSizeOf(sp.source());
-            case LayeredPhrase lp -> barSizeOf(lp.resolve());
-            default -> 0L;
-        };
+        return sfToTicks(PhraseMetrics.lastBarSixtyFourths(phrase));
     }
 
-    private static long melodicBarSize(List<Bar> bars) {
-        if (bars.isEmpty()) return 0L;
-        int sixtyFourths = bars.get(bars.size() - 1).expectedSixtyFourths();
+    private static long sfToTicks(int sixtyFourths) {
         return (long) sixtyFourths * MidiMapper.TICKS_PER_QUARTER / 16;
     }
 

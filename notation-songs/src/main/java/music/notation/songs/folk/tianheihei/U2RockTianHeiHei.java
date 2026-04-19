@@ -1,5 +1,6 @@
 package music.notation.songs.folk.tianheihei;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
@@ -55,7 +56,7 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
                 ending, th));
     }
 
-    // ── Piano: Acoustic Grand ────────────────────────────────────────
+    // ── Piano: Acoustic Grand — Chopin nocturne harmony ──────────────
 
     private Track pianoHarmony() {
         var m1 = piano.buildHarmonyMain1();
@@ -88,7 +89,9 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
                 .bar().r(WHOLE)
                 // Edge enters bar 3: G arpeggio
                 .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(HALF, B)
+                // Last bar: shorten so it ends with trailing pad ≥ 16sf (needed for
+                // elision into edgeMain1's 48sf leading-padding pickup).
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER, B).ending()
                 .build(elision());
     }
 
@@ -146,7 +149,8 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
                 .bar().o4(QUARTER.dot(), E).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, E)   // Em
                 .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
                 .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C)   // C
-                .bar().o4(HALF, D, A).o4(D, A).ending()                                        // D
+                // D: shorten so trailing pad ≥ 24 (for elision into chorus's 40sf leading pad)
+                .bar().o4(HALF, D, A).ending()                                                  // D
                 .build(elision());
     }
 
@@ -187,7 +191,8 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
                 .bar().r(WHOLE)
                 .bar().r(WHOLE)
                 .bar().r(WHOLE)
-                .bar().o2(HALF, G).r(HALF)
+                // Last bar: G half + ending() pad 32sf (for elision into bassMain1's 48sf lead)
+                .bar().o2(HALF, G).ending()
                 .build(elision());
     }
 
@@ -245,7 +250,8 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
                 .bar(EIGHTH).o2(E).o2(E).o2(B).o2(B).o2(E).o2(E).o2(B).o2(E)                 // Em
                 .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
                 .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C)                 // C
-                .bar().o3(HALF, D).o3(D).ending()                                               // D
+                // D: shorten so trailing pad ≥ 24 (for elision into chorus's 40sf leading pad)
+                .bar().o3(HALF, D).ending()                                                     // D
                 .build(elision());
     }
 
@@ -283,7 +289,9 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
     // Pre: silent — organ enters with the band
     private MelodicPhrase organPre() {
         return b()
-                .bar().r(WHOLE).bar().r(WHOLE).bar().r(WHOLE).bar().r(WHOLE)
+                .bar().r(WHOLE).bar().r(WHOLE).bar().r(WHOLE)
+                // Last bar: HALF rest + ending pad 32 (for elision into organMain1's 48sf lead)
+                .bar().r(HALF).ending()
                 .build(elision());
     }
 
@@ -326,7 +334,8 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
                 .bar().o3(WHOLE, C, E, G)
                 .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
                 .bar().o3(WHOLE, D, F, A)
-                .bar().o3(WHOLE, G, B, D.higher(1))
+                // Last bar: HALF so trailing pad = 32 (for elision into next 40/48sf pickup)
+                .bar().o3(HALF, G, B, D.higher(1)).ending()
                 .build(elision());
     }
 
@@ -341,7 +350,8 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
                 .bar().o3(WHOLE, E, G, B)
                 .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
                 .bar().o3(WHOLE, C, E, G)
-                .bar().o3(WHOLE, D, F, A)
+                // Last bar: HALF so trailing pad = 32 (for elision into chorus's 40sf pickup)
+                .bar().o3(HALF, D, F, A).ending()
                 .build(elision());
     }
 
@@ -382,10 +392,13 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
         return new DrumPhrase(n, elision());
     }
 
-    // Main1: half-time feel — kick on 1, snare on 3, open hi-hat eighths (2-eighth pickup + 8 bars)
+    // Main1: half-time feel — kick on 1, snare on 3, open hi-hat eighths
+    //        Pickup bar: 48sf leading padding + 16sf of rests = 64sf, matching
+    //        the melodic Main1's pickup shape. Then 8 bars of content = 9 bars total.
     private DrumPhrase drumsMain1() {
         var n = new ArrayList<PhraseNode>();
         n.add(new DynamicNode(Dynamic.MP));
+        n.add(new PaddingNode(HALF.dot()));   // 48sf leading silence (pickup bar)
         n.add(new RestNode(EIGHTH));
         n.add(new RestNode(EIGHTH));
         for (int i = 0; i < 7; i++) halfTimeBar(n);
@@ -405,10 +418,13 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
         return new DrumPhrase(n, elision());
     }
 
-    // Chorus: full anthemic backbeat — kick on 1&3, snare on 2&4, crash (3-eighth pickup + 8 bars)
+    // Chorus: full anthemic backbeat — kick on 1&3, snare on 2&4, crash
+    //        Pickup bar: 40sf leading padding + 3×EIGHTH (2 rests + crash) = 64sf.
+    //        Then 8 bars = 9 bars total, matching melodic Chorus.
     private DrumPhrase drumsChorus() {
         var n = new ArrayList<PhraseNode>();
         n.add(new DynamicNode(Dynamic.F));
+        n.add(new PaddingNode(Duration.ofSixtyFourths(40)));  // 40sf leading (HALF + EIGHTH)
         n.add(new RestNode(EIGHTH));
         n.add(new RestNode(EIGHTH));
         n.add(d(CRASH_CYMBAL, EIGHTH));
@@ -417,10 +433,12 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
         return new DrumPhrase(n, elision());
     }
 
-    // Bridge: ride-based half-time (2-eighth pickup + 8 bars)
+    // Bridge: ride-based half-time. Pickup bar = 48sf padding + 16sf rests = 64sf.
+    //        Then 8 bars = 9 bars total, matching melodic Bridge.
     private DrumPhrase drumsBridge() {
         var n = new ArrayList<PhraseNode>();
         n.add(new DynamicNode(Dynamic.MF));
+        n.add(new PaddingNode(HALF.dot()));   // 48sf leading silence (pickup bar)
         n.add(new RestNode(EIGHTH));
         n.add(new RestNode(EIGHTH));
         for (int i = 0; i < 7; i++) rideHalfTime(n);
@@ -428,10 +446,12 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
         return new DrumPhrase(n, elision());
     }
 
-    // Ending: build from half-time to anthemic then resolve (2-eighth pickup + 12 bars)
+    // Ending: build from half-time to anthemic then resolve.
+    //        Pickup bar = 48sf padding + 16sf rests = 64sf. Then 12 bars = 13 bars total.
     private DrumPhrase drumsEnding() {
         var n = new ArrayList<PhraseNode>();
         n.add(new DynamicNode(Dynamic.MF));
+        n.add(new PaddingNode(HALF.dot()));   // 48sf leading silence (pickup bar)
         n.add(new RestNode(EIGHTH));
         n.add(new RestNode(EIGHTH));
         for (int i = 0; i < 4; i++) halfTimeBar(n);          // bars 1–4: half-time

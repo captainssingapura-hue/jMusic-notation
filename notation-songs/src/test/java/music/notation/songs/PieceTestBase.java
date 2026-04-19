@@ -56,7 +56,7 @@ public abstract class PieceTestBase {
     }
 
     @Test
-    void allTracksHaveSameDuration() {
+    protected void allTracksHaveSameDuration() {
         final List<Track> tracks = piece.tracks();
         final int[] durations = new int[tracks.size()];
         for (int i = 0; i < tracks.size(); i++) {

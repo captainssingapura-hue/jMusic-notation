@@ -1,1 +1,4 @@
 /notation-ui/dependency-reduced-pom.xml
+target/
+/.idea/
+/.claude/

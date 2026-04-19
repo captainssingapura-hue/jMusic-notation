@@ -100,6 +100,28 @@ var auxPhrases = P.buildAuxPhrases(breath());
 
 Same ending phrase can be reused with different pickups as long as they fit.
 
+### Known Issues: Slur / Tie Handling
+
+Slurs have two semantics handled in different layers:
+
+1. **Same-pitch tie** — merged into a single sustained `NoteNode` at phrase-construction time (`MelodicPhrase.resolveSlurs`).
+2. **Different-pitch legato** — kept as `SlurStart`/`SlurEnd` markers; the playback interpreter extends each note-off inside the region by `LEGATO_OVERLAP_TICKS` (= 10 ticks, ~1/48 of a quarter note).
+
+The current implementation has several known limitations:
+
+- **🐛 Multi-note ties don't merge.** `resolveSlurs` only matches the rigid 4-node pattern `NoteNode, SlurStart, NoteNode, SlurEnd`. The natural grouped form `.slurStart().o4(F).o4(F).o4(F).slurEnd()` — three same-pitch notes under one slur wrapper — fails the pattern check and emits 3 separate attacks with only legato-overlap, instead of a single held note.
+  Workaround: chain per-pair ties `.o4(F).slurStart().o4(F).slurEnd().slurStart().o4(F).slurEnd()` — each 2-note pair merges, and the resolver's chain logic combines them.
+
+- **🐛 Tie merge discards articulations / ornaments / grace notes.** `resolveSlurs` constructs the merged note via `NoteNode.poly(duration, pitches)`, which uses default (empty) articulation list, no ornament, no grace notes. Any such decorations on the `before` or `after` note are silently dropped.
+
+- **🐛 Nested slurs don't nest.** `inSlur` is a boolean flag, not a counter. An inner `SlurEnd` closes the outer slur, so notes after the inner region inside the outer slur lose their legato.
+
+- **⚠️ `LEGATO_OVERLAP_TICKS = 10` may feel too subtle.** For a QUARTER note (480 ticks), 10 ticks = ~2% overlap — barely audible. Increase if you want more pronounced legato.
+
+- **⚠️ Marker-skipping can misfire.** The resolver's "skip zero-duration markers between `SlurStart` and the next `NoteNode`" walks past nested `SlurStart` / `SlurEnd` markers, so the target of a nested slur can become the tie candidate for an outer slur.
+
+These are candidates for a future rework; until then, prefer per-pair ties and avoid nested slurs.
+
 ### Song Library
 
 Songs are modelled with three interfaces:
