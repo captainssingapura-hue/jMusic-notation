@@ -48,16 +48,19 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
 
     // ── Lead Guitar (Overdriven) ───────────────────────────────────────
 
-    private Track buildLeadGuitar() {
-        var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
+    /** Fresh single-use builder for this piece's key/TS/default duration. */
+    private static StaffPhraseBuilder newBuilder() {
+        return StaffPhraseBuilder.in(KEY, TS, EIGHTH);
+    }
 
+    private Track buildLeadGuitar() {
         // Pickup (1 bar)
-        var pickup = P
+        var pickup = newBuilder()
                 .pickup().mf().o4(QUARTER, E)
                 .build(attacca());
 
         // Verse 1: standard — o4/o5, mf–f (10 bars)
-        var v1 = P
+        var v1 = newBuilder()
                 .bar().mf()
                     .o4(QUARTER, A).o4(QUARTER, B).o5(QUARTER.dot(), C).o4(B)
                 .bar()
@@ -81,7 +84,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
                 .build(attacca());
 
         // Verse 2: building up — same melody, f–ff dynamics (10 bars)
-        var v2 = P
+        var v2 = newBuilder()
                 .bar().f()
                     .o4(QUARTER, A).o4(QUARTER, B).o5(QUARTER.dot(), C).o4(B)
                 .bar()
@@ -105,7 +108,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
                 .build(attacca());
 
         // Verse 3: climax — ff–fff, lines 1-2 up to o5, lines 3-4 soar to o6 (10 bars)
-        var v3 = P
+        var v3 = newBuilder()
                 .bar().ff()
                     .o5(QUARTER, A).o5(QUARTER, B).o6(QUARTER.dot(), C).o5(B)
                 .bar()
@@ -129,7 +132,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
                 .build(attacca());
 
         // Verse 4: sharp drop — p→pp, melody sinks to o3, ending in sorrow (11 bars)
-        var v4 = P
+        var v4 = newBuilder()
                 .bar().p()
                     .o4(QUARTER, A).o4(QUARTER, B).o5(QUARTER.dot(), C).o4(B)
                 .bar()
@@ -192,8 +195,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
         var v3 = new ChordPhrase(fullVerse, attacca());
 
         // Verse 4: thin sustained root, sharp drop (11 bars)
-        var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-        var v4 = P
+        var v4 = newBuilder()
                 .bar().pp().o3(WHOLE, A)
                 .bar().o3(WHOLE, A)
                 .bar().o3(WHOLE, A)
@@ -214,24 +216,22 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
     // ── Bass (Electric Pick) ───────────────────────────────────────────
 
     private Track buildBass() {
-        var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-
         // Pickup (1 bar)
-        var pickup = P
+        var pickup = newBuilder()
                 .pickup().mf().o2(QUARTER, A).o2(QUARTER, E)
                 .build(attacca());
 
         // Verse 1: standard driving eighths (10 bars)
-        var v1 = buildDrivingBass(P, Dynamic.MF, Dynamic.F);
+        var v1 = buildDrivingBass(Dynamic.MF, Dynamic.F);
 
         // Verse 2: building up (10 bars)
-        var v2 = buildDrivingBass(P, Dynamic.F, Dynamic.FF);
+        var v2 = buildDrivingBass(Dynamic.F, Dynamic.FF);
 
         // Verse 3: climax, hardest driving (10 bars)
-        var v3 = buildDrivingBass(P, Dynamic.FF, Dynamic.FFF);
+        var v3 = buildDrivingBass(Dynamic.FF, Dynamic.FFF);
 
         // Verse 4: whole notes, sparse, sharp drop (11 bars)
-        var v4 = P
+        var v4 = newBuilder()
                 .bar().p()
                     .o2(WHOLE, A)
                 .bar()
@@ -261,9 +261,8 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
     }
 
     /** Driving eighth-note bass pattern for one verse (10 bars). */
-    private MelodicPhrase buildDrivingBass(StaffPhraseBuilder P,
-                                           Dynamic verse, Dynamic climax) {
-        return P
+    private MelodicPhrase buildDrivingBass(Dynamic verse, Dynamic climax) {
+        return newBuilder()
                 .bar().dyn(verse)
                     .o2(A).o2(A).o2(E).o2(A).o2(A).o2(E).o2(A).o2(A)
                 .bar()
@@ -290,22 +289,20 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
     // ── Organ Pad (Rock Organ) ─────────────────────────────────────────
 
     private Track buildOrgan() {
-        var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-
         // Pickup (1 bar)
-        var pickup = P.bar().mp().o3(WHOLE, A).build(attacca());
+        var pickup = newBuilder().bar().mp().o3(WHOLE, A).build(attacca());
 
         // Verse 1: standard (10 bars)
-        var v1 = buildOrganVerse(P, Dynamic.MP, Dynamic.MF);
+        var v1 = buildOrganVerse(Dynamic.MP, Dynamic.MF);
 
         // Verse 2: building (10 bars)
-        var v2 = buildOrganVerse(P, Dynamic.MF, Dynamic.F);
+        var v2 = buildOrganVerse(Dynamic.MF, Dynamic.F);
 
         // Verse 3: climax (10 bars)
-        var v3 = buildOrganVerse(P, Dynamic.F, Dynamic.FF);
+        var v3 = buildOrganVerse(Dynamic.F, Dynamic.FF);
 
         // Verse 4: sharp drop, fading to nothing (11 bars)
-        var v4 = P
+        var v4 = newBuilder()
                 .bar().p().o3(WHOLE, A)
                 .bar().o3(WHOLE, A)
                 .bar().pp().o3(WHOLE, C)
@@ -324,9 +321,8 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
     }
 
     /** Organ pad for one verse (10 bars). */
-    private MelodicPhrase buildOrganVerse(StaffPhraseBuilder P,
-                                          Dynamic verse, Dynamic climax) {
-        return P
+    private MelodicPhrase buildOrganVerse(Dynamic verse, Dynamic climax) {
+        return newBuilder()
                 .bar().dyn(verse)
                     .o3(WHOLE, A)
                 .bar().o3(WHOLE, A)

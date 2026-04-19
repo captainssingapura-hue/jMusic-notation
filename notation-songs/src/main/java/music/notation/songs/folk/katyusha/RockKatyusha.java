@@ -64,8 +64,7 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
     // ── Melody ───────────────────────────────────────────────────
 
     private static Track melody() {
-        var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
-        var template = buildVerse(P, attacca());
+        var template = buildVerse(attacca());
         var phrases = new ArrayList<Phrase>();
 
         for (VerseSpec v : VERSES) {
@@ -80,8 +79,9 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
             phrases.add(shift(overridden, v));
         }
 
-        // Coda: bars 5–8 repeated softer in C minor (octave 5), rit. to 80 BPM
-        var coda = P
+        // Coda: bars 5–8 repeated softer in C minor (octave 5), rit. to 80 BPM.
+        // Fresh builder — one phrase per builder.
+        var coda = StaffPhraseBuilder.in(KEY, TS, EIGHTH)
                 .bar(QUARTER).dyn(Dynamic.MF).transitionStart()
                     .o5(A).o5(D).o5(C).o5(EIGHTH,D).o5(EIGHTH,C)
                     .aux(HALF).o4(F).o4(F.s())
@@ -97,13 +97,10 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
     // ── Bass ─────────────────────────────────────────────────────
 
     private static Track bass() {
-        var P = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var template = buildBassVerse(P, attacca());
+        var template = buildBassVerse(attacca());
         var phrases = new ArrayList<Phrase>();
 
-        for (int i = 0; i < VERSES.length; i++) {
-            var v = VERSES[i];
-
+        for (VerseSpec v : VERSES) {
             var overridden = OverlayBuilder.over(template, KEY, TS, QUARTER)
                     .at(0, b -> b.dyn(v.dyn).o3(D).o3(A).o3(D).o3(A))
                     .build(attacca());
@@ -111,8 +108,8 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
             phrases.add(shift(overridden, v));
         }
 
-        // Coda: bars 5–8 (Bb, Gm→Dm, Gm→Dm, A→Dm) softer
-        var coda = P
+        // Coda: bars 5–8 (Bb, Gm→Dm, Gm→Dm, A→Dm) softer — fresh builder.
+        var coda = StaffPhraseBuilder.in(KEY, TS, QUARTER)
                 .bar().dyn(Dynamic.MF).o2(B).o3(F).o2(B).o3(F)
                 .bar().o3(G).o3(D).o3(D).o3(A)
                 .bar().o3(G).o3(D).o3(D).o3(A)
@@ -126,13 +123,10 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
     // ── Chords ───────────────────────────────────────────────────
 
     private static Track chords() {
-        var P = StaffPhraseBuilder.in(KEY, TS, HALF);
-        var template = buildChordVerse(P, attacca());
+        var template = buildChordVerse(attacca());
         var phrases = new ArrayList<Phrase>();
 
-        for (int i = 0; i < VERSES.length; i++) {
-            var v = VERSES[i];
-
+        for (VerseSpec v : VERSES) {
             var overridden = OverlayBuilder.over(template, KEY, TS, HALF)
                     .at(0, b -> b.dyn(v.dyn).o4(D, F, A).o4(D, F, A))
                     .build(attacca());
@@ -140,8 +134,8 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
             phrases.add(shift(overridden, v));
         }
 
-        // Coda: bars 5–8 (Bb, Gm→Dm, Gm→Dm, A→Dm) softer
-        var coda = P
+        // Coda: bars 5–8 (Bb, Gm→Dm, Gm→Dm, A→Dm) softer — fresh builder.
+        var coda = StaffPhraseBuilder.in(KEY, TS, HALF)
                 .bar().dyn(Dynamic.MF)
                     .o3(B, D.higher(1), F.higher(1)).o3(B, D.higher(1), F.higher(1))
                 .bar().o4(G, B, D.higher(1)).o4(D, F, A)

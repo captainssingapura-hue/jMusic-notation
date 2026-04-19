@@ -61,6 +61,17 @@ public final class StaffPhraseBuilder {
     // ── Per-bar default duration ──
     private Duration activeDur;  // per-bar override; null → use builder defaultDur
 
+    // ── One-shot invariant ──
+    //
+    // Each builder instance builds exactly one phrase. After build() returns,
+    // any further method call throws. Reusing a builder across phrases (e.g.
+    // looping "buildVerse(P, ...)" on the same P, or stashing P in a static
+    // field) is an anti-pattern: it encourages accidental state-carry between
+    // phrases and blocks us from moving to typed sub-builders later. Callers
+    // should construct a fresh builder per phrase via a factory method
+    // (commonly named {@code newBuilder()} or {@code b()}).
+    private boolean consumed;
+
     // ── Aux bar state ──
     //
     // Aux (voice overlay) is bar-aligned: one or more aux slots per main bar,
@@ -218,7 +229,16 @@ public final class StaffPhraseBuilder {
 
     // ── Bar management ──
 
+    private void requireNotConsumed() {
+        if (consumed) {
+            throw new IllegalStateException(
+                    "StaffPhraseBuilder already built — construct a fresh builder "
+                            + "for each phrase; builders are one-shot by design.");
+        }
+    }
+
     public StaffPhraseBuilder bar() {
+        requireNotConsumed();
         flush();
         current = new ArrayList<>();
         isPickup = false;
@@ -239,6 +259,7 @@ public final class StaffPhraseBuilder {
      * to fill the remaining beats.
      */
     public StaffPhraseBuilder pickup() {
+        requireNotConsumed();
         flush();
         current = new ArrayList<>();
         isPickup = true;
@@ -258,6 +279,7 @@ public final class StaffPhraseBuilder {
      * appended to fill any remaining beats after the notes already added.
      */
     public StaffPhraseBuilder ending() {
+        requireNotConsumed();
         if (current == null) {
             throw new IllegalStateException("ending() called without a preceding bar()");
         }
@@ -325,9 +347,10 @@ public final class StaffPhraseBuilder {
      * are simply silent (no rest-padding synthesis).</p>
      */
     public MelodicPhrase build(PhraseMarking marking) {
+        requireNotConsumed();
         flush();
         var result = MelodicPhrase.fromBars(ts, marking, bars.toArray(Bar[]::new));
-        bars.clear();
+        consumed = true;
         return result;
     }
 
