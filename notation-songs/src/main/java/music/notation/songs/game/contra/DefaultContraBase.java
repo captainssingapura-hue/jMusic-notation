@@ -1,6 +1,7 @@
 package music.notation.songs.game.contra;
 
 import music.notation.event.Dynamic;
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -28,8 +29,8 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private static final TimeSignature TS = new TimeSignature(4, 4);
 
     /** Builder defaulting to SIXTEENTH notes. */
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, SIXTEENTH);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, SIXTEENTH);
     }
 
     @Override public String subtitle() { return "NES Original"; }
@@ -59,7 +60,7 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     // ── Intro (bar 1): iconic descending run ─────────────────────
     private MelodicPhrase m1Intro() {
         return b()
-                .bar().o5(C).o4(A.s()).o4(G).o4(F).o4(G).o4(F).o4(D.s()).o4(D).o4(D.s()).o4(D).o4(C).o3(A.s()).o3(A.s()).o3(F).o3(G).o3(A.s())
+                .bar().o5(C).o4(A.s()).o4(G).o4(F).o4(G).o4(F).o4(D.s()).o4(D).o4(D.s()).o4(D).o4(C).o3(A.s()).o3(A.s()).o3(F).o3(G).o3(A.s()).done()
                 .build(attacca());
     }
 
@@ -67,21 +68,21 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private MelodicPhrase m1ThemeA() {
         return b()
                 // bar 2: C held, pickup → G#
-                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(G.s())
+                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(G.s()).done()
                 // bar 3: A# whole
-                .bar().o4(WHOLE, A.s())
+                .bar().o4(WHOLE, A.s()).done()
                 // bar 4: C held, pickup → A
-                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(A)
+                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(A).done()
                 // bar 5: D# whole
-                .bar().o4(WHOLE, D.s())
+                .bar().o4(WHOLE, D.s()).done()
                 // bar 6 = bar 2
-                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(G.s())
+                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(G.s()).done()
                 // bar 7: A# whole
-                .bar().o4(WHOLE, A.s())
+                .bar().o4(WHOLE, A.s()).done()
                 // bar 8 = bar 4
-                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(A)
+                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(A).done()
                 // bar 9: D# whole
-                .bar().o4(WHOLE, D.s())
+                .bar().o4(WHOLE, D.s()).done()
                 .build(attacca());
     }
 
@@ -89,20 +90,20 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private MelodicPhrase m1ThemeB() {
         return b()
                 // bar 10
-                .bar().o4(G).r().o4(EIGHTH.dot(), G).o4(EIGHTH.dot(), A).o4(A.s()).o4(A.s()).o4(G).o4(A.s()).o5(C).ending()
+                .bar().o4(G).r().o4(EIGHTH.dot(), G).o4(EIGHTH.dot(), A).o4(A.s()).o4(A.s()).o4(G).o4(A.s()).o5(C).pad(EIGHTH.dot()).done()
                 // bar 11
-                .bar().o4(A).r().o4(EIGHTH.dot(), A).o4(EIGHTH.dot(), A.s()).o5(C).o5(C).o4(A.s()).o5(EIGHTH.dot(), C).ending()
+                .bar().o4(A).r().o4(EIGHTH.dot(), A).o4(EIGHTH.dot(), A.s()).o5(C).o5(C).o4(A.s()).o5(EIGHTH.dot(), C).pad(EIGHTH).done()
                 // bar 12 = bar 10
-                .bar().o4(G).r().o4(EIGHTH.dot(), G).o4(EIGHTH.dot(), A).o4(A.s()).o4(A.s()).o4(G).o4(A.s()).o5(C).ending()
+                .bar().o4(G).r().o4(EIGHTH.dot(), G).o4(EIGHTH.dot(), A).o4(A.s()).o4(A.s()).o4(G).o4(A.s()).o5(C).pad(EIGHTH.dot()).done()
                 // bar 13: resolves into sustained notes
-                .bar().o4(A).r().o4(EIGHTH.dot(), A).o4(EIGHTH.dot(), A.s()).o5(QUARTER, C).o5(QUARTER, F)
+                .bar().o4(A).r().o4(EIGHTH.dot(), A).o4(EIGHTH.dot(), A.s()).o5(QUARTER, C).o5(QUARTER, F).done()
                 .build(attacca());
     }
 
     // ── Transition (bar 14): fast descending run ─────────────────
     private MelodicPhrase m1Transition() {
         return b()
-                .bar().o5(G).o5(F).o5(G).o5(F).o6(D).o6(C).o5(A.s()).o5(A).o5(G).o5(F).o5(G).o5(F).o5(D).o5(C).o5(D).o5(C)
+                .bar().o5(G).o5(F).o5(G).o5(F).o6(D).o6(C).o5(A.s()).o5(A).o5(G).o5(F).o5(G).o5(F).o5(D).o5(C).o5(D).o5(C).done()
                 .build(attacca());
     }
 
@@ -110,9 +111,9 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private MelodicPhrase m1Bridge() {
         return b()
                 // bar 15
-                .bar().o3(EIGHTH.dot(), G).r().o3(G).o4(EIGHTH, D).o4(D.s()).o4(G).o4(F).o4(D.s()).o4(EIGHTH, D).o3(A.s()).ending()
+                .bar().o3(EIGHTH.dot(), G).r().o3(G).o4(EIGHTH, D).o4(D.s()).o4(G).o4(F).o4(D.s()).o4(EIGHTH, D).o3(A.s()).pad(EIGHTH).done()
                 // bar 16
-                .bar().o3(C).o3(C).o3(C).r().o3(C).o3(EIGHTH.dot(), D).o3(EIGHTH.dot(), D.s()).o3(C).o3(F).o3(EIGHTH.dot(), G)
+                .bar().o3(C).o3(C).o3(C).r().o3(C).o3(EIGHTH.dot(), D).o3(EIGHTH.dot(), D.s()).o3(C).o3(F).o3(EIGHTH.dot(), G).done()
                 .build(attacca());
     }
 
@@ -120,17 +121,17 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private MelodicPhrase m1ThemeC() {
         return b()
                 // bar 17
-                .bar().o3(QUARTER, F).o3(G).o3(EIGHTH.dot(), A).o3(QUARTER, A.s()).o4(C).o4(EIGHTH.dot(), D)
+                .bar().o3(QUARTER, F).o3(G).o3(EIGHTH.dot(), A).o3(QUARTER, A.s()).o4(C).o4(EIGHTH.dot(), D).done()
                 // bar 18
-                .bar().o4(QUARTER, D.s()).o4(D.s()).o4(EIGHTH, F).o4(G).o4(QUARTER, A.s()).o4(A).o4(C).o4(D.s()).o4(F)
+                .bar().o4(QUARTER, D.s()).o4(D.s()).o4(EIGHTH, F).o4(G).o4(QUARTER, A.s()).o4(A).o4(C).o4(D.s()).o4(F).done()
                 // bar 19
-                .bar().o4(G).o4(F).o4(G).o4(C).o4(C).o4(D.s()).o4(F).o4(EIGHTH, G).o4(A.s()).o4(A).o4(A.s()).o4(EIGHTH, A).o4(F).ending()
+                .bar().o4(G).o4(F).o4(G).o4(C).o4(C).o4(D.s()).o4(F).o4(EIGHTH, G).o4(A.s()).o4(A).o4(A.s()).o4(EIGHTH, A).o4(F).pad(SIXTEENTH).done()
                 // bar 20
-                .bar().o4(G).o4(F).o4(G).o4(C).o4(C).o4(D.s()).o4(F).o4(EIGHTH, G).o4(A.s()).o4(A).o4(A.s()).o5(EIGHTH, C).o5(D).ending()
+                .bar().o4(G).o4(F).o4(G).o4(C).o4(C).o4(D.s()).o4(F).o4(EIGHTH, G).o4(A.s()).o4(A).o4(A.s()).o5(EIGHTH, C).o5(D).pad(SIXTEENTH).done()
                 // bar 21 = bar 17
-                .bar().o3(QUARTER, F).o3(G).o3(EIGHTH.dot(), A).o3(QUARTER, A.s()).o4(C).o4(EIGHTH.dot(), D)
+                .bar().o3(QUARTER, F).o3(G).o3(EIGHTH.dot(), A).o3(QUARTER, A.s()).o4(C).o4(EIGHTH.dot(), D).done()
                 // bar 22
-                .bar().o4(D.s()).o4(D.s()).o4(D.s()).r().o4(D.s()).o4(EIGHTH, F).o4(G).o4(QUARTER, A.s()).o4(QUARTER, A)
+                .bar().o4(D.s()).o4(D.s()).o4(D.s()).r().o4(D.s()).o4(EIGHTH, F).o4(G).o4(QUARTER, A.s()).o4(QUARTER, A).done()
                 .build(attacca());
     }
 
@@ -138,21 +139,21 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private MelodicPhrase m1ThemeD() {
         return b()
                 // bar 23: G pattern
-                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), F)
+                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), F).done()
                 // bar 24: D# pattern
-                .bar().o4(D.s()).o4(D.s()).o4(D.s()).o4(D.s()).r(EIGHTH).o4(D.s()).o4(D.s()).o4(D.s()).o4(D.s()).r(EIGHTH).o4(D.s()).o4(EIGHTH.dot(), F)
+                .bar().o4(D.s()).o4(D.s()).o4(D.s()).o4(D.s()).r(EIGHTH).o4(D.s()).o4(D.s()).o4(D.s()).o4(D.s()).r(EIGHTH).o4(D.s()).o4(EIGHTH.dot(), F).done()
                 // bar 25: G pattern
-                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), F)
+                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), F).done()
                 // bar 26: D# ascending
-                .bar().o4(D.s()).o4(D.s()).o4(D.s()).o4(D.s()).r(EIGHTH.dot()).o4(D.s()).o4(F).o4(G).o4(A).o4(A.s()).o4(A).o4(EIGHTH.dot(), F)
+                .bar().o4(D.s()).o4(D.s()).o4(D.s()).o4(D.s()).r(EIGHTH.dot()).o4(D.s()).o4(F).o4(G).o4(A).o4(A.s()).o4(A).o4(EIGHTH.dot(), F).done()
                 // bar 27: A# pattern
-                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(EIGHTH.dot(), A)
+                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(EIGHTH.dot(), A).done()
                 // bar 28: G pattern
-                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), A)
+                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), A).done()
                 // bar 29: A# pattern
-                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A).o4(EIGHTH.dot(), A.s())
+                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A).o4(EIGHTH.dot(), A.s()).done()
                 // bar 30: C pattern → connects to turnaround
-                .bar().o5(C).o5(C).o5(C).o5(C).r(EIGHTH).o5(C).o5(C).o5(C).o5(C).r(EIGHTH).o3(G).o4(C).o4(D).ending()
+                .bar().o5(C).o5(C).o5(C).o5(C).r(EIGHTH).o5(C).o5(C).o5(C).o5(C).r(EIGHTH).o3(G).o4(C).o4(D).pad(SIXTEENTH).done()
                 .build(attacca());
     }
 
@@ -160,20 +161,20 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private MelodicPhrase m1Turnaround() {
         return b()
                 // bar 31
-                .bar().o4(D.s()).o4(D).o4(D.s()).o3(EIGHTH, G).o3(G).o4(C).o4(D).o4(D.s()).o4(D).o4(D.s()).o4(EIGHTH, G).o4(G).o4(F).o4(G).ending()
+                .bar().o4(D.s()).o4(D).o4(D.s()).o3(EIGHTH, G).o3(G).o4(C).o4(D).o4(D.s()).o4(D).o4(D.s()).o4(EIGHTH, G).o4(G).o4(F).o4(G).done()
                 // bar 32
-                .bar().o4(D.s()).o4(D).o4(D.s()).o3(EIGHTH, G).o3(G).o4(C).o4(D).o4(D.s()).r(EIGHTH.dot()).o4(F).o4(EIGHTH.dot(), G)
+                .bar().o4(D.s()).o4(D).o4(D.s()).o3(EIGHTH, G).o3(G).o4(C).o4(D).o4(D.s()).r(EIGHTH.dot()).o4(F).o4(EIGHTH.dot(), G).done()
                 .build(attacca());
     }
 
     // ── Ending (bars 64-68): theme A fading out ──────────────────
     private MelodicPhrase m1Ending() {
         return b()
-                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(G.s())
-                .bar().o4(WHOLE, A.s())
-                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(A)
-                .bar().o4(WHOLE, D.s())
-                .bar().o4(HALF, C).ending()
+                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(G.s()).done()
+                .bar().o4(WHOLE, A.s()).done()
+                .bar().o4(HALF, C).r(EIGHTH.dot()).o4(G).o4(F).o4(EIGHTH, G).o4(A).done()
+                .bar().o4(WHOLE, D.s()).done()
+                .bar().o4(HALF, C).pad(HALF).done()
                 .build(end());
     }
 
@@ -193,113 +194,113 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
 
     private MelodicPhrase m2Intro() {
         return b()
-                .bar().o5(F).o5(D.s()).o5(C).o4(A.s()).o5(C).o4(A.s()).o4(G.s()).o4(G).o4(G.s()).o4(G).o4(F).o4(D.s()).o4(F).o3(A.s()).o4(C).o4(D.s())
+                .bar().o5(F).o5(D.s()).o5(C).o4(A.s()).o5(C).o4(A.s()).o4(G.s()).o4(G).o4(G.s()).o4(G).o4(F).o4(D.s()).o4(F).o3(A.s()).o4(C).o4(D.s()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2ThemeA() {
         return b()
                 // bar 2: F held, pickup → D
-                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D)
+                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D).done()
                 // bar 3: D# whole
-                .bar().o5(WHOLE, D.s())
+                .bar().o5(WHOLE, D.s()).done()
                 // bar 4: F held, pickup → D
-                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D)
+                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D).done()
                 // bar 5: G# whole
-                .bar().o4(WHOLE, G.s())
+                .bar().o4(WHOLE, G.s()).done()
                 // bar 6 = bar 2
-                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D)
+                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D).done()
                 // bar 7: D# whole
-                .bar().o5(WHOLE, D.s())
+                .bar().o5(WHOLE, D.s()).done()
                 // bar 8 = bar 4
-                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D)
+                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D).done()
                 // bar 9: G# whole
-                .bar().o4(WHOLE, G.s())
+                .bar().o4(WHOLE, G.s()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2ThemeB() {
         return b()
                 // bar 10
-                .bar().o5(C).r().o5(EIGHTH.dot(), C).o5(EIGHTH.dot(), D).o5(D.s()).o5(D.s()).ending()
+                .bar().o5(C).r().o5(EIGHTH.dot(), C).o5(EIGHTH.dot(), D).o5(D.s()).o5(D.s()).pad(QUARTER.dot()).done()
                 // bar 11
-                .bar().o5(D).r().o5(EIGHTH.dot(), D).o5(EIGHTH.dot(), D.s()).o5(F).o5(F).o5(D.s()).o5(EIGHTH.dot(), F).ending()
+                .bar().o5(D).r().o5(EIGHTH.dot(), D).o5(EIGHTH.dot(), D.s()).o5(F).o5(F).o5(D.s()).o5(EIGHTH.dot(), F).pad(EIGHTH).done()
                 // bar 12
-                .bar().o5(C).r().o5(EIGHTH.dot(), C).o5(EIGHTH.dot(), D).o5(D.s()).o5(D.s()).ending()
+                .bar().o5(C).r().o5(EIGHTH.dot(), C).o5(EIGHTH.dot(), D).o5(D.s()).o5(D.s()).pad(QUARTER.dot()).done()
                 // bar 13
-                .bar().o5(D).r().o5(EIGHTH.dot(), D).o5(EIGHTH.dot(), D.s()).o5(QUARTER, F).o5(QUARTER, A.s())
+                .bar().o5(D).r().o5(EIGHTH.dot(), D).o5(EIGHTH.dot(), D.s()).o5(QUARTER, F).o5(QUARTER, A.s()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2Transition() {
         return b()
-                .bar().o5(G).o5(F).o6(D).o6(C).o5(A.s()).o5(A).o5(G).o5(F).o5(G).o5(F).o5(D).o5(C).o5(D).o5(C).o4(A.s()).o4(A)
+                .bar().o5(G).o5(F).o6(D).o6(C).o5(A.s()).o5(A).o5(G).o5(F).o5(G).o5(F).o5(D).o5(C).o5(D).o5(C).o4(A.s()).o4(A).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2Bridge() {
         return b()
                 // bar 15
-                .bar().o4(EIGHTH.dot(), C).r().o4(C).o4(EIGHTH, D).o4(D.s()).o4(G).o4(F).o4(D.s()).o4(EIGHTH, D).o3(A.s()).ending()
+                .bar().o4(EIGHTH.dot(), C).r().o4(C).o4(EIGHTH, D).o4(D.s()).o4(G).o4(F).o4(D.s()).o4(EIGHTH, D).o3(A.s()).pad(EIGHTH).done()
                 // bar 16: C whole
-                .bar().o4(WHOLE, C)
+                .bar().o4(WHOLE, C).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2ThemeC() {
         return b()
                 // bar 17
-                .bar().o3(QUARTER, A).o3(A.s()).o4(EIGHTH.dot(), C).o4(QUARTER, D).o4(D.s()).o4(EIGHTH.dot(), F)
+                .bar().o3(QUARTER, A).o3(A.s()).o4(EIGHTH.dot(), C).o4(QUARTER, D).o4(D.s()).o4(EIGHTH.dot(), F).done()
                 // bar 18
-                .bar().o4(QUARTER, G).o4(A).o4(EIGHTH, A.s()).o5(C).o5(QUARTER, D).o5(C).o4(C).o4(D.s()).o4(F)
+                .bar().o4(QUARTER, G).o4(A).o4(EIGHTH, A.s()).o5(C).o5(QUARTER, D).o5(C).o4(C).o4(D.s()).o4(F).done()
                 // bar 19
-                .bar().o4(G).o4(F).o4(G).o4(C).o4(C).o4(D.s()).o4(F).o4(EIGHTH, G).o4(A.s()).o4(A).o4(A.s()).o4(EIGHTH, A).o4(F).ending()
+                .bar().o4(G).o4(F).o4(G).o4(C).o4(C).o4(D.s()).o4(F).o4(EIGHTH, G).o4(A.s()).o4(A).o4(A.s()).o4(EIGHTH, A).o4(F).pad(SIXTEENTH).done()
                 // bar 20: G whole
-                .bar().o4(WHOLE, G)
+                .bar().o4(WHOLE, G).done()
                 // bar 21 = bar 17
-                .bar().o3(QUARTER, A).o3(A.s()).o4(EIGHTH.dot(), C).o4(QUARTER, D).o4(D.s()).o4(EIGHTH.dot(), F)
+                .bar().o3(QUARTER, A).o3(A.s()).o4(EIGHTH.dot(), C).o4(QUARTER, D).o4(D.s()).o4(EIGHTH.dot(), F).done()
                 // bar 22
-                .bar().o4(G).o4(G).o4(G).r().o4(G).o4(EIGHTH, A).o4(A.s()).o5(QUARTER, D).o5(QUARTER, C)
+                .bar().o4(G).o4(G).o4(G).r().o4(G).o4(EIGHTH, A).o4(A.s()).o5(QUARTER, D).o5(QUARTER, C).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2ThemeD() {
         return b()
                 // bar 23: A# pattern
-                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(EIGHTH.dot(), A)
+                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(EIGHTH.dot(), A).done()
                 // bar 24: G pattern
-                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), A)
+                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(G).o4(G).o4(G).r(EIGHTH).o4(G).o4(EIGHTH.dot(), A).done()
                 // bar 25: A# pattern
-                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(EIGHTH.dot(), A)
+                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(EIGHTH.dot(), A).done()
                 // bar 26: G ascending
-                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH.dot()).o4(G).o4(A).o4(A.s()).o5(C).o5(D).o5(C).o4(EIGHTH.dot(), A)
+                .bar().o4(G).o4(G).o4(G).o4(G).r(EIGHTH.dot()).o4(G).o4(A).o4(A.s()).o5(C).o5(D).o5(C).o4(EIGHTH.dot(), A).done()
                 // bar 27: D pattern
-                .bar().o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(EIGHTH.dot(), C)
+                .bar().o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(EIGHTH.dot(), C).done()
                 // bar 28: A# pattern
-                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o5(EIGHTH.dot(), C)
+                .bar().o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o4(A.s()).o4(A.s()).o4(A.s()).r(EIGHTH).o4(A.s()).o5(EIGHTH.dot(), C).done()
                 // bar 29: D pattern
-                .bar().o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(EIGHTH.dot(), D.s())
+                .bar().o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(D).o5(D).o5(D).r(EIGHTH).o5(D).o5(EIGHTH.dot(), D.s()).done()
                 // bar 30: F pattern
-                .bar().o5(F).o5(F).o5(F).o5(F).r(EIGHTH).o5(F).o5(F).o5(F).o5(F).r(EIGHTH).o4(C).o4(D.s()).o4(F).ending()
+                .bar().o5(F).o5(F).o5(F).o5(F).r(EIGHTH).o5(F).o5(F).o5(F).o5(F).r(EIGHTH).o4(C).o4(D.s()).o4(F).pad(SIXTEENTH).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2Turnaround() {
         return b()
                 // bar 31
-                .bar().o4(G).o4(F).o4(G).o4(EIGHTH, C).o4(C).o4(D.s()).o4(F).o4(G).o4(F).o4(G).o4(EIGHTH, A.s()).o4(A.s()).o4(A).o4(A.s()).ending()
+                .bar().o4(G).o4(F).o4(G).o4(EIGHTH, C).o4(C).o4(D.s()).o4(F).o4(G).o4(F).o4(G).o4(EIGHTH, A.s()).o4(A.s()).o4(A).o4(A.s()).done()
                 // bar 32
-                .bar().o4(G).o4(F).o4(G).o4(EIGHTH, C).o4(C).o4(D.s()).o4(F).o4(G).r(EIGHTH.dot()).o4(A).o4(EIGHTH.dot(), A.s())
+                .bar().o4(G).o4(F).o4(G).o4(EIGHTH, C).o4(C).o4(D.s()).o4(F).o4(G).r(EIGHTH.dot()).o4(A).o4(EIGHTH.dot(), A.s()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase m2Ending() {
         return b()
-                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D)
-                .bar().o5(WHOLE, D.s())
-                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D)
-                .bar().o4(WHOLE, G.s())
-                .bar().o4(HALF, F).ending()
+                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D).done()
+                .bar().o5(WHOLE, D.s()).done()
+                .bar().o4(HALF, F).r(EIGHTH.dot()).o5(C).o4(A.s()).o5(EIGHTH, C).o5(D).done()
+                .bar().o4(WHOLE, G.s()).done()
+                .bar().o4(HALF, F).pad(HALF).done()
                 .build(end());
     }
 
@@ -319,7 +320,7 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
 
     private MelodicPhrase bassIntro() {
         return b()
-                .bar().o3(F).o3(D.s()).o3(C).o2(A.s()).o3(C).o2(A.s()).o2(G.s()).o2(G).o2(G.s()).o2(G).o2(F).o2(D.s()).o2(F).o1(A.s()).o2(C).o2(D.s())
+                .bar().o3(F).o3(D.s()).o3(C).o2(A.s()).o3(C).o2(A.s()).o2(G.s()).o2(G).o2(G.s()).o2(G).o2(F).o2(D.s()).o2(F).o1(A.s()).o2(C).o2(D.s()).done()
                 .build(attacca());
     }
 
@@ -327,106 +328,106 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
     private MelodicPhrase bassThemeA() {
         return b()
                 // bar 2: Cm riff
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).ending()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).pad(EIGHTH).done()
                 // bar 3: Cm riff variant
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s())
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s()).done()
                 // bar 4 = bar 2
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).ending()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).pad(EIGHTH).done()
                 // bar 5 = bar 3
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s())
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s()).done()
                 // bar 6 = bar 2
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).ending()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).pad(EIGHTH).done()
                 // bar 7 = bar 3
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s())
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s()).done()
                 // bar 8 = bar 2
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).ending()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).pad(EIGHTH).done()
                 // bar 9: variant ending
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(F).o2(G).ending()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(F).o2(G).pad(EIGHTH).done()
                 .build(attacca());
     }
 
     private MelodicPhrase bassThemeB() {
         return b()
                 // bar 10
-                .bar().o2(C).r().o2(C).r().o2(D).r(EIGHTH).o2(D.s()).o2(C).o2(F).o2(G).o2(A.s()).o3(C).ending()
+                .bar().o2(C).r().o2(C).r().o2(D).r(EIGHTH).o2(D.s()).o2(C).o2(F).o2(G).o2(A.s()).o3(C).pad(EIGHTH.dot()).done()
                 // bar 11
-                .bar().o2(D).r().o2(D).r().o2(D.s()).r(EIGHTH).o2(F).o2(F).o2(D.s()).o2(EIGHTH.dot(), F).ending()
+                .bar().o2(D).r().o2(D).r().o2(D.s()).r(EIGHTH).o2(F).o2(F).o2(D.s()).o2(EIGHTH.dot(), F).pad(EIGHTH.dot()).done()
                 // bar 12
-                .bar().o2(C).r().o2(C).r().o2(D).r(EIGHTH).o2(D.s()).o2(C).o2(F).o2(G).o2(A.s()).o3(C).ending()
+                .bar().o2(C).r().o2(C).r().o2(D).r(EIGHTH).o2(D.s()).o2(C).o2(F).o2(G).o2(A.s()).o3(C).pad(EIGHTH.dot()).done()
                 // bar 13
-                .bar().o2(D).r().o2(D).r().o2(D.s()).r(EIGHTH.dot()).o2(QUARTER, F).o2(QUARTER, A.s())
+                .bar().o2(D).r().o2(D).r().o2(D.s()).r(EIGHTH.dot()).o2(QUARTER, F).o2(QUARTER, A.s()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase bassTransition() {
         return b()
-                .bar().o3(G).o3(F).o4(D).o4(C).o3(A.s()).o3(A).o3(G).o3(F).o3(G).o3(F).o3(D).o3(C).o3(D).o3(C).o2(A.s()).o2(A)
+                .bar().o3(G).o3(F).o4(D).o4(C).o3(A.s()).o3(A).o3(G).o3(F).o3(G).o3(F).o3(D).o3(C).o3(D).o3(C).o2(A.s()).o2(A).done()
                 .build(attacca());
     }
 
     private MelodicPhrase bassBridge() {
         return b()
                 // bar 15
-                .bar().o2(C).r().o2(C).r().o2(C).o2(D).o2(D.s()).o2(C).o2(D).o2(D.s()).o1(G).o1(A.s()).o1(B).ending()
+                .bar().o2(C).r().o2(C).r().o2(C).o2(D).o2(D.s()).o2(C).o2(D).o2(D.s()).o1(G).o1(A.s()).o1(B).pad(EIGHTH.dot()).done()
                 // bar 16
-                .bar().o2(C).o2(C).o2(C).r().o2(C).o2(D).r(EIGHTH).o2(D.s()).r(EIGHTH).o2(C).o2(F).o2(EIGHTH.dot(), G)
+                .bar().o2(C).o2(C).o2(C).r().o2(C).o2(D).r(EIGHTH).o2(D.s()).r(EIGHTH).o2(C).o2(F).o2(EIGHTH.dot(), G).done()
                 .build(attacca());
     }
 
     private MelodicPhrase bassThemeC() {
         return b()
                 // bar 17
-                .bar().o2(F).r().o2(F).o2(F).o2(F).r(EIGHTH).o2(F).o2(F).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).ending()
+                .bar().o2(F).r().o2(F).o2(F).o2(F).r(EIGHTH).o2(F).o2(F).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).pad(SIXTEENTH).done()
                 // bar 18
-                .bar().o2(D.s()).r().o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o1(G).o1(G).o1(G).o1(F).o1(G).o1(A).o1(A.s()).ending()
+                .bar().o2(D.s()).r().o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o1(G).o1(G).o1(G).o1(F).o1(G).o1(A).o1(A.s()).done()
                 // bar 19
-                .bar().o2(C).r().o2(C).o2(C).o2(C).r(EIGHTH).o2(C).o2(C).o2(C).o2(C).o2(C).o2(C).o2(C).o2(C).ending()
+                .bar().o2(C).r().o2(C).o2(C).o2(C).r(EIGHTH).o2(C).o2(C).o2(C).o2(C).o2(C).o2(C).o2(C).o2(C).pad(SIXTEENTH).done()
                 // bar 20
-                .bar().o2(D.s()).r().o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).ending()
+                .bar().o2(D.s()).r().o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).pad(SIXTEENTH).done()
                 // bar 21
-                .bar().o2(F).r().o2(F).o2(F).o2(F).r(EIGHTH).o2(F).o2(F).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).ending()
+                .bar().o2(F).r().o2(F).o2(F).o2(F).r(EIGHTH).o2(F).o2(F).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).o1(A.s()).pad(SIXTEENTH).done()
                 // bar 22
-                .bar().o2(D.s()).o2(D.s()).o2(D.s()).r().o2(D.s()).o2(F).o2(D.s()).o2(G).r(QUARTER).o2(F).ending()
+                .bar().o2(D.s()).o2(D.s()).o2(D.s()).r().o2(D.s()).o2(F).o2(D.s()).o2(G).r(QUARTER).o2(F).pad(EIGHTH.dot()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase bassThemeD() {
         return b()
                 // bar 23: G pattern
-                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(F).ending()
+                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(F).pad(EIGHTH).done()
                 // bar 24: D# pattern
-                .bar().o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(F).ending()
+                .bar().o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(F).pad(EIGHTH).done()
                 // bar 25: G pattern
-                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(F).ending()
+                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(F).pad(EIGHTH).done()
                 // bar 26: D# ascending
-                .bar().o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(F).o2(G).o2(A).o2(A.s()).o2(A).o2(F).ending()
+                .bar().o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(F).o2(G).o2(A).o2(A.s()).o2(A).o2(F).pad(EIGHTH.dot()).done()
                 // bar 27: G pattern with walk
-                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(F).o2(G).o2(A).ending()
+                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(F).o2(G).o2(A).done()
                 // bar 28: D# pattern
-                .bar().o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(F).ending()
+                .bar().o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(D.s()).r(EIGHTH).o2(D.s()).o2(D.s()).o2(D.s()).o2(F).done()
                 // bar 29: G pattern
-                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(D.s()).o2(F).o2(G).ending()
+                .bar().o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(G).o2(G).o2(G).r(EIGHTH).o2(G).o2(D.s()).o2(F).o2(G).done()
                 // bar 30: F pattern
-                .bar().o2(F).o2(F).o2(F).o2(F).r(EIGHTH).o2(F).o2(F).o2(F).o2(F).ending()
+                .bar().o2(F).o2(F).o2(F).o2(F).r(EIGHTH).o2(F).o2(F).o2(F).o2(F).pad(QUARTER.dot()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase bassTurnaround() {
         return b()
                 // bar 31: rest
-                .bar().r(WHOLE)
+                .bar().r(WHOLE).done()
                 // bar 32: pickup
-                .bar().r(HALF.dot()).r().o1(G).o1(A).o1(A.s())
+                .bar().r(HALF.dot()).r().o1(G).o1(A).o1(A.s()).done()
                 .build(attacca());
     }
 
     private MelodicPhrase bassEnding() {
         return b()
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).ending()
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s())
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).ending()
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s())
-                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).ending()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).pad(EIGHTH).done()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s()).done()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o1(A.s()).o2(C).o2(D.s()).o2(D.s()).o2(D).o2(D.s()).pad(EIGHTH).done()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).o2(C).o2(D.s()).o2(C).o2(D.s()).o2(D).r(EIGHTH.dot()).o1(A.s()).done()
+                .bar().o2(C).o1(A.s()).o2(C).o1(F).o1(F).o1(G.s()).o1(A.s()).pad(Duration.ofSixtyFourths(36)).done()
                 .build(end());
     }
 

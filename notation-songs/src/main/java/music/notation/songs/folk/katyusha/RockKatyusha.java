@@ -81,13 +81,13 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
 
         // Coda: bars 5–8 repeated softer in C minor (octave 5), rit. to 80 BPM.
         // Fresh builder — one phrase per builder.
-        var coda = StaffPhraseBuilder.in(KEY, TS, EIGHTH)
+        var coda = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH)
                 .bar(QUARTER).dyn(Dynamic.MF).transitionStart()
                     .o5(A).o5(D).o5(C).o5(EIGHTH,D).o5(EIGHTH,C)
-                    .aux(HALF).o4(F).o4(F.s())
-                .bar(QUARTER).o4(B,G).o4(EIGHTH,A).o4(EIGHTH,G).o4(A).o4(D)
-                .bar(EIGHTH).r(EIGHTH).o4(QUARTER,B).o4(G).o4(QUARTER.dot(),A).o4(F)
-                .bar(EIGHTH).o4(E).o3(A).o4(F).o4(E).rit(80).o4(QUARTER,D).r(QUARTER)
+                    .aux(HALF, a -> a.o4(F).o4(F.s())).done()
+                .bar(QUARTER).o4(B,G).o4(EIGHTH,A).o4(EIGHTH,G).o4(A).o4(D).done()
+                .bar(EIGHTH).r(EIGHTH).o4(QUARTER,B).o4(G).o4(QUARTER.dot(),A).o4(F).done()
+                .bar(EIGHTH).o4(E).o3(A).o4(F).o4(E).rit(80).o4(QUARTER,D).r(QUARTER).done()
                 .build(end());
         phrases.add(shift(coda, CODA));
 
@@ -109,11 +109,11 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
         }
 
         // Coda: bars 5–8 (Bb, Gm→Dm, Gm→Dm, A→Dm) softer — fresh builder.
-        var coda = StaffPhraseBuilder.in(KEY, TS, QUARTER)
-                .bar().dyn(Dynamic.MF).o2(B).o3(F).o2(B).o3(F)
-                .bar().o3(G).o3(D).o3(D).o3(A)
-                .bar().o3(G).o3(D).o3(D).o3(A)
-                .bar().o2(A).o3(E).o2(HALF, D)
+        var coda = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER)
+                .bar().dyn(Dynamic.MF).o2(B).o3(F).o2(B).o3(F).done()
+                .bar().o3(G).o3(D).o3(D).o3(A).done()
+                .bar().o3(G).o3(D).o3(D).o3(A).done()
+                .bar().o2(A).o3(E).o2(HALF, D).done()
                 .build(end());
         phrases.add(shift(coda, CODA));
 
@@ -135,12 +135,12 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
         }
 
         // Coda: bars 5–8 (Bb, Gm→Dm, Gm→Dm, A→Dm) softer — fresh builder.
-        var coda = StaffPhraseBuilder.in(KEY, TS, HALF)
+        var coda = StaffPhraseBuilderTyped.in(KEY, TS, HALF)
                 .bar().dyn(Dynamic.MF)
-                    .o3(B, D.higher(1), F.higher(1)).o3(B, D.higher(1), F.higher(1))
-                .bar().o4(G, B, D.higher(1)).o4(D, F, A)
-                .bar().o4(G, B, D.higher(1)).o4(D, F, A)
-                .bar().o4(A, C.s().higher(1), E.higher(1)).o4(D, F, A)
+                    .o3(B, D.higher(1), F.higher(1)).o3(B, D.higher(1), F.higher(1)).done()
+                .bar().o4(G, B, D.higher(1)).o4(D, F, A).done()
+                .bar().o4(G, B, D.higher(1)).o4(D, F, A).done()
+                .bar().o4(A, C.s().higher(1), E.higher(1)).o4(D, F, A).done()
                 .build(end());
         phrases.add(shift(coda, CODA));
 

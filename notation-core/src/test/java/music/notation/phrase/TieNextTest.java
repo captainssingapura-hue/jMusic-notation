@@ -18,8 +18,8 @@ class TieNextTest {
     private static final KeySignature KEY = new KeySignature(C, Mode.MAJOR);
     private static final TimeSignature TS = new TimeSignature(4, 4);
 
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
     // ── Success: basic 2-note tie ────────────────────────────────────
@@ -27,7 +27,7 @@ class TieNextTest {
     @Test
     void tieNextMergesTwoSamePitchNotes() {
         var phrase = b()
-                .bar().o4(QUARTER, F).tieNext().o4(QUARTER, F).o4(HALF, G)
+                .bar().o4(QUARTER, F).tieNext().o4(QUARTER, F).o4(HALF, G).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         // 3 original notes → 2 after merge (F+F sustained, then G)
@@ -46,7 +46,7 @@ class TieNextTest {
     @Test
     void tieNextChainsAcrossThreeNotes() {
         var phrase = b()
-                .bar().o4(QUARTER, F).tieNext().o4(QUARTER, F).tieNext().o4(HALF, F)
+                .bar().o4(QUARTER, F).tieNext().o4(QUARTER, F).tieNext().o4(HALF, F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         long noteCount = phrase.nodes().stream().filter(n -> n instanceof NoteNode).count();
@@ -63,7 +63,7 @@ class TieNextTest {
     void tieNextPreservesFirstNoteOrnament() {
         var phrase = b()
                 .bar().o4(F, QUARTER, music.notation.event.Ornament.TRILL)
-                      .tieNext().o4(HALF.dot(), F)
+                      .tieNext().o4(HALF.dot(), F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         var merged = (NoteNode) phrase.nodes().stream().filter(n -> n instanceof NoteNode).findFirst().get();
@@ -76,7 +76,7 @@ class TieNextTest {
     @Test
     void tieNextPassesThroughDynamicMarkers() {
         var phrase = b()
-                .bar().o4(QUARTER, F).tieNext().mf().o4(HALF.dot(), F)
+                .bar().o4(QUARTER, F).tieNext().mf().o4(HALF.dot(), F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         // Expect: merged NoteNode, then DynamicNode preserved after it.
@@ -92,7 +92,7 @@ class TieNextTest {
     @Test
     void tieNextMergesChordsWithIdenticalPitches() {
         var phrase = b()
-                .bar().o4(QUARTER, C, E, G).tieNext().o4(HALF.dot(), C, E, G)
+                .bar().o4(QUARTER, C, E, G).tieNext().o4(HALF.dot(), C, E, G).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         long noteCount = phrase.nodes().stream().filter(n -> n instanceof NoteNode).count();
@@ -106,7 +106,7 @@ class TieNextTest {
     @Test
     void tieNextRejectsChordPitchMismatch() {
         var ex = assertThrows(IllegalStateException.class, () ->
-                b().bar().o4(QUARTER, C, E, G).tieNext().o4(HALF.dot(), C, E, A)
+                b().bar().o4(QUARTER, C, E, G).tieNext().o4(HALF.dot(), C, E, A).done()
                         .build(new PhraseMarking(PhraseConnection.ATTACCA, true)));
         assertTrue(ex.getMessage().contains("pitch mismatch"));
         // Both chord lists should appear in the message.
@@ -119,7 +119,7 @@ class TieNextTest {
     @Test
     void tieNextRejectsPitchMismatch() {
         var ex = assertThrows(IllegalStateException.class, () ->
-                b().bar().o4(QUARTER, F).tieNext().o4(HALF.dot(), G)
+                b().bar().o4(QUARTER, F).tieNext().o4(HALF.dot(), G).done()
                         .build(new PhraseMarking(PhraseConnection.ATTACCA, true)));
         assertTrue(ex.getMessage().contains("pitch mismatch"));
     }
@@ -147,7 +147,7 @@ class TieNextTest {
     @Test
     void tieNextRejectsDanglingTieAtPhraseEnd() {
         var ex = assertThrows(IllegalStateException.class, () ->
-                b().bar().o4(QUARTER, F).o4(QUARTER, G).o4(QUARTER, A).o4(QUARTER, B).tieNext()
+                b().bar().o4(QUARTER, F).o4(QUARTER, G).o4(QUARTER, A).o4(QUARTER, B).tieNext().done()
                         .build(new PhraseMarking(PhraseConnection.ATTACCA, true)));
         assertTrue(ex.getMessage().contains("no following note"));
     }

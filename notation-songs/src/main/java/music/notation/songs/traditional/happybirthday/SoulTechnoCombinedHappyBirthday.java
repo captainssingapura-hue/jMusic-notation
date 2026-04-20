@@ -6,7 +6,7 @@ import music.notation.phrase.DynamicNode;
 import music.notation.phrase.MelodicPhrase;
 import music.notation.phrase.Phrase;
 import music.notation.phrase.PhraseNode;
-import music.notation.phrase.StaffPhraseBuilder;
+import music.notation.phrase.StaffPhraseBuilderTyped;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
 
@@ -46,8 +46,8 @@ public final class SoulTechnoCombinedHappyBirthday implements PieceContentProvid
     private static final TimeSignature TS = DefaultHappyBirthday.TS;    // 3/4
     private static final int SECTIONS = 10;            // 5 styles × 2 passes
 
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
     @Override public String subtitle() { return "Soul Techno Tour"; }
@@ -84,25 +84,25 @@ public final class SoulTechnoCombinedHappyBirthday implements PieceContentProvid
     /** 9-bar bass line matching LH's trimmed progression: C C G7 | G7 C C | C C F. */
     private MelodicPhrase bassSection() {
         var bb = b();
-        bassC(bb);  bassC(bb);  bassG7(bb);       // bars 1–3 (line 1)
-        bassG7(bb); bassC(bb);  bassC(bb);        // bars 4–6 (line 2)
-        bassC(bb);  bassC(bb);  bassF(bb);        // bars 7–9 (line 3)
+        bb = bassC(bb);  bb = bassC(bb);  bb = bassG7(bb);  // bars 1–3 (line 1)
+        bb = bassG7(bb); bb = bassC(bb);  bb = bassC(bb);   // bars 4–6 (line 2)
+        bb = bassC(bb);  bb = bassC(bb);  bb = bassF(bb);   // bars 7–9 (line 3)
         return bb.build(end());
     }
 
     /** C bar walking bass: C E G C G E (6 eighths = 48sf). */
-    private static void bassC(StaffPhraseBuilder bb) {
-        bb.bar(EIGHTH).o2(C).o3(E).o3(G).o4(C).o3(G).o3(E);
+    private static StaffPhraseBuilderTyped bassC(StaffPhraseBuilderTyped bb) {
+        return bb.bar(EIGHTH).o2(C).o3(E).o3(G).o4(C).o3(G).o3(E).done();
     }
 
     /** G7 bar walking bass: G B D F D B (root-3-5-♭7-5-3). */
-    private static void bassG7(StaffPhraseBuilder bb) {
-        bb.bar(EIGHTH).o2(G).o2(B).o3(D).o3(F).o3(D).o2(B);
+    private static StaffPhraseBuilderTyped bassG7(StaffPhraseBuilderTyped bb) {
+        return bb.bar(EIGHTH).o2(G).o2(B).o3(D).o3(F).o3(D).o2(B).done();
     }
 
     /** F bar walking bass: F A C F C A. */
-    private static void bassF(StaffPhraseBuilder bb) {
-        bb.bar(EIGHTH).o2(F).o2(A).o3(C).o3(F).o3(C).o2(A);
+    private static StaffPhraseBuilderTyped bassF(StaffPhraseBuilderTyped bb) {
+        return bb.bar(EIGHTH).o2(F).o2(A).o3(C).o3(F).o3(C).o2(A).done();
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -117,22 +117,22 @@ public final class SoulTechnoCombinedHappyBirthday implements PieceContentProvid
 
     private MelodicPhrase padSection() {
         var bb = b();
-        padC(bb);  padC(bb);  padG7(bb);
-        padG7(bb); padC(bb);  padC(bb);
-        padC(bb);  padC(bb);  padF(bb);
+        bb = padC(bb);  bb = padC(bb);  bb = padG7(bb);
+        bb = padG7(bb); bb = padC(bb);  bb = padC(bb);
+        bb = padC(bb);  bb = padC(bb);  bb = padF(bb);
         return bb.build(end());
     }
 
-    private static void padC(StaffPhraseBuilder bb) {
-        bb.bar().o3(HALF.dot(), C, E, G);                    // C major triad
+    private static StaffPhraseBuilderTyped padC(StaffPhraseBuilderTyped bb) {
+        return bb.bar().o3(HALF.dot(), C, E, G).done();      // C major triad
     }
 
-    private static void padG7(StaffPhraseBuilder bb) {
-        bb.bar().o3(HALF.dot(), G, B, F);                    // G7 (no 5th) — root, 3rd, ♭7
+    private static StaffPhraseBuilderTyped padG7(StaffPhraseBuilderTyped bb) {
+        return bb.bar().o3(HALF.dot(), G, B, F).done();      // G7 (no 5th) — root, 3rd, ♭7
     }
 
-    private static void padF(StaffPhraseBuilder bb) {
-        bb.bar().o3(HALF.dot(), F, A, C.higher(1));          // F major (spread)
+    private static StaffPhraseBuilderTyped padF(StaffPhraseBuilderTyped bb) {
+        return bb.bar().o3(HALF.dot(), F, A, C.higher(1)).done();  // F major (spread)
     }
 
     // ════════════════════════════════════════════════════════════════

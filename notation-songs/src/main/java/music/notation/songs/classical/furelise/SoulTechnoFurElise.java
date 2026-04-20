@@ -30,8 +30,8 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
 
     private final ManualFurElise manual = new ManualFurElise();
 
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, EIGHTH);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
     }
 
     @Override public String subtitle() { return "Soul Techno"; }
@@ -71,14 +71,15 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
     private MelodicPhrase bassGroove(int totalBars) {
         var bb = b();
         for (int bar = 0; bar < totalBars; bar++) {
-            switch (bar % 8) {
-                case 0, 1, 2 -> bb.bar(EIGHTH).o2(A).o3(E).o2(A);       // Am
-                case 3       -> bb.bar(EIGHTH).o2(E).o2(B).o3(D);       // E7 (dominant)
-                case 4       -> bb.bar(EIGHTH).o2(A).o3(E).o2(A);       // Am
-                case 5       -> bb.bar(EIGHTH).o2(A).o3(E).o3(G);       // Am with passing tone
-                case 6       -> bb.bar(EIGHTH).o2(F).o3(C).o2(F);       // bVI (F) soul shift
-                case 7       -> bb.bar(EIGHTH).o2(E).o2(B).o2(E);       // E leading back
-            }
+            bb = switch (bar % 8) {
+                case 0, 1, 2 -> bb.bar(EIGHTH).o2(A).o3(E).o2(A).done();       // Am
+                case 3       -> bb.bar(EIGHTH).o2(E).o2(B).o3(D).done();       // E7 (dominant)
+                case 4       -> bb.bar(EIGHTH).o2(A).o3(E).o2(A).done();       // Am
+                case 5       -> bb.bar(EIGHTH).o2(A).o3(E).o3(G).done();       // Am with passing tone
+                case 6       -> bb.bar(EIGHTH).o2(F).o3(C).o2(F).done();       // bVI (F) soul shift
+                case 7       -> bb.bar(EIGHTH).o2(E).o2(B).o2(E).done();       // E leading back
+                default      -> bb;
+            };
         }
         return bb.build(end());
     }
@@ -90,13 +91,14 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
     private MelodicPhrase padLayer(int totalBars) {
         var bb = b();
         for (int bar = 0; bar < totalBars; bar++) {
-            switch (bar % 8) {
-                case 0, 1, 2 -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)); // Am
-                case 3       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B);                 // E
-                case 4, 5    -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)); // Am
-                case 6       -> bb.bar().o4(QUARTER.dot(), F, A, C.higher(1));           // F (bVI)
-                case 7       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B);                 // E
-            }
+            bb = switch (bar % 8) {
+                case 0, 1, 2 -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)).done(); // Am
+                case 3       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B).done();                 // E
+                case 4, 5    -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)).done(); // Am
+                case 6       -> bb.bar().o4(QUARTER.dot(), F, A, C.higher(1)).done();           // F (bVI)
+                case 7       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B).done();                 // E
+                default      -> bb;
+            };
         }
         return bb.build(end());
     }

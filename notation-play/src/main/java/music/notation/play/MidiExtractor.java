@@ -14,7 +14,7 @@ import java.util.*;
 /**
  * Extracts a Standard MIDI File into human-readable text score files,
  * one per track. The output format is designed to be both readable and
- * easily translatable into Java {@code StaffPhraseBuilder} code.
+ * easily translatable into Java {@code StaffPhraseBuilderTyped} code.
  *
  * <p>Usage: {@code java MidiExtractor <file.mid> [output-dir]}</p>
  *

@@ -19,15 +19,15 @@ class LayeredPhraseTest {
     private static final PhraseMarking ATTACCA = new PhraseMarking(PhraseConnection.ATTACCA, true);
     private static final PhraseMarking CAESURA = new PhraseMarking(PhraseConnection.CAESURA, true);
 
-    private StaffPhraseBuilder builder() {
-        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    private StaffPhraseBuilderTyped builder() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
     private MelodicPhrase threeBarPhrase() {
         return builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
-                .bar().o5(D).o5(E).o5(F).o5(G)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
+                .bar().o5(D).o5(E).o5(F).o5(G).done()
                 .build(CAESURA);
     }
 
@@ -63,12 +63,12 @@ class LayeredPhraseTest {
     @Test
     void endingAtAddsPadding() {
         var base = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
                 .build(ATTACCA);
 
         var overlay = OverlayBuilder.over(base, KEY, TS, QUARTER)
-                .endingAt(1, b -> b.o4(HALF, G))
+                .at(1, b -> b.o4(HALF, G).pad(HALF))
                 .build();
 
         var resolved = overlay.resolve();
@@ -125,7 +125,7 @@ class LayeredPhraseTest {
     @Test
     void overrideIndexOutOfRangeThrowsOnResolve() {
         var base = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
                 .build(ATTACCA);
 
         var overlay = new LayeredPhrase(base, new TreeMap<>(Map.of(5, base.bars().getFirst())), TS, ATTACCA);
@@ -135,7 +135,7 @@ class LayeredPhraseTest {
     @Test
     void negativeIndexThrowsOnConstruction() {
         var base = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
                 .build(ATTACCA);
 
         assertThrows(IllegalArgumentException.class, () ->
@@ -179,7 +179,7 @@ class LayeredPhraseTest {
     @Test
     void atWithBarDefaultDuration() {
         var base = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
                 .build(ATTACCA);
 
         var overlay = OverlayBuilder.over(base, KEY, TS, QUARTER)

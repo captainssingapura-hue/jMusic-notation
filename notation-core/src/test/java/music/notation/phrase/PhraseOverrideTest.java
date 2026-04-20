@@ -17,16 +17,16 @@ class PhraseOverrideTest {
     private static final KeySignature KEY = new KeySignature(C, Mode.MAJOR);
     private static final TimeSignature TS = new TimeSignature(4, 4);
 
-    private StaffPhraseBuilder builder() {
-        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    private StaffPhraseBuilderTyped builder() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
     @Test
     void overridePreservesUnchangedBars() {
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
-                .bar().o5(D).o5(E).o5(F).o5(G)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
+                .bar().o5(D).o5(E).o5(F).o5(G).done()
                 .build(new PhraseMarking(PhraseConnection.CAESURA, true));
 
         assertEquals(3, original.bars().size(), "Source should retain 3 bars");
@@ -46,8 +46,8 @@ class PhraseOverrideTest {
     @Test
     void overrideFirstBar() {
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         var overridden = OverlayBuilder.over(original, KEY, TS, QUARTER)
@@ -63,8 +63,8 @@ class PhraseOverrideTest {
     @Test
     void overrideLastBar() {
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
                 .build(new PhraseMarking(PhraseConnection.CAESURA, true));
 
         var overridden = OverlayBuilder.over(original, KEY, TS, QUARTER)
@@ -81,7 +81,7 @@ class PhraseOverrideTest {
     void overrideUsesSourceMarking() {
         var marking = new PhraseMarking(PhraseConnection.ATTACCA, true);
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
                 .build(marking);
 
         var overridden = OverlayBuilder.over(original, KEY, TS, QUARTER)
@@ -94,7 +94,7 @@ class PhraseOverrideTest {
     @Test
     void overrideCanOverrideMarking() {
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         var newMarking = new PhraseMarking(PhraseConnection.CAESURA, true);
@@ -107,8 +107,8 @@ class PhraseOverrideTest {
     @Test
     void overriddenPhraseRetainsBarsForChaining() {
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
                 .build(new PhraseMarking(PhraseConnection.CAESURA, true));
 
         // First layer: override bar 0
@@ -133,8 +133,8 @@ class PhraseOverrideTest {
     @Test
     void dynamicOnlyOverride() {
         var original = builder()
-                .bar().mp().o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
+                .bar().mp().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
                 .build(new PhraseMarking(PhraseConnection.CAESURA, true));
 
         // Override bar 0 with ff dynamic but same notes
@@ -150,7 +150,7 @@ class PhraseOverrideTest {
     @Test
     void overrideIndexOutOfRangeThrows() {
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)
+                .bar().o4(C).o4(D).o4(E).o4(F).done()
                 .build(new PhraseMarking(PhraseConnection.CAESURA, true));
 
         var overlay = OverlayBuilder.over(original, KEY, TS, QUARTER)
@@ -177,10 +177,10 @@ class PhraseOverrideTest {
     @Test
     void multipleOverridesInSinglePass() {
         var original = builder()
-                .bar().o4(C).o4(D).o4(E).o4(F)     // bar 0
-                .bar().o4(G).o4(A).o4(B).o5(C)     // bar 1
-                .bar().o5(D).o5(E).o5(F).o5(G)     // bar 2
-                .bar().o5(A).o5(B).o5(C).o5(D)     // bar 3
+                .bar().o4(C).o4(D).o4(E).o4(F).done()     // bar 0
+                .bar().o4(G).o4(A).o4(B).o5(C).done()     // bar 1
+                .bar().o5(D).o5(E).o5(F).o5(G).done()     // bar 2
+                .bar().o5(A).o5(B).o5(C).o5(D).done()     // bar 3
                 .build(new PhraseMarking(PhraseConnection.CAESURA, true));
 
         // Override bars 1 and 3, keep 0 and 2

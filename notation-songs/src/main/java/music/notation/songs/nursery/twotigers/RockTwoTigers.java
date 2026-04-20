@@ -63,56 +63,56 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
 
     private Track buildLeadGuitar() {
         // Section 1: D major, o4 melody, mf→f
-        var Dm = StaffPhraseBuilder.in(KEY_DM, TS, EIGHTH);
+        var Dm = StaffPhraseBuilderTyped.in(KEY_DM, TS, EIGHTH);
         var s1 = Dm
-                .bar().mf().o4(QUARTER, D).o4(QUARTER, E).o4(QUARTER, F).o4(QUARTER, D)
-                .bar()     .o4(QUARTER, D).o4(QUARTER, E).o4(QUARTER, F).o4(QUARTER, D)
-                .bar()     .o4(QUARTER, F).o4(QUARTER, G).o4(HALF, A)
-                .bar()     .o4(QUARTER, F).o4(QUARTER, G).o4(HALF, A)
-                .bar().f() .o4(A).o4(B).o4(A).o4(G).o4(QUARTER, F).o4(QUARTER, D)
-                .bar()     .o4(A).o4(B).o4(A).o4(G).o4(QUARTER, F).o4(QUARTER, D)
-                .bar()     .o4(QUARTER, D).o3(QUARTER, A).o4(HALF, D)
-                .bar()     .o4(QUARTER, D).o3(QUARTER, A).o4(HALF, D)
+                .bar().mf().o4(QUARTER, D).o4(QUARTER, E).o4(QUARTER, F).o4(QUARTER, D).done()
+                .bar()     .o4(QUARTER, D).o4(QUARTER, E).o4(QUARTER, F).o4(QUARTER, D).done()
+                .bar()     .o4(QUARTER, F).o4(QUARTER, G).o4(HALF, A).done()
+                .bar()     .o4(QUARTER, F).o4(QUARTER, G).o4(HALF, A).done()
+                .bar().f() .o4(A).o4(B).o4(A).o4(G).o4(QUARTER, F).o4(QUARTER, D).done()
+                .bar()     .o4(A).o4(B).o4(A).o4(G).o4(QUARTER, F).o4(QUARTER, D).done()
+                .bar()     .o4(QUARTER, D).o3(QUARTER, A).o4(HALF, D).done()
+                .bar()     .o4(QUARTER, D).o3(QUARTER, A).o4(HALF, D).done()
                 .build(attacca());
 
         // Section 2: G minor, o4–o5, f→ff
-        var Gm = StaffPhraseBuilder.in(KEY_GM, TS, EIGHTH);
+        var Gm = StaffPhraseBuilderTyped.in(KEY_GM, TS, EIGHTH);
         var s2 = Gm
-                .bar().f() .o4(QUARTER, G).o4(QUARTER, A).o4(QUARTER, B).o4(QUARTER, G)
-                .bar()     .o4(QUARTER, G).o4(QUARTER, A).o4(QUARTER, B).o4(QUARTER, G)
-                .bar()     .o4(QUARTER, B).o5(QUARTER, C).o5(HALF, D)
-                .bar()     .o4(QUARTER, B).o5(QUARTER, C).o5(HALF, D)
-                .bar().ff().o5(D).o5(E).o5(D).o5(C).o4(QUARTER, B).o4(QUARTER, G)
-                .bar()     .o5(D).o5(E).o5(D).o5(C).o4(QUARTER, B).o4(QUARTER, G)
-                .bar()     .o4(QUARTER, G).o4(QUARTER, D).o4(HALF, G)
-                .bar()     .o4(QUARTER, G).o4(QUARTER, D).o4(HALF, G)
+                .bar().f() .o4(QUARTER, G).o4(QUARTER, A).o4(QUARTER, B).o4(QUARTER, G).done()
+                .bar()     .o4(QUARTER, G).o4(QUARTER, A).o4(QUARTER, B).o4(QUARTER, G).done()
+                .bar()     .o4(QUARTER, B).o5(QUARTER, C).o5(HALF, D).done()
+                .bar()     .o4(QUARTER, B).o5(QUARTER, C).o5(HALF, D).done()
+                .bar().ff().o5(D).o5(E).o5(D).o5(C).o4(QUARTER, B).o4(QUARTER, G).done()
+                .bar()     .o5(D).o5(E).o5(D).o5(C).o4(QUARTER, B).o4(QUARTER, G).done()
+                .bar()     .o4(QUARTER, G).o4(QUARTER, D).o4(HALF, G).done()
+                .bar()     .o4(QUARTER, G).o4(QUARTER, D).o4(HALF, G).done()
                 .build(attacca());
 
         // Section 3: C minor, o6 upper octave climax, ff→fff
-        var Cm = StaffPhraseBuilder.in(KEY_CM, TS, EIGHTH);
+        var Cm = StaffPhraseBuilderTyped.in(KEY_CM, TS, EIGHTH);
         var s3 = Cm
-                .bar().ff() .o6(QUARTER, C).o6(QUARTER, D).o6(QUARTER, E).o6(QUARTER, C)
-                .bar()      .o6(QUARTER, C).o6(QUARTER, D).o6(QUARTER, E).o6(QUARTER, C)
-                .bar()      .o6(QUARTER, E).o6(QUARTER, F).o6(HALF, G)
-                .bar()      .o6(QUARTER, E).o6(QUARTER, F).o6(HALF, G)
-                .bar().fff().o6(G).o6(A).o6(G).o6(F).o6(QUARTER, E).o6(QUARTER, C)
-                .bar()      .o6(G).o6(A).o6(G).o6(F).o6(QUARTER, E).o6(QUARTER, C)
-                .bar()      .o6(QUARTER, C).o5(QUARTER, G).o6(HALF, C)
-                .bar()      .o6(QUARTER, C).o5(QUARTER, G).o6(HALF, C)
+                .bar().ff() .o6(QUARTER, C).o6(QUARTER, D).o6(QUARTER, E).o6(QUARTER, C).done()
+                .bar()      .o6(QUARTER, C).o6(QUARTER, D).o6(QUARTER, E).o6(QUARTER, C).done()
+                .bar()      .o6(QUARTER, E).o6(QUARTER, F).o6(HALF, G).done()
+                .bar()      .o6(QUARTER, E).o6(QUARTER, F).o6(HALF, G).done()
+                .bar().fff().o6(G).o6(A).o6(G).o6(F).o6(QUARTER, E).o6(QUARTER, C).done()
+                .bar()      .o6(G).o6(A).o6(G).o6(F).o6(QUARTER, E).o6(QUARTER, C).done()
+                .bar()      .o6(QUARTER, C).o5(QUARTER, G).o6(HALF, C).done()
+                .bar()      .o6(QUARTER, C).o5(QUARTER, G).o6(HALF, C).done()
                 .build(attacca());
 
         // Section 4: E major, augmented rhythm (each motif → 2 bars), pp→ppp
-        var EM = StaffPhraseBuilder.in(KEY_EM, TS, HALF);
+        var EM = StaffPhraseBuilderTyped.in(KEY_EM, TS, HALF);
         var s4 = EM
-                .bar().pp() .o5(E).o5(F)                          // A (bar 1)
-                .bar()      .o5(G).o5(E)                          // A (bar 2)
-                .bar()      .o5(G).o5(A)                          // B (bar 1)
-                .bar()      .o5(WHOLE, B)                         // B (bar 2)
+                .bar().pp() .o5(E).o5(F).done()                          // A (bar 1)
+                .bar()      .o5(G).o5(E).done()                          // A (bar 2)
+                .bar()      .o5(G).o5(A).done()                          // B (bar 1)
+                .bar()      .o5(WHOLE, B).done()                         // B (bar 2)
                 .bar().ppp().o5(QUARTER, B).o6(QUARTER, C)        // C (bar 1)
-                            .o5(QUARTER, B).o5(QUARTER, A)
-                .bar()      .o5(G).o5(E)                          // C (bar 2)
-                .bar()      .o5(E).o4(B)                          // D (bar 1)
-                .bar()      .o5(WHOLE, E)                         // D (bar 2)
+                            .o5(QUARTER, B).o5(QUARTER, A).done()
+                .bar()      .o5(G).o5(E).done()                          // C (bar 2)
+                .bar()      .o5(E).o4(B).done()                          // D (bar 1)
+                .bar()      .o5(WHOLE, E).done()                         // D (bar 2)
                 .build(end());
 
         return Track.of("Lead Guitar", DISTORTION_GUITAR,
@@ -146,12 +146,12 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
         var s3 = drivingBass(KEY_CM, Dynamic.FF, C, F, G);
 
         // Section 4: sustained whole-note roots
-        var EM = StaffPhraseBuilder.in(KEY_EM, TS);
+        var EM = StaffPhraseBuilderTyped.in(KEY_EM, TS);
         var s4 = EM
-                .bar().pp() .o2(WHOLE, E).bar().o2(WHOLE, E)
-                .bar()      .o2(WHOLE, A).bar().o2(WHOLE, E)
-                .bar().ppp().o2(WHOLE, E).bar().o2(WHOLE, A)
-                .bar()      .o2(WHOLE, B).bar().o2(WHOLE, E)
+                .bar().pp() .o2(WHOLE, E).done().bar().o2(WHOLE, E).done()
+                .bar()      .o2(WHOLE, A).done().bar().o2(WHOLE, E).done()
+                .bar().ppp().o2(WHOLE, E).done().bar().o2(WHOLE, A).done()
+                .bar()      .o2(WHOLE, B).done().bar().o2(WHOLE, E).done()
                 .build(end());
 
         return Track.of("Bass", ELECTRIC_BASS_PICK,
@@ -161,32 +161,32 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
     /** Driving eighth-note bass line for one section (8 bars). */
     private static MelodicPhrase drivingBass(KeySignature key, Dynamic dyn,
                                              Note root, Note iv, Note v) {
-        var P = StaffPhraseBuilder.in(key, TS, EIGHTH);
+        var P = StaffPhraseBuilderTyped.in(key, TS, EIGHTH);
         return P
                 .bar().dyn(dyn)
                     .o2(root).o2(root).o2(root).o2(root)
-                    .o2(root).o2(root).o2(root).o2(root)
+                    .o2(root).o2(root).o2(root).o2(root).done()
                 .bar()
                     .o2(root).o2(root).o2(root).o2(root)
-                    .o2(root).o2(root).o2(root).o2(root)
+                    .o2(root).o2(root).o2(root).o2(root).done()
                 .bar()
                     .o2(iv).o2(iv).o2(iv).o2(iv)
-                    .o2(iv).o2(iv).o2(iv).o2(iv)
+                    .o2(iv).o2(iv).o2(iv).o2(iv).done()
                 .bar()
                     .o2(root).o2(root).o2(root).o2(root)
-                    .o2(root).o2(root).o2(root).o2(root)
+                    .o2(root).o2(root).o2(root).o2(root).done()
                 .bar()
                     .o2(root).o2(root).o2(root).o2(root)
-                    .o2(root).o2(root).o2(root).o2(root)
+                    .o2(root).o2(root).o2(root).o2(root).done()
                 .bar()
                     .o2(root).o2(root).o2(root).o2(root)
-                    .o2(root).o2(root).o2(root).o2(root)
+                    .o2(root).o2(root).o2(root).o2(root).done()
                 .bar()
                     .o2(v).o2(v).o2(v).o2(v)
-                    .o2(v).o2(v).o2(v).o2(v)
+                    .o2(v).o2(v).o2(v).o2(v).done()
                 .bar()
                     .o2(root).o2(root).o2(root).o2(root)
-                    .o2(root).o2(root).o2(root).o2(root)
+                    .o2(root).o2(root).o2(root).o2(root).done()
                 .build(attacca());
     }
 
@@ -194,55 +194,55 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
 
     private Track buildStrings() {
         // Section 1: D minor, soft sustained triads
-        var sDm = StaffPhraseBuilder.in(KEY_DM, TS);
+        var sDm = StaffPhraseBuilderTyped.in(KEY_DM, TS);
         var s1 = sDm
-                .bar().mp().o3(WHOLE, D, F, A)
-                .bar()     .o3(WHOLE, D, F, A)
-                .bar()     .o3(WHOLE, G, B, D.higher(1))
-                .bar()     .o3(WHOLE, D, F, A)
-                .bar()     .o3(WHOLE, D, F, A)
-                .bar()     .o3(WHOLE, D, F, A)
-                .bar()     .o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar()     .o3(WHOLE, D, F, A)
+                .bar().mp().o3(WHOLE, D, F, A).done()
+                .bar()     .o3(WHOLE, D, F, A).done()
+                .bar()     .o3(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o3(WHOLE, D, F, A).done()
+                .bar()     .o3(WHOLE, D, F, A).done()
+                .bar()     .o3(WHOLE, D, F, A).done()
+                .bar()     .o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar()     .o3(WHOLE, D, F, A).done()
                 .build(attacca());
 
         // Section 2: G minor, building
-        var sGm = StaffPhraseBuilder.in(KEY_GM, TS);
+        var sGm = StaffPhraseBuilderTyped.in(KEY_GM, TS);
         var s2 = sGm
-                .bar().mf().o3(WHOLE, G, B, D.higher(1))
-                .bar()     .o3(WHOLE, G, B, D.higher(1))
-                .bar()     .o4(WHOLE, C, E, G)
-                .bar()     .o3(WHOLE, G, B, D.higher(1))
-                .bar()     .o3(WHOLE, G, B, D.higher(1))
-                .bar()     .o3(WHOLE, G, B, D.higher(1))
-                .bar()     .o3(WHOLE, D, F, A)
-                .bar()     .o3(WHOLE, G, B, D.higher(1))
+                .bar().mf().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o3(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o4(WHOLE, C, E, G).done()
+                .bar()     .o3(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o3(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o3(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o3(WHOLE, D, F, A).done()
+                .bar()     .o3(WHOLE, G, B, D.higher(1)).done()
                 .build(attacca());
 
         // Section 3: C minor, full orchestral
-        var sCm = StaffPhraseBuilder.in(KEY_CM, TS);
+        var sCm = StaffPhraseBuilderTyped.in(KEY_CM, TS);
         var s3 = sCm
-                .bar().f() .o4(WHOLE, C, E, G)
-                .bar()     .o4(WHOLE, C, E, G)
-                .bar()     .o3(WHOLE, F, A, C.higher(1))
-                .bar()     .o4(WHOLE, C, E, G)
-                .bar().ff().o4(WHOLE, C, E, G)
-                .bar()     .o4(WHOLE, C, E, G)
-                .bar()     .o3(WHOLE, G, B, D.higher(1))
-                .bar()     .o4(WHOLE, C, E, G)
+                .bar().f() .o4(WHOLE, C, E, G).done()
+                .bar()     .o4(WHOLE, C, E, G).done()
+                .bar()     .o3(WHOLE, F, A, C.higher(1)).done()
+                .bar()     .o4(WHOLE, C, E, G).done()
+                .bar().ff().o4(WHOLE, C, E, G).done()
+                .bar()     .o4(WHOLE, C, E, G).done()
+                .bar()     .o3(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o4(WHOLE, C, E, G).done()
                 .build(attacca());
 
         // Section 4: E major, warm and prominent
-        var sEM = StaffPhraseBuilder.in(KEY_EM, TS);
+        var sEM = StaffPhraseBuilderTyped.in(KEY_EM, TS);
         var s4 = sEM
-                .bar().mf().o3(WHOLE, E, G, B)
-                .bar()     .o3(WHOLE, E, G, B)
-                .bar()     .o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar()     .o3(WHOLE, E, G, B)
-                .bar().p() .o3(WHOLE, E, G, B)
-                .bar()     .o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar()     .o3(WHOLE, B, D.higher(1), F.higher(1))
-                .bar()     .o3(WHOLE, E, G, B)
+                .bar().mf().o3(WHOLE, E, G, B).done()
+                .bar()     .o3(WHOLE, E, G, B).done()
+                .bar()     .o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar()     .o3(WHOLE, E, G, B).done()
+                .bar().p() .o3(WHOLE, E, G, B).done()
+                .bar()     .o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar()     .o3(WHOLE, B, D.higher(1), F.higher(1)).done()
+                .bar()     .o3(WHOLE, E, G, B).done()
                 .build(end());
 
         return Track.of("Strings", STRING_ENSEMBLE_1,
@@ -255,30 +255,30 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
         // Section 1: rest — horn enters in section 2
 
         // Section 2: G minor, sustained roots
-        var hGm = StaffPhraseBuilder.in(KEY_GM, TS);
+        var hGm = StaffPhraseBuilderTyped.in(KEY_GM, TS);
         var s2 = hGm
-                .bar().mp().o4(WHOLE, G).bar().o4(WHOLE, G)
-                .bar()     .o4(WHOLE, C).bar().o4(WHOLE, G)
-                .bar().mf().o4(WHOLE, G).bar().o4(WHOLE, G)
-                .bar()     .o4(WHOLE, D).bar().o4(WHOLE, G)
+                .bar().mp().o4(WHOLE, G).done().bar().o4(WHOLE, G).done()
+                .bar()     .o4(WHOLE, C).done().bar().o4(WHOLE, G).done()
+                .bar().mf().o4(WHOLE, G).done().bar().o4(WHOLE, G).done()
+                .bar()     .o4(WHOLE, D).done().bar().o4(WHOLE, G).done()
                 .build(attacca());
 
         // Section 3: C minor, heroic held notes
-        var hCm = StaffPhraseBuilder.in(KEY_CM, TS);
+        var hCm = StaffPhraseBuilderTyped.in(KEY_CM, TS);
         var s3 = hCm
-                .bar().f() .o5(WHOLE, C).bar().o5(WHOLE, C)
-                .bar()     .o4(WHOLE, F).bar().o5(WHOLE, C)
-                .bar().ff().o5(WHOLE, C).bar().o5(WHOLE, C)
-                .bar()     .o4(WHOLE, G).bar().o5(WHOLE, C)
+                .bar().f() .o5(WHOLE, C).done().bar().o5(WHOLE, C).done()
+                .bar()     .o4(WHOLE, F).done().bar().o5(WHOLE, C).done()
+                .bar().ff().o5(WHOLE, C).done().bar().o5(WHOLE, C).done()
+                .bar()     .o4(WHOLE, G).done().bar().o5(WHOLE, C).done()
                 .build(attacca());
 
         // Section 4: E major, gentle sustained melody
-        var hEM = StaffPhraseBuilder.in(KEY_EM, TS);
+        var hEM = StaffPhraseBuilderTyped.in(KEY_EM, TS);
         var s4 = hEM
-                .bar().p() .o4(WHOLE, E).bar().o4(WHOLE, E)
-                .bar()     .o4(WHOLE, A).bar().o4(WHOLE, E)
-                .bar().pp().o4(WHOLE, E).bar().o4(WHOLE, A)
-                .bar()     .o4(WHOLE, B).bar().o4(WHOLE, E)
+                .bar().p() .o4(WHOLE, E).done().bar().o4(WHOLE, E).done()
+                .bar()     .o4(WHOLE, A).done().bar().o4(WHOLE, E).done()
+                .bar().pp().o4(WHOLE, E).done().bar().o4(WHOLE, A).done()
+                .bar()     .o4(WHOLE, B).done().bar().o4(WHOLE, E).done()
                 .build(end());
 
         return Track.of("French Horn", FRENCH_HORN,
@@ -291,29 +291,29 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
         // Sections 1–2: rest — choir enters at the climax
 
         // Section 3: C minor, sustained "aahs"
-        var cCm = StaffPhraseBuilder.in(KEY_CM, TS);
+        var cCm = StaffPhraseBuilderTyped.in(KEY_CM, TS);
         var s3 = cCm
-                .bar().f() .o5(WHOLE, C, E, G)
-                .bar()     .o5(WHOLE, C, E, G)
-                .bar()     .o4(WHOLE, F, A, C.higher(1))
-                .bar()     .o5(WHOLE, C, E, G)
-                .bar().ff().o5(WHOLE, C, E, G)
-                .bar()     .o5(WHOLE, C, E, G)
-                .bar()     .o4(WHOLE, G, B, D.higher(1))
-                .bar()     .o5(WHOLE, C, E, G)
+                .bar().f() .o5(WHOLE, C, E, G).done()
+                .bar()     .o5(WHOLE, C, E, G).done()
+                .bar()     .o4(WHOLE, F, A, C.higher(1)).done()
+                .bar()     .o5(WHOLE, C, E, G).done()
+                .bar().ff().o5(WHOLE, C, E, G).done()
+                .bar()     .o5(WHOLE, C, E, G).done()
+                .bar()     .o4(WHOLE, G, B, D.higher(1)).done()
+                .bar()     .o5(WHOLE, C, E, G).done()
                 .build(attacca());
 
         // Section 4: E major, soft ethereal aahs
-        var cEM = StaffPhraseBuilder.in(KEY_EM, TS);
+        var cEM = StaffPhraseBuilderTyped.in(KEY_EM, TS);
         var s4 = cEM
-                .bar().pp() .o4(WHOLE, E, G, B)
-                .bar()      .o4(WHOLE, E, G, B)
-                .bar()      .o4(WHOLE, A, C.higher(1), E.higher(1))
-                .bar()      .o4(WHOLE, E, G, B)
-                .bar().ppp().o4(WHOLE, E, G, B)
-                .bar()      .o4(WHOLE, A, C.higher(1), E.higher(1))
-                .bar()      .o4(WHOLE, B, D.higher(1), F.higher(1))
-                .bar()      .o4(WHOLE, E, G, B)
+                .bar().pp() .o4(WHOLE, E, G, B).done()
+                .bar()      .o4(WHOLE, E, G, B).done()
+                .bar()      .o4(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar()      .o4(WHOLE, E, G, B).done()
+                .bar().ppp().o4(WHOLE, E, G, B).done()
+                .bar()      .o4(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar()      .o4(WHOLE, B, D.higher(1), F.higher(1)).done()
+                .bar()      .o4(WHOLE, E, G, B).done()
                 .build(end());
 
         return Track.of("Choir", CHOIR_AAHS,

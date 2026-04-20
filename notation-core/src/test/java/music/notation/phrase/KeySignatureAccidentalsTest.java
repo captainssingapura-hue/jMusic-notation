@@ -195,9 +195,9 @@ class KeySignatureAccidentalsTest {
 
     /** Resolve a bare NoteName through the builder's key-signature logic. */
     private static StaffPitch resolve(KeySignature key, NoteName name) {
-        var P = StaffPhraseBuilder.in(key, TS, QUARTER);
+        var P = StaffPhraseBuilderTyped.in(key, TS, QUARTER);
         // QUARTER note + 3 QUARTER rests = 64sf, one 4/4 bar.
-        var phrase = P.bar().o4(name).r(QUARTER).r(QUARTER).r(QUARTER)
+        var phrase = P.bar().o4(name).r(QUARTER).r(QUARTER).r(QUARTER).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
         return phrase.nodes().stream()
                 .filter(n -> n instanceof NoteNode)

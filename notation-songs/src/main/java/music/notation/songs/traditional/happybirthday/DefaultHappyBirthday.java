@@ -25,8 +25,8 @@ public final class DefaultHappyBirthday implements PieceContentProvider<HappyBir
     static final KeySignature KEY = new KeySignature(C, Mode.MAJOR);
     static final TimeSignature TS = new TimeSignature(3, 4);
 
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
     @Override
@@ -47,36 +47,36 @@ public final class DefaultHappyBirthday implements PieceContentProvider<HappyBir
     /** "Happy birthday to you" — first phrase, ends on dominant V7 feel (B4). */
     MelodicPhrase line1() {
         return b()
-                .pickup(EIGHTH).o4(G).o4(G)               // "Hap-py"
-                .bar(QUARTER).o4(A).o4(G).o5(C)           // "birth-day to"
-                .bar().o4(HALF, B).ending()               // "you" (HALF + trail 16 for elision)
+                .pickup(EIGHTH).o4(G).o4(G).done()               // "Hap-py"
+                .bar(QUARTER).o4(A).o4(G).o5(C).done()           // "birth-day to"
+                .bar().o4(HALF, B).pad(QUARTER).done()               // "you" (HALF + trail 16 for elision)
                 .build(elision());
     }
 
     /** "Happy birthday to you" — second phrase, resolves higher to C5. */
     MelodicPhrase line2() {
         return b()
-                .pickup(EIGHTH).o4(G).o4(G)               // "Hap-py"
-                .bar(QUARTER).o4(A).o4(G).o5(D)           // "birth-day to"
-                .bar().o5(HALF, C).ending()               // "you" (C5 HALF + trail 16)
+                .pickup(EIGHTH).o4(G).o4(G).done()               // "Hap-py"
+                .bar(QUARTER).o4(A).o4(G).o5(D).done()           // "birth-day to"
+                .bar().o5(HALF, C).pad(QUARTER).done()               // "you" (C5 HALF + trail 16)
                 .build(elision());
     }
 
     /** "Happy birthday dear [NAME]" — octave leap up for emphasis. */
     MelodicPhrase line3() {
         return b()
-                .pickup(EIGHTH).o4(G).o4(G)               // "Hap-py"
-                .bar(QUARTER).o5(G).o5(E).o5(C)           // "birth-day dear"  (high G, E, C)
-                .bar().o4(HALF, B).ending()               // "NAME" held, trail 16 for elision
+                .pickup(EIGHTH).o4(G).o4(G).done()               // "Hap-py"
+                .bar(QUARTER).o5(G).o5(E).o5(C).done()           // "birth-day dear"  (high G, E, C)
+                .bar().o4(HALF, B).pad(QUARTER).done()               // "NAME" held, trail 16 for elision
                 .build(elision());
     }
 
     /** "Happy birthday to you" — final phrase, F5 pickup for the classic dramatic leap. */
     MelodicPhrase line4() {
         return b()
-                .pickup(EIGHTH).o5(F).o5(F)               // "Hap-py" — dramatic F5 leap
-                .bar(QUARTER).o5(E).o5(C).o5(D)           // "birth-day to"
-                .bar().o5(HALF.dot(), C)                  // "you" — dotted half, full resolution
+                .pickup(EIGHTH).o5(F).o5(F).done()               // "Hap-py" — dramatic F5 leap
+                .bar(QUARTER).o5(E).o5(C).o5(D).done()           // "birth-day to"
+                .bar().o5(HALF.dot(), C).done()                  // "you" — dotted half, full resolution
                 .build(end());
     }
 

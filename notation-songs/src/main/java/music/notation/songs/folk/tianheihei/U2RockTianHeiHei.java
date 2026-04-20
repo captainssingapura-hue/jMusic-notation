@@ -28,8 +28,8 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
     private static final TimeSignature TS = PianoTianHeiHei.TS;
     private final PianoTianHeiHei piano = new PianoTianHeiHei();
 
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
     @Override public String subtitle() { return "U2 Rock"; }
@@ -85,91 +85,91 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
     // Pre: sparse — solo Edge arpeggios emerging from silence
     private MelodicPhrase edgePre() {
         return b()
-                .bar().r(WHOLE)
-                .bar().r(WHOLE)
+                .bar().r(WHOLE).done()
+                .bar().r(WHOLE).done()
                 // Edge enters bar 3: G arpeggio
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()
                 // Last bar: shorten so it ends with trailing pad ≥ 16sf (needed for
                 // elision into edgeMain1's 48sf leading-padding pickup).
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER, B).ending()
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER, B).pad(QUARTER).done()
                 .build(elision());
     }
 
     // Main1: signature dotted-quarter arpeggios — G Am C G | G Am D G
     private MelodicPhrase edgeMain1() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
-                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C)   // C
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D)   // D
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E).done()   // Am
+                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C).done()   // C
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E).done()   // Am
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D).done()   // D
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
                 .build(attacca());
     }
 
     // TianHeiHei: sustained half-note power chords for contrast
     private MelodicPhrase edgeTianHei() {
         return b()
-                .bar().o4(HALF, G, D.higher(1)).o4(HALF, G, D.higher(1))                       // G
-                .bar().o4(HALF, G, D.higher(1)).o4(HALF, G, D.higher(1))                       // Gm (power chord same)
-                .bar().o4(HALF, C, G).o4(HALF, C, G)                                           // Cm
-                .bar().o4(HALF, G, D.higher(1)).o4(HALF, G, D.higher(1))                       // G
-                .bar().o4(HALF, C, G).o4(HALF, C, G)                                           // C
-                .bar().o4(HALF, D, A).o4(HALF, D, A)                                           // D
-                .bar().o4(HALF, G, D.higher(1)).ending()                                        // G resolve
+                .bar().o4(HALF, G, D.higher(1)).o4(HALF, G, D.higher(1)).done()                       // G
+                .bar().o4(HALF, G, D.higher(1)).o4(HALF, G, D.higher(1)).done()                       // Gm (power chord same)
+                .bar().o4(HALF, C, G).o4(HALF, C, G).done()                                           // Cm
+                .bar().o4(HALF, G, D.higher(1)).o4(HALF, G, D.higher(1)).done()                       // G
+                .bar().o4(HALF, C, G).o4(HALF, C, G).done()                                           // C
+                .bar().o4(HALF, D, A).o4(HALF, D, A).done()                                           // D
+                .bar().o4(HALF, G, D.higher(1)).pad(HALF).done()                                        // G resolve
                 .build(elision());
     }
 
     // Chorus: energetic arpeggios — D G D G C Am D G
     private MelodicPhrase edgeChorus() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D)   // D
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D)   // D
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C)   // C
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D)   // D
-                .bar().o4(HALF, G, D.higher(1)).ending()                                        // G sustain
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D).done()   // D
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D).done()   // D
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C).done()   // C
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E).done()   // Am
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D).done()   // D
+                .bar().o4(HALF, G, D.higher(1)).pad(HALF).done()                                        // G sustain
                 .build(elision());
     }
 
     // Bridge: alternating arpeggios and sustained — G Am C+D G Em Am C D
     private MelodicPhrase edgeBridge() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
-                .bar().o4(HALF, C, G).o4(HALF, D, A)                                           // C → D sustained
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, E)   // Em
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
-                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C)   // C
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E).done()   // Am
+                .bar().o4(HALF, C, G).o4(HALF, D, A).done()                                           // C → D sustained
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, E).done()   // Em
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E).done()   // Am
+                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C).done()   // C
                 // D: shorten so trailing pad ≥ 24 (for elision into chorus's 40sf leading pad)
-                .bar().o4(HALF, D, A).ending()                                                  // D
+                .bar().o4(HALF, D, A).pad(HALF).done()                                                  // D
                 .build(elision());
     }
 
     // Ending: arpeggios intensifying then resolving
     private MelodicPhrase edgeEnding() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
-                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C)   // C
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E)   // Am
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D)   // D
-                .bar().o4(HALF, C, G).o4(HALF, G, D.higher(1))                                 // C → G
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D)   // D
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D)   // G
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D)   // D
-                .bar().o4(HALF, G, D.higher(1)).ending()                                        // G resolve
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E).done()   // Am
+                .bar().o4(QUARTER.dot(), C).o4(EIGHTH, E).o4(QUARTER.dot(), G).o5(EIGHTH, C).done()   // C
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), E).o4(EIGHTH, A).o5(QUARTER.dot(), C).o5(EIGHTH, E).done()   // Am
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D).done()   // D
+                .bar().o4(HALF, C, G).o4(HALF, G, D.higher(1)).done()                                 // C → G
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D).done()   // D
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, G).o4(QUARTER.dot(), B).o5(EIGHTH, D).done()   // G
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, F).o4(QUARTER.dot(), A).o5(EIGHTH, D).done()   // D
+                .bar().o4(HALF, G, D.higher(1)).pad(HALF).done()                                        // G resolve
                 .build(end());
     }
 
@@ -188,89 +188,89 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
     // Pre: rest then a simple entry
     private MelodicPhrase bassPre() {
         return b()
-                .bar().r(WHOLE)
-                .bar().r(WHOLE)
-                .bar().r(WHOLE)
+                .bar().r(WHOLE).done()
+                .bar().r(WHOLE).done()
+                .bar().r(WHOLE).done()
                 // Last bar: G half + ending() pad 32sf (for elision into bassMain1's 48sf lead)
-                .bar().o2(HALF, G).ending()
+                .bar().o2(HALF, G).pad(HALF).done()
                 .build(elision());
     }
 
     // Main1: driving eighth-note root patterns — G Am C G | G Am D G
     private MelodicPhrase bassMain1() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
-                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C)                 // C
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
-                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D)                 // D
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A).done()                 // Am
+                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C).done()                 // C
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A).done()                 // Am
+                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D).done()                 // D
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
                 .build(attacca());
     }
 
     // TianHeiHei: half-note roots, more space
     private MelodicPhrase bassTianHei() {
         return b()
-                .bar().o2(HALF, G).o3(HALF, D)                                                 // G
-                .bar().o2(HALF, G).o3(HALF, D)                                                 // Gm
-                .bar().o3(HALF, C).o3(HALF, G)                                                 // Cm
-                .bar().o2(HALF, G).o3(HALF, D)                                                 // G
-                .bar().o3(HALF, C).o3(HALF, G)                                                 // C
-                .bar().o3(HALF, D).o3(HALF, A)                                                 // D
-                .bar().o2(HALF, G).ending()                                                     // G resolve
+                .bar().o2(HALF, G).o3(HALF, D).done()                                                 // G
+                .bar().o2(HALF, G).o3(HALF, D).done()                                                 // Gm
+                .bar().o3(HALF, C).o3(HALF, G).done()                                                 // Cm
+                .bar().o2(HALF, G).o3(HALF, D).done()                                                 // G
+                .bar().o3(HALF, C).o3(HALF, G).done()                                                 // C
+                .bar().o3(HALF, D).o3(HALF, A).done()                                                 // D
+                .bar().o2(HALF, G).pad(HALF).done()                                                     // G resolve
                 .build(elision());
     }
 
     // Chorus: driving eighths — D G D G C Am D G
     private MelodicPhrase bassChorus() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D)                 // D
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D)                 // D
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C)                 // C
-                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
-                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D)                 // D
-                .bar().o2(HALF, G).ending()                                                     // G
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D).done()                 // D
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D).done()                 // D
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C).done()                 // C
+                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A).done()                 // Am
+                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D).done()                 // D
+                .bar().o2(HALF, G).pad(HALF).done()                                                     // G
                 .build(elision());
     }
 
     // Bridge: mix of eighths and halves — G Am C+D G Em Am C D
     private MelodicPhrase bassBridge() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
-                .bar().o3(HALF, C).o3(HALF, D)                                                 // C → D
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(E).o2(E).o2(B).o2(B).o2(E).o2(E).o2(B).o2(E)                 // Em
-                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
-                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C)                 // C
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A).done()                 // Am
+                .bar().o3(HALF, C).o3(HALF, D).done()                                                 // C → D
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(E).o2(E).o2(B).o2(B).o2(E).o2(E).o2(B).o2(E).done()                 // Em
+                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A).done()                 // Am
+                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C).done()                 // C
                 // D: shorten so trailing pad ≥ 24 (for elision into chorus's 40sf leading pad)
-                .bar().o3(HALF, D).ending()                                                     // D
+                .bar().o3(HALF, D).pad(HALF).done()                                                     // D
                 .build(elision());
     }
 
     // Ending: eighths building then resolving
     private MelodicPhrase bassEnding() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
-                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C)                 // C
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A)                 // Am
-                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D)                 // D
-                .bar().o3(HALF, C).o2(HALF, G)                                                 // C → G
-                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D)                 // D
-                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G)                 // G
-                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D)                 // D
-                .bar().o2(HALF, G).ending()                                                     // G
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A).done()                 // Am
+                .bar(EIGHTH).o3(C).o3(C).o3(G).o3(G).o3(C).o3(C).o3(G).o3(C).done()                 // C
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o2(A).o2(A).o3(E).o3(E).o2(A).o2(A).o3(E).o2(A).done()                 // Am
+                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D).done()                 // D
+                .bar().o3(HALF, C).o2(HALF, G).done()                                                 // C → G
+                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D).done()                 // D
+                .bar(EIGHTH).o2(G).o2(G).o3(D).o3(D).o2(G).o2(G).o3(D).o2(G).done()                 // G
+                .bar(EIGHTH).o3(D).o3(D).o3(A).o3(A).o3(D).o3(D).o3(A).o3(D).done()                 // D
+                .bar().o2(HALF, G).pad(HALF).done()                                                     // G
                 .build(end());
     }
 
@@ -289,88 +289,88 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
     // Pre: silent — organ enters with the band
     private MelodicPhrase organPre() {
         return b()
-                .bar().r(WHOLE).bar().r(WHOLE).bar().r(WHOLE)
+                .bar().r(WHOLE).done().bar().r(WHOLE).done().bar().r(WHOLE).done()
                 // Last bar: HALF rest + ending pad 32 (for elision into organMain1's 48sf lead)
-                .bar().r(HALF).ending()
+                .bar().r(HALF).pad(HALF).done()
                 .build(elision());
     }
 
     // Main1: whole-note sustained pads — G Am C G | G Am D G
     private MelodicPhrase organMain1() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar().o3(WHOLE, C, E, G)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar().o3(WHOLE, D, F, A)
-                .bar().o3(WHOLE, G, B, D.higher(1))
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar().o3(WHOLE, C, E, G).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar().o3(WHOLE, D, F, A).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
                 .build(attacca());
     }
 
     // TianHeiHei: whole-note pads with modal colors
     private MelodicPhrase organTianHei() {
         return b()
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, G, B.f(), D.higher(1))
-                .bar().o3(WHOLE, C, E.f(), G)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, C, E, G)
-                .bar().o3(WHOLE, D, F, A)
-                .bar().o3(HALF, G, B, D.higher(1)).ending()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, G, B.f(), D.higher(1)).done()
+                .bar().o3(WHOLE, C, E.f(), G).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, C, E, G).done()
+                .bar().o3(WHOLE, D, F, A).done()
+                .bar().o3(HALF, G, B, D.higher(1)).pad(HALF).done()
                 .build(elision());
     }
 
     // Chorus: whole-note pads — D G D G C Am D G
     private MelodicPhrase organChorus() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o3(WHOLE, D, F, A)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, D, F, A)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, C, E, G)
-                .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar().o3(WHOLE, D, F, A)
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o3(WHOLE, D, F, A).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, D, F, A).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, C, E, G).done()
+                .bar().o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar().o3(WHOLE, D, F, A).done()
                 // Last bar: HALF so trailing pad = 32 (for elision into next 40/48sf pickup)
-                .bar().o3(HALF, G, B, D.higher(1)).ending()
+                .bar().o3(HALF, G, B, D.higher(1)).pad(HALF).done()
                 .build(elision());
     }
 
     // Bridge: whole-note pads — G Am C+D G Em Am C D
     private MelodicPhrase organBridge() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar().o3(HALF, C, E, G).o3(HALF, D, F, A)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, E, G, B)
-                .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar().o3(WHOLE, C, E, G)
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar().o3(HALF, C, E, G).o3(HALF, D, F, A).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, E, G, B).done()
+                .bar().o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar().o3(WHOLE, C, E, G).done()
                 // Last bar: HALF so trailing pad = 32 (for elision into chorus's 40sf pickup)
-                .bar().o3(HALF, D, F, A).ending()
+                .bar().o3(HALF, D, F, A).pad(HALF).done()
                 .build(elision());
     }
 
     // Ending: whole-note pads
     private MelodicPhrase organEnding() {
         return b()
-                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar().o3(WHOLE, C, E, G)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, A, C.higher(1), E.higher(1))
-                .bar().o3(WHOLE, D, F, A)
-                .bar().o3(HALF, C, E, G).o3(HALF, G, B, D.higher(1))
-                .bar().o3(WHOLE, D, F, A)
-                .bar().o3(WHOLE, G, B, D.higher(1))
-                .bar().o3(WHOLE, D, F, A)
-                .bar().o3(HALF, G, B, D.higher(1)).ending()
+                .pickup(EIGHTH).r(EIGHTH).r(EIGHTH).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar().o3(WHOLE, C, E, G).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, A, C.higher(1), E.higher(1)).done()
+                .bar().o3(WHOLE, D, F, A).done()
+                .bar().o3(HALF, C, E, G).o3(HALF, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, D, F, A).done()
+                .bar().o3(WHOLE, G, B, D.higher(1)).done()
+                .bar().o3(WHOLE, D, F, A).done()
+                .bar().o3(HALF, G, B, D.higher(1)).pad(HALF).done()
                 .build(end());
     }
 

@@ -27,8 +27,8 @@ public final class MozartHappyBirthday implements PieceContentProvider<HappyBirt
     private static final KeySignature KEY = DefaultHappyBirthday.KEY;   // C major
     private static final TimeSignature TS = DefaultHappyBirthday.TS;    // 3/4
 
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, QUARTER);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
     @Override public String subtitle() { return "Mozart (Alberti Bass)"; }
@@ -51,36 +51,36 @@ public final class MozartHappyBirthday implements PieceContentProvider<HappyBirt
     /** Line 1: "Happy birthday to you" — MORDENT on the sustained B4. */
     MelodicPhrase line1() {
         return b()
-                .pickup(EIGHTH).o4(G).o4(G)
-                .bar(QUARTER).o4(A).o4(G).o5(C)
-                .bar().o4(B, HALF, MORDENT).ending()     // MORDENT on "you"
+                .pickup(EIGHTH).o4(G).o4(G).done()
+                .bar(QUARTER).o4(A).o4(G).o5(C).done()
+                .bar().o4(B, HALF, MORDENT).pad(QUARTER).done()     // MORDENT on "you"
                 .build(elision());
     }
 
     /** Line 2: "Happy birthday to you" — TURN on the sustained C5. */
     MelodicPhrase line2() {
         return b()
-                .pickup(EIGHTH).o4(G).o4(G)
-                .bar(QUARTER).o4(A).o4(G).o5(D)
-                .bar().o5(C, HALF, TURN).ending()        // TURN on "you"
+                .pickup(EIGHTH).o4(G).o4(G).done()
+                .bar(QUARTER).o4(A).o4(G).o5(D).done()
+                .bar().o5(C, HALF, TURN).pad(QUARTER).done()        // TURN on "you"
                 .build(elision());
     }
 
     /** Line 3: "Happy birthday dear NAME" — TRILL on the sustained B4 (classical flourish). */
     MelodicPhrase line3() {
         return b()
-                .pickup(EIGHTH).o4(G).o4(G)
-                .bar(QUARTER).o5(G).o5(E).o5(C)
-                .bar().o4(B, HALF, TRILL).ending()        // TRILL on the "NAME"
+                .pickup(EIGHTH).o4(G).o4(G).done()
+                .bar(QUARTER).o5(G).o5(E).o5(C).done()
+                .bar().o4(B, HALF, TRILL).pad(QUARTER).done()        // TRILL on the "NAME"
                 .build(elision());
     }
 
     /** Line 4: "Happy birthday to you" — final resolution, no ornament on the last note. */
     MelodicPhrase line4() {
         return b()
-                .pickup(EIGHTH).o5(F).o5(F)
-                .bar(QUARTER).o5(E).o5(C).o5(D)
-                .bar().o5(HALF.dot(), C)                  // final tonic, held
+                .pickup(EIGHTH).o5(F).o5(F).done()
+                .bar(QUARTER).o5(E).o5(C).o5(D).done()
+                .bar().o5(HALF.dot(), C).done()                  // final tonic, held
                 .build(end());
     }
 
@@ -98,26 +98,26 @@ public final class MozartHappyBirthday implements PieceContentProvider<HappyBirt
         //   4: G7  5: C   6: C    (line 2)
         //   7: C   8: C   9: F    (line 3, F for "dear NAME")
         //  10: F  11: C  12: C    (line 4, resolution)
-        barC(bb); barC(bb); barG7(bb);
-        barG7(bb); barC(bb); barC(bb);
-        barC(bb); barC(bb); barF(bb);
-        barF(bb); barC(bb); barC(bb);
+        bb = barC(bb);  bb = barC(bb);  bb = barG7(bb);
+        bb = barG7(bb); bb = barC(bb);  bb = barC(bb);
+        bb = barC(bb);  bb = barC(bb);  bb = barF(bb);
+        bb = barF(bb);  bb = barC(bb);  bb = barC(bb);
         return bb.build(end());
     }
 
     /** C-major Alberti bar: C3 E3 G3 E3 G3 E3 (6 eighths). */
-    private static void barC(StaffPhraseBuilder bb) {
-        bb.bar(EIGHTH).o3(C).o3(E).o3(G).o3(E).o3(G).o3(E);
+    private static StaffPhraseBuilderTyped barC(StaffPhraseBuilderTyped bb) {
+        return bb.bar(EIGHTH).o3(C).o3(E).o3(G).o3(E).o3(G).o3(E).done();
     }
 
     /** G7 Alberti bar: G2 B2 D3 B2 F3 B2 (root-3-5-3-♭7-3, 6 eighths).  F is natural in C major. */
-    private static void barG7(StaffPhraseBuilder bb) {
-        bb.bar(EIGHTH).o2(G).o2(B).o3(D).o2(B).o3(F).o2(B);
+    private static StaffPhraseBuilderTyped barG7(StaffPhraseBuilderTyped bb) {
+        return bb.bar(EIGHTH).o2(G).o2(B).o3(D).o2(B).o3(F).o2(B).done();
     }
 
     /** F-major Alberti bar: F2 A2 C3 A2 C3 A2 (root-3-5-3-5-3, 6 eighths). */
-    private static void barF(StaffPhraseBuilder bb) {
-        bb.bar(EIGHTH).o2(F).o2(A).o3(C).o2(A).o3(C).o2(A);
+    private static StaffPhraseBuilderTyped barF(StaffPhraseBuilderTyped bb) {
+        return bb.bar(EIGHTH).o2(F).o2(A).o3(C).o2(A).o3(C).o2(A).done();
     }
 
     public static void main(String[] args) throws Exception {

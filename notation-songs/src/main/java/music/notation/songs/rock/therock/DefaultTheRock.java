@@ -24,24 +24,24 @@ public final class DefaultTheRock implements PieceContentProvider<TheRock> {
     public Piece create() {
         final var id = new TheRock();
 
-        var P = StaffPhraseBuilder.in(TS, QUARTER);   // default = QUARTER for march
+        var P = StaffPhraseBuilderTyped.in(TS, QUARTER);   // default = QUARTER for march
 
         // ── Main theme (G minor) ──
         var phrase1 = P
                 // Bar 1: D Bb A G (four quarters)
                 .bar().f()
-                    .r(EIGHTH).o5(EIGHTH, D).o5(EIGHTH, B.f()).o5(EIGHTH, A).o5(QUARTER.dot(), G).r(EIGHTH)
+                    .r(EIGHTH).o5(EIGHTH, D).o5(EIGHTH, B.f()).o5(EIGHTH, A).o5(QUARTER.dot(), G).r(EIGHTH).done()
                 // Bar 2: Bb G Eb- (Q Q H)
                 .bar()
-                    .o5(EIGHTH, B.f()).o5(EIGHTH, G).o6(QUARTER.dot(), E.f()).r(EIGHTH).o6(QUARTER, C)
+                    .o5(EIGHTH, B.f()).o5(EIGHTH, G).o6(QUARTER.dot(), E.f()).r(EIGHTH).o6(QUARTER, C).done()
                 // Bar 4: G A Bb C Bb A_ (eighths, A held as dotted quarter)
                 .bar()
-                    .o6(QUARTER, D).o5(QUARTER, B.f()).r(EIGHTH).o5(EIGHTH.dot(), G).o5(EIGHTH.dot(), A)
+                    .o6(QUARTER, D).o5(QUARTER, B.f()).r(EIGHTH).o5(EIGHTH.dot(), G).o5(EIGHTH.dot(), A).done()
                 .bar()
-                    .o5(QUARTER, B.f()).o6(QUARTER, C).slurStart().o6(SIXTEENTH, C).slurEnd().o5(QUARTER, B.f()).r(SIXTEENTH).o5(EIGHTH, A)
+                    .o5(QUARTER, B.f()).o6(QUARTER, C).slurStart().o6(SIXTEENTH, C).slurEnd().o5(QUARTER, B.f()).r(SIXTEENTH).o5(EIGHTH, A).done()
                 .bar()
-                    .o5(EIGHTH, G).o5(QUARTER, A).ff().r(EIGHTH).o5(EIGHTH.dot(), D).fff().o6(SIXTEENTH, D.f()).o6(SIXTEENTH, C).o5(EIGHTH.dot(), B.f())
-                .bar().o5(EIGHTH, A).o5(HALF, G).r(QUARTER.dot())
+                    .o5(EIGHTH, G).o5(QUARTER, A).ff().r(EIGHTH).o5(EIGHTH.dot(), D).fff().o6(SIXTEENTH, D.f()).o6(SIXTEENTH, C).o5(EIGHTH.dot(), B.f()).done()
+                .bar().o5(EIGHTH, A).o5(HALF, G).r(QUARTER.dot()).done()
                 .build(end());
 
         var melody = Track.of("Melody", FRENCH_HORN, List.of(phrase1));

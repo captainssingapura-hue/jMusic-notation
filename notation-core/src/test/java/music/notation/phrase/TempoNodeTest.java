@@ -39,8 +39,8 @@ class TempoNodeTest {
 
     @Test
     void builderTempoAddsNodeToBar() {
-        var P = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var phrase = P.bar().tempo(120).o4(C).o4(D).o4(E).o4(F)
+        var P = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
+        var phrase = P.bar().tempo(120).o4(C).o4(D).o4(E).o4(F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         // First node should be the TempoChangeNode
@@ -50,10 +50,10 @@ class TempoNodeTest {
 
     @Test
     void builderTransitionStartEndAddsNodes() {
-        var P = StaffPhraseBuilder.in(KEY, TS, QUARTER);
+        var P = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
         var phrase = P
-                .bar().transitionStart().o4(C).o4(D).o4(E).o4(F)
-                .bar().transitionEnd(80).o4(G).o4(A).o4(B).o5(C)
+                .bar().transitionStart().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().transitionEnd(80).o4(G).o4(A).o4(B).o5(C).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         // Check transition start is in first bar's nodes
@@ -69,10 +69,10 @@ class TempoNodeTest {
 
     @Test
     void builderConvenienceAliases() {
-        var P = StaffPhraseBuilder.in(KEY, TS, QUARTER);
+        var P = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
         var phrase = P
-                .bar().ritStart().o4(C).o4(D).o4(E).o4(F)
-                .bar().rit(60).o4(G).o4(A).o4(B).o5(C)
+                .bar().ritStart().o4(C).o4(D).o4(E).o4(F).done()
+                .bar().rit(60).o4(G).o4(A).o4(B).o5(C).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         boolean hasStart = phrase.nodes().stream()
@@ -85,9 +85,9 @@ class TempoNodeTest {
 
     @Test
     void tempoNodePreservedInOverride() {
-        var P = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var original = P.bar().tempo(100).o4(C).o4(D).o4(E).o4(F)
-                .bar().o4(G).o4(A).o4(B).o5(C)
+        var P = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
+        var original = P.bar().tempo(100).o4(C).o4(D).o4(E).o4(F).done()
+                .bar().o4(G).o4(A).o4(B).o5(C).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         // Override bar 1 only; bar 0 with tempo node should be preserved
