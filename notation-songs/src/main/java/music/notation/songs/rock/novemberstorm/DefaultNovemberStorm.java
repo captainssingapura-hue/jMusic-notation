@@ -1,5 +1,6 @@
 package music.notation.songs.rock.novemberstorm;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
@@ -35,15 +36,59 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
     public Piece create() {
         final var id = new NovemberStorm();
 
-        return new Piece(id.title(), id.composer(),
+        // Five named tracks, instruments declared once at piece level.
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Lead Guitar",   OVERDRIVEN_GUITAR),
+                new TrackDecl.MusicTrackDecl("Rhythm Guitar", DISTORTION_GUITAR),
+                new TrackDecl.MusicTrackDecl("Bass",          ELECTRIC_BASS_PICK),
+                new TrackDecl.MusicTrackDecl("Organ",         ROCK_ORGAN),
+                new TrackDecl.MusicTrackDecl("Drums",         DRUM_KIT)
+        );
+
+        // Five sections: pickup (1 bar) → v1/v2/v3 (10 bars) → v4 (11 bars).
+        final var leadGuitar   = buildLeadGuitarPerSection();
+        final var rhythmGuitar = buildRhythmGuitarPerSection();
+        final var bass         = buildBassPerSection();
+        final var organ        = buildOrganPerSection();
+        final var drums        = buildDrumsPerSection();
+
+        final var sections = List.of(
+                sectionFor("Pickup", 1,
+                        leadGuitar.get(0), rhythmGuitar.get(0),
+                        bass.get(0), organ.get(0), drums.get(0)),
+                sectionFor("Verse 1", 10,
+                        leadGuitar.get(1), rhythmGuitar.get(1),
+                        bass.get(1), organ.get(1), drums.get(1)),
+                sectionFor("Verse 2", 10,
+                        leadGuitar.get(2), rhythmGuitar.get(2),
+                        bass.get(2), organ.get(2), drums.get(2)),
+                sectionFor("Verse 3", 10,
+                        leadGuitar.get(3), rhythmGuitar.get(3),
+                        bass.get(3), organ.get(3), drums.get(3)),
+                sectionFor("Verse 4", 11,
+                        leadGuitar.get(4), rhythmGuitar.get(4),
+                        bass.get(4), organ.get(4), drums.get(4))
+        );
+
+        return Piece.ofSections(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(132, QUARTER),
-                List.of(
-                        buildLeadGuitar(),
-                        buildRhythmGuitar(),
-                        buildBass(),
-                        buildOrgan(),
-                        buildDrums()));
+                trackDecls,
+                sections);
+    }
+
+    private static Section sectionFor(String name, int bars,
+                                      Phrase lead, Phrase rhythm,
+                                      Phrase bass, Phrase organ, Phrase drums) {
+        return Section.named(name)
+                .duration(Duration.ofSixtyFourths(bars * 64))    // 4/4 bar = 64sf
+                .timeSignature(TS)
+                .track("Lead Guitar",   lead)
+                .track("Rhythm Guitar", rhythm)
+                .track("Bass",          bass)
+                .track("Organ",         organ)
+                .track("Drums",         drums)
+                .build();
     }
 
     // ── Lead Guitar (Overdriven) ───────────────────────────────────────
@@ -53,7 +98,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
         return StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
     }
 
-    private Track buildLeadGuitar() {
+    private List<Phrase> buildLeadGuitarPerSection() {
         // Pickup (1 bar)
         var pickup = newBuilder()
                 .pickup().mf().o4(QUARTER, E).done()
@@ -158,13 +203,12 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
                     .r(WHOLE).done()
                 .build(end());
 
-        return Track.of("Lead Guitar", OVERDRIVEN_GUITAR,
-                List.of(pickup, v1, v2, v3, v4));
+        return List.of(pickup, v1, v2, v3, v4);
     }
 
     // ── Rhythm Guitar (Distortion, power chords) ───────────────────────
 
-    private Track buildRhythmGuitar() {
+    private List<Phrase> buildRhythmGuitarPerSection() {
         // Power-chord voicings: root + fifth
         final var pAm = chord(HALF, p(A, 3), p(E, 4));
         final var pC  = chord(HALF, p(C, 4), p(G, 4));
@@ -209,13 +253,12 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
                 .bar().r(WHOLE).done()
                 .build(end());
 
-        return Track.of("Rhythm Guitar", DISTORTION_GUITAR,
-                List.of(pickup, v1, v2, v3, v4));
+        return List.of(pickup, v1, v2, v3, v4);
     }
 
     // ── Bass (Electric Pick) ───────────────────────────────────────────
 
-    private Track buildBass() {
+    private List<Phrase> buildBassPerSection() {
         // Pickup (1 bar)
         var pickup = newBuilder()
                 .pickup().mf().o2(QUARTER, A).o2(QUARTER, E).done()
@@ -256,8 +299,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
                     .r(WHOLE).done()
                 .build(end());
 
-        return Track.of("Bass", ELECTRIC_BASS_PICK,
-                List.of(pickup, v1, v2, v3, v4));
+        return List.of(pickup, v1, v2, v3, v4);
     }
 
     /** Driving eighth-note bass pattern for one verse (10 bars). */
@@ -288,7 +330,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
 
     // ── Organ Pad (Rock Organ) ─────────────────────────────────────────
 
-    private Track buildOrgan() {
+    private List<Phrase> buildOrganPerSection() {
         // Pickup (1 bar)
         var pickup = newBuilder().bar().mp().o3(WHOLE, A).done().build(attacca());
 
@@ -316,8 +358,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
                 .bar().r(WHOLE).done()
                 .build(end());
 
-        return Track.of("Organ", ROCK_ORGAN,
-                List.of(pickup, v1, v2, v3, v4));
+        return List.of(pickup, v1, v2, v3, v4);
     }
 
     /** Organ pad for one verse (10 bars). */
@@ -340,7 +381,7 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
 
     // ── Drums ──────────────────────────────────────────────────────────
 
-    private Track buildDrums() {
+    private List<Phrase> buildDrumsPerSection() {
         // ── Patterns ──
 
         var rockBar = List.<PhraseNode>of(
@@ -382,50 +423,57 @@ public final class DefaultNovemberStorm implements PieceContentProvider<November
         var silentBar = List.<PhraseNode>of(
                 d(CLOSED_HI_HAT, WHOLE));
 
-        // ── Assemble ──
+        // ── Assemble per-section DrumPhrases ──
 
-        var nodes = new ArrayList<PhraseNode>();
+        // Pickup (1 bar)
+        var pickupNodes = new ArrayList<PhraseNode>();
+        pickupNodes.add(new DynamicNode(Dynamic.MF));
+        pickupNodes.addAll(pickupBar);
+        var pickup = new DrumPhrase(pickupNodes, attacca());
 
-        // ── Pickup (1 bar)
-        nodes.add(new DynamicNode(Dynamic.MF));
-        nodes.addAll(pickupBar);
+        // Verse 1: standard rock (10 bars)
+        var v1Nodes = new ArrayList<PhraseNode>();
+        v1Nodes.add(new DynamicNode(Dynamic.MF));
+        for (int i = 0; i < 4; i++) v1Nodes.addAll(rockBar);       // bars 1–4
+        v1Nodes.addAll(fillBar);                                    // bar 5
+        for (int i = 0; i < 4; i++) v1Nodes.addAll(rockBar);       // bars 6–9
+        v1Nodes.addAll(crashEnd);                                   // bar 10
+        var v1 = new DrumPhrase(v1Nodes, attacca());
 
-        // ── Verse 1: standard rock (10 bars)
-        nodes.add(new DynamicNode(Dynamic.MF));
-        for (int i = 0; i < 4; i++) nodes.addAll(rockBar);       // bars 1–4
-        nodes.addAll(fillBar);                                     // bar 5
-        for (int i = 0; i < 4; i++) nodes.addAll(rockBar);       // bars 6–9
-        nodes.addAll(crashEnd);                                    // bar 10
+        // Verse 2: building — rock→hard rock (10 bars)
+        var v2Nodes = new ArrayList<PhraseNode>();
+        v2Nodes.add(new DynamicNode(Dynamic.F));
+        for (int i = 0; i < 4; i++) v2Nodes.addAll(rockBar);       // bars 1–4
+        v2Nodes.addAll(fillBar);                                    // bar 5
+        v2Nodes.add(new DynamicNode(Dynamic.FF));
+        for (int i = 0; i < 4; i++) v2Nodes.addAll(hardRockBar);   // bars 6–9
+        v2Nodes.addAll(crashEnd);                                   // bar 10
+        var v2 = new DrumPhrase(v2Nodes, attacca());
 
-        // ── Verse 2: building — rock→hard rock (10 bars)
-        nodes.add(new DynamicNode(Dynamic.F));
-        for (int i = 0; i < 4; i++) nodes.addAll(rockBar);       // bars 1–4
-        nodes.addAll(fillBar);                                     // bar 5
-        nodes.add(new DynamicNode(Dynamic.FF));
-        for (int i = 0; i < 4; i++) nodes.addAll(hardRockBar);   // bars 6–9
-        nodes.addAll(crashEnd);                                    // bar 10
+        // Verse 3: strongest climax — crashes, open hats, max intensity (10 bars)
+        var v3Nodes = new ArrayList<PhraseNode>();
+        v3Nodes.add(new DynamicNode(Dynamic.FFF));
+        v3Nodes.addAll(crashEnd);                                   // bar 1  crash intro
+        for (int i = 0; i < 3; i++) v3Nodes.addAll(crashRockBar);  // bars 2–4
+        v3Nodes.addAll(fillBar);                                    // bar 5
+        for (int i = 0; i < 4; i++) v3Nodes.addAll(crashRockBar);  // bars 6–9
+        v3Nodes.addAll(crashEnd);                                   // bar 10
+        var v3 = new DrumPhrase(v3Nodes, attacca());
 
-        // ── Verse 3: strongest climax — crashes, open hats, max intensity (10 bars)
-        nodes.add(new DynamicNode(Dynamic.FFF));
-        nodes.addAll(crashEnd);                                    // bar 1  crash intro
-        for (int i = 0; i < 3; i++) nodes.addAll(crashRockBar);  // bars 2–4
-        nodes.addAll(fillBar);                                     // bar 5
-        for (int i = 0; i < 4; i++) nodes.addAll(crashRockBar);  // bars 6–9
-        nodes.addAll(crashEnd);                                    // bar 10
+        // Verse 4: sharp drop — ride only, fading to silence (11 bars)
+        var v4Nodes = new ArrayList<PhraseNode>();
+        v4Nodes.add(new DynamicNode(Dynamic.P));
+        for (int i = 0; i < 4; i++) v4Nodes.addAll(rideOnly);      // bars 1–4
+        v4Nodes.add(new DynamicNode(Dynamic.PP));
+        for (int i = 0; i < 3; i++) v4Nodes.addAll(rideOnly);      // bars 5–7
+        v4Nodes.add(new DynamicNode(Dynamic.PPP));
+        v4Nodes.addAll(rideOnly);                                   // bar 8
+        v4Nodes.addAll(rideOnly);                                   // bar 9
+        v4Nodes.addAll(silentBar);                                  // bar 10
+        v4Nodes.addAll(silentBar);                                  // bar 11 fade-out
+        var v4 = new DrumPhrase(v4Nodes, end());
 
-        // ── Verse 4: sharp drop — ride only, fading to silence (11 bars)
-        nodes.add(new DynamicNode(Dynamic.P));
-        for (int i = 0; i < 4; i++) nodes.addAll(rideOnly);      // bars 1–4
-        nodes.add(new DynamicNode(Dynamic.PP));
-        for (int i = 0; i < 3; i++) nodes.addAll(rideOnly);      // bars 5–7
-        nodes.add(new DynamicNode(Dynamic.PPP));
-        nodes.addAll(rideOnly);                                    // bar 8
-        nodes.addAll(rideOnly);                                    // bar 9
-        nodes.addAll(silentBar);                                   // bar 10
-        nodes.addAll(silentBar);                                   // bar 11 fade-out
-
-        return Track.of("Drums", DRUM_KIT, List.of(
-                new DrumPhrase(nodes, end())));
+        return List.of(pickup, v1, v2, v3, v4);
     }
 
     public static void main(final String[] args) throws Exception {

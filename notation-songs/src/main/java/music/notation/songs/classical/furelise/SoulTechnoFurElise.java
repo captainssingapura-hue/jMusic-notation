@@ -1,5 +1,6 @@
 package music.notation.songs.classical.furelise;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
@@ -39,27 +40,41 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
     @Override
     public Piece create() {
         // Reuse the full Manual arrangement for the melody (RH) and LH arpeggios
-        final Piece manualPiece = manual.create();
-        final Track manualRh = manualPiece.tracks().get(0);
-        final Track manualLh = manualPiece.tracks().get(1);
+        final var rhPhrases = manual.rightHandPhrases();
+        final var lhPhrases = manual.leftHandPhrases();
 
         // Align accompaniment to RH total duration (bars)
-        final int totalBars = totalBars(manualRh);
+        final int totalBars = totalBars(rhPhrases);
+        final Duration SONG_DURATION = Duration.ofSixtyFourths(totalBars * BAR_SIXTY_FOURTHS);
 
         final var id = new FurElise();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Lead Synth", SYNTH_LEAD_SAWTOOTH),
+                new TrackDecl.MusicTrackDecl("Rhodes",     ELECTRIC_PIANO_1),
+                new TrackDecl.MusicTrackDecl("Slap Bass",  SLAP_BASS),
+                new TrackDecl.MusicTrackDecl("Warm Pad",   SYNTH_PAD_WARM),
+                new TrackDecl.MusicTrackDecl("Drums",      DRUM_KIT)
+        );
+
+        final var song = Section.named("Rondo")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Lead Synth", rhPhrases)
+                .track("Rhodes",     lhPhrases)
+                .track("Slap Bass",  bassGroove(totalBars))
+                .track("Warm Pad",   padLayer(totalBars))
+                .track("Drums",      drumsTrack(totalBars))
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(120, QUARTER),
-                List.of(
-                        Track.of("Lead Synth", SYNTH_LEAD_SAWTOOTH, manualRh.phrases()),
-                        Track.of("Rhodes",     ELECTRIC_PIANO_1,    manualLh.phrases()),
-                        Track.of("Slap Bass",  SLAP_BASS,           List.of(bassGroove(totalBars))),
-                        Track.of("Warm Pad",   SYNTH_PAD_WARM,      List.of(padLayer(totalBars))),
-                        Track.of("Drums",      DRUM_KIT,            List.of(drumsTrack(totalBars)))
-                ));
+                trackDecls,
+                List.of(song));
     }
 
-    private static int totalBars(Track track) {
-        int sf = track.phrases().stream().mapToInt(Bar::phraseSixtyFourths).sum();
+    private static int totalBars(List<Phrase> phrases) {
+        int sf = phrases.stream().mapToInt(Bar::phraseSixtyFourths).sum();
         return sf / BAR_SIXTY_FOURTHS;
     }
 

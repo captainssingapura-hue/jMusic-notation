@@ -1,5 +1,6 @@
 package music.notation.songs.traditional.happybirthday;
 
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -30,19 +31,28 @@ public final class ChopinHappyBirthday implements PieceContentProvider<HappyBirt
 
     @Override public String subtitle() { return "Chopin (Nocturne)"; }
 
+    private static final Duration SONG_DURATION = Duration.ofSixtyFourths(12 * 48);
+
     @Override
     public Piece create() {
         final var id = new HappyBirthday();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody",        ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Accompaniment", ACOUSTIC_GRAND_PIANO)
+        );
+
+        final var song = Section.named("Happy Birthday (Chopin)")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Melody",        List.of(line1(), line2(), line3(), line4()))
+                .track("Accompaniment", nocturne())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(76, QUARTER),
-                List.of(rightHand(), leftHand()));
-    }
-
-    // ── Right Hand: singing melody with Chopinesque grace-note decorations ─
-
-    private Track rightHand() {
-        return Track.of("Right Hand", ACOUSTIC_GRAND_PIANO, List.of(
-                line1(), line2(), line3(), line4()));
+                trackDecls,
+                List.of(song));
     }
 
     /** Line 1: "Happy birthday to you" — soft lyrical entry, grace into "you". */
@@ -85,10 +95,6 @@ public final class ChopinHappyBirthday implements PieceContentProvider<HappyBirt
     }
 
     // ── Left Hand: nocturne arpeggios (bass quarter + 4 flowing eighths) ──
-
-    private Track leftHand() {
-        return Track.of("Left Hand (Nocturne)", ACOUSTIC_GRAND_PIANO, List.of(nocturne()));
-    }
 
     /** 12-bar nocturne LH arpeggios matching the RH phrase structure. */
     private MelodicPhrase nocturne() {

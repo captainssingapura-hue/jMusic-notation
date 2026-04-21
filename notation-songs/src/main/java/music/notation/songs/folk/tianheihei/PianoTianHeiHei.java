@@ -27,25 +27,45 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
     @Override
     public Piece create() {
         final var id = new TianHeiHei();
-        return new Piece(id.title(), id.composer(),
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Piano",   ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Harmony", ACOUSTIC_GRAND_PIANO)
+        );
+
+        final var melodyPhrases  = melodyPhrases();
+        final var harmonyPhrases = harmonyPhrases();
+
+        int total = 0;
+        for (Phrase p : melodyPhrases) total += Bar.phraseSixtyFourths(p);
+        final Duration SONG_DURATION = Duration.ofSixtyFourths(total);
+
+        final var song = Section.named("Song")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Piano",   melodyPhrases)
+                .track("Harmony", harmonyPhrases)
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(120, QUARTER),
-                List.of(melody(), harmony()));
+                trackDecls,
+                List.of(song));
     }
 
-    private Track melody() {
+    private List<Phrase> melodyPhrases() {
         final var mainMelody1 = buildMelodyMain1();
         final var tianHei1 = buildMelodyTianHeiHei1();
         final var chorus1 = buildMelodyMain2();
         final var ending = buildEnding();
-        var phrases = List.<Phrase>of(
+        return List.<Phrase>of(
                 buildMelodyPre(),
                 mainMelody1, tianHei1, mainMelody1, tianHei1,
                 chorus1, buildBridge(), chorus1,
                 overrideMelodyMain2(),
                 ending, tianHei1
         );
-        return Track.of("Piano", ACOUSTIC_GRAND_PIANO, phrases);
     }
 
 
@@ -147,19 +167,18 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
     //  arrangement; use the BPM slider for nocturne tempo (~88 BPM).
     // ══════════════════════════════════════════════════════════════════════════
 
-    private Track harmony() {
+    private List<Phrase> harmonyPhrases() {
         final var harmMain1 = buildHarmonyMain1();
         final var harmTianHei = buildHarmonyTianHei();
         final var harmChorus = buildHarmonyChorus();
         final var harmEnding = buildHarmonyEnding();
-        var phrases = List.<Phrase>of(
+        return List.<Phrase>of(
                 buildHarmonyPre(),
                 harmMain1, harmTianHei, harmMain1, harmTianHei,
                 harmChorus, buildHarmonyBridge(), harmChorus,
                 overrideHarmonyChorus(),
                 harmEnding, harmTianHei
         );
-        return Track.of("Harmony", ACOUSTIC_GRAND_PIANO, phrases);
     }
 
     /** Pre: 4 bars, sparse start easing into the arpeggio shape. Trailing pad = 16. */

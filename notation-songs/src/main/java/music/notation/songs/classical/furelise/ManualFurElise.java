@@ -1,5 +1,6 @@
 package music.notation.songs.classical.furelise;
 
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -29,32 +30,52 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
     @Override
     public Piece create() {
         final var id = new FurElise();
-        return new Piece(id.title(), id.composer(),
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Right Hand", ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Left Hand",  ACOUSTIC_GRAND_PIANO)
+        );
+
+        final var rhPhrases = rightHandPhrases();
+        final var lhPhrases = leftHandPhrases();
+
+        int total = 0;
+        for (Phrase p : rhPhrases) total += Bar.phraseSixtyFourths(p);
+        final Duration SONG_DURATION = Duration.ofSixtyFourths(total);
+
+        // Five-part rondo A-B-A-C-A + coda rolled into a single section:
+        // the phrase-level PhraseMarking on each boundary still drives
+        // elision/attacca; sectioning is just about structural grouping.
+        final var song = Section.named("Rondo")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Right Hand", rhPhrases)
+                .track("Left Hand",  lhPhrases)
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(76, QUARTER),
-                List.of(rightHand(), leftHand()));
+                trackDecls,
+                List.of(song));
     }
 
     // ── Track assembly (ABACA + Coda) ──
 
-    private Track rightHand() {
+    List<Phrase> rightHandPhrases() {
         var a = rhSectionA();
         var b = List.<Phrase>of(buildRHSectionB(), buildRHSectionABase(), buildRHSectionAAnswer(), buildRHSectionABase());
         var c = List.<Phrase>of(buildRHSectionC());
         var coda = List.<Phrase>of(buildRHSectionABase(), buildRHSectionAAnswer(), buildRHCoda());
-        return Track.of("Right Hand", ACOUSTIC_GRAND_PIANO,
-                concat(a,b,c,coda));
-
-        //concat(a,b,c,coda));
+        return concat(a,b,c,coda);
     }
 
-    private Track leftHand() {
+    List<Phrase> leftHandPhrases() {
         var a = lhSectionA();
         var b = List.<Phrase>of(buildLHSectionB(), buildLHSectionA(), buildLHSectionAAnswer(), buildLHSectionABeforeSectionC());
         var c = List.<Phrase>of(buildLHSectionC());
         var coda = List.<Phrase>of(buildLHSectionA(), buildLHSectionAAnswer(), buildLHCoda());
-        return Track.of("Left Hand", ACOUSTIC_GRAND_PIANO,
-                concat(a,b,c,coda));
+        return concat(a,b,c,coda);
     }
 
     @SafeVarargs

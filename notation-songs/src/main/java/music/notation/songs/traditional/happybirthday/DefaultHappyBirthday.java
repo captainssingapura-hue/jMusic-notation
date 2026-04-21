@@ -2,6 +2,7 @@ package music.notation.songs.traditional.happybirthday;
 
 import music.notation.chord.DominantSeventh;
 import music.notation.chord.MajorTriad;
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -29,19 +30,35 @@ public final class DefaultHappyBirthday implements PieceContentProvider<HappyBir
         return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
     }
 
+    // Total structural duration: 4 lines × 3 bars × 48/64 (3/4) = 576/64.
+    private static final Duration SONG_DURATION = Duration.ofSixtyFourths(12 * 48);
+
     @Override
     public Piece create() {
         final var id = new HappyBirthday();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody",        ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Accompaniment", ACOUSTIC_GRAND_PIANO)
+        );
+
+        final var song = Section.named("Happy Birthday")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Melody",        melodyPhrases())
+                .track("Accompaniment", leftHandPhrase())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(112, QUARTER),
-                List.of(melody(), leftHand()));
+                trackDecls,
+                List.of(song));
     }
 
     // ── Melody (Right Hand) ───────────────────────────────────────────
 
-    private Track melody() {
-        return Track.of("Melody", ACOUSTIC_GRAND_PIANO, List.of(
-                line1(), line2(), line3(), line4()));
+    private List<Phrase> melodyPhrases() {
+        return List.of(line1(), line2(), line3(), line4());
     }
 
     /** "Happy birthday to you" — first phrase, ends on dominant V7 feel (B4). */
@@ -82,7 +99,7 @@ public final class DefaultHappyBirthday implements PieceContentProvider<HappyBir
 
     // ── Left Hand: dotted-half chord stabs, I-V7-I ─────────────────────
 
-    private Track leftHand() {
+    private Phrase leftHandPhrase() {
         final var CMaj = new MajorTriad(C, 3);
         final var FMaj = new MajorTriad(F, 3);
         final var G7   = new DominantSeventh(G, 3);
@@ -93,14 +110,12 @@ public final class DefaultHappyBirthday implements PieceContentProvider<HappyBir
         //   line 2:  G7 C  C      → resolution
         //   line 3:  C  C  F      → subdominant colour for "dear NAME"
         //   line 4:  F  C  C      → F pulls to C, final I
-        return Track.of("Accompaniment", ACOUSTIC_GRAND_PIANO, List.of(
-                new ChordPhrase(List.of(
-                        dchord(HALF, CMaj),      dchord(HALF, CMaj),     dchord(HALF, G7),
-                        dchord(HALF, G7),        dchord(HALF, CMaj),     dchord(HALF, CMaj),
-                        dchord(HALF, CMaj),      dchord(HALF, CMaj),     dchord(HALF, FMaj),
-                        dchord(HALF, FMaj),      dchord(HALF, CMaj),     dchord(HALF, CMaj)
-                ), end())
-        ));
+        return new ChordPhrase(List.of(
+                dchord(HALF, CMaj),      dchord(HALF, CMaj),     dchord(HALF, G7),
+                dchord(HALF, G7),        dchord(HALF, CMaj),     dchord(HALF, CMaj),
+                dchord(HALF, CMaj),      dchord(HALF, CMaj),     dchord(HALF, FMaj),
+                dchord(HALF, FMaj),      dchord(HALF, CMaj),     dchord(HALF, CMaj)
+        ), end());
     }
 
     public static void main(String[] args) throws Exception {

@@ -34,9 +34,14 @@ record PitchScrollData(
         var lyrics = new ArrayList<LyricRect>();
         var names = new ArrayList<String>();
 
-        // Separate lyrics tracks from audio tracks
+        // Partition tracks: control tracks are hidden entirely (they carry
+        // tempo/articulation markers, no pitches); lyrics tracks feed the
+        // lyric timeline; everything else is an audio track on the piano roll.
         var audioTracks = new ArrayList<Track>();
         for (Track track : piece.tracks()) {
+            if (piece.isControlTrack(track.name())) {
+                continue;
+            }
             boolean hasLyrics = track.phrases().stream()
                     .anyMatch(p -> p instanceof LyricPhrase);
             if (hasLyrics) {

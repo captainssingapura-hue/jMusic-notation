@@ -1,5 +1,6 @@
 package music.notation.songs.traditional.happybirthday;
 
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -33,19 +34,28 @@ public final class MozartHappyBirthday implements PieceContentProvider<HappyBirt
 
     @Override public String subtitle() { return "Mozart (Alberti Bass)"; }
 
+    private static final Duration SONG_DURATION = Duration.ofSixtyFourths(12 * 48); // 12 bars in 3/4
+
     @Override
     public Piece create() {
         final var id = new HappyBirthday();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody",        ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Accompaniment", ACOUSTIC_GRAND_PIANO)
+        );
+
+        final var song = Section.named("Happy Birthday (Mozart)")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Melody",        List.of(line1(), line2(), line3(), line4()))
+                .track("Accompaniment", alberti())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(132, QUARTER),
-                List.of(rightHand(), leftHand()));
-    }
-
-    // ── Right Hand: ornamented melody ─────────────────────────────────
-
-    private Track rightHand() {
-        return Track.of("Right Hand", ACOUSTIC_GRAND_PIANO, List.of(
-                line1(), line2(), line3(), line4()));
+                trackDecls,
+                List.of(song));
     }
 
     /** Line 1: "Happy birthday to you" — MORDENT on the sustained B4. */
@@ -85,10 +95,6 @@ public final class MozartHappyBirthday implements PieceContentProvider<HappyBirt
     }
 
     // ── Left Hand: Alberti bass (root-third-fifth-third-fifth-third) ──
-
-    private Track leftHand() {
-        return Track.of("Left Hand (Alberti)", ACOUSTIC_GRAND_PIANO, List.of(alberti()));
-    }
 
     /** 12-bar Alberti bass matching the RH phrase structure. */
     private MelodicPhrase alberti() {

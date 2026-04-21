@@ -1,5 +1,6 @@
 package music.notation.songs.traditional.happybirthday;
 
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -39,19 +40,28 @@ public final class BrahmsHappyBirthday implements PieceContentProvider<HappyBirt
 
     @Override public String subtitle() { return "Brahms (Hemiola)"; }
 
+    private static final Duration SONG_DURATION = Duration.ofSixtyFourths(12 * 48);
+
     @Override
     public Piece create() {
         final var id = new HappyBirthday();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody",        ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Accompaniment", ACOUSTIC_GRAND_PIANO)
+        );
+
+        final var song = Section.named("Happy Birthday (Brahms)")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Melody",        List.of(line1(), line2(), line3(), line4()))
+                .track("Accompaniment", hemiola())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(88, QUARTER),
-                List.of(rightHand(), leftHand()));
-    }
-
-    // ── Right Hand: melody, with thirds-doubling at the climax ────────
-
-    private Track rightHand() {
-        return Track.of("Right Hand", ACOUSTIC_GRAND_PIANO, List.of(
-                line1(), line2(), line3(), line4()));
+                trackDecls,
+                List.of(song));
     }
 
     /** Line 1: plain melody, warm mf. */
@@ -98,10 +108,6 @@ public final class BrahmsHappyBirthday implements PieceContentProvider<HappyBirt
     }
 
     // ── Left Hand: hemiola — two dotted-quarter chord stabs per 3/4 bar ──
-
-    private Track leftHand() {
-        return Track.of("Left Hand (Hemiola)", ACOUSTIC_GRAND_PIANO, List.of(hemiola()));
-    }
 
     /** 12-bar hemiola LH. Each bar = two dotted-quarter chord hits (24+24=48sf). */
     private MelodicPhrase hemiola() {

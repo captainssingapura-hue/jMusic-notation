@@ -2,6 +2,7 @@ package music.notation.songs.rock.therock;
 
 import music.notation.chord.MajorTriad;
 import music.notation.chord.MinorTriad;
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.structure.*;
@@ -44,8 +45,6 @@ public final class DefaultTheRock implements PieceContentProvider<TheRock> {
                 .bar().o5(EIGHTH, A).o5(HALF, G).r(QUARTER.dot()).done()
                 .build(end());
 
-        var melody = Track.of("Melody", FRENCH_HORN, List.of(phrase1));
-
         // ── Power chords (strings) — Gm, Eb, Cm, Dm, Gm, F ──
         final var dMinor  = new MinorTriad(D, 3);
         final var gMinor  = new MinorTriad(G, 3);
@@ -59,8 +58,7 @@ public final class DefaultTheRock implements PieceContentProvider<TheRock> {
         var Fmaj  = chord(WHOLE, fMajor);
         var ce   = new PhraseMarking(PhraseConnection.CAESURA, false);
 
-        var chords = Track.of("Strings", STRING_ENSEMBLE_1, List.of(
-                new ChordPhrase(List.of(Gm, EbMaj, Cm, Dm, Gm, Fmaj), ce)));
+        var chordsPhrase = new ChordPhrase(List.of(Gm, EbMaj, Cm, Dm, Gm, Fmaj), ce);
 
         // ── Drums: military march, 6 bars ──
         var drumBar = List.<PhraseNode>of(
@@ -72,10 +70,27 @@ public final class DefaultTheRock implements PieceContentProvider<TheRock> {
         var dpNodes = new ArrayList<PhraseNode>();
         dpNodes.add(new DynamicNode(Dynamic.F));
         for (int i = 0; i < 6; i++) dpNodes.addAll(drumBar);
-        var drums = Track.of("Drums", DRUM_KIT, List.of(new DrumPhrase(dpNodes, end())));
+        var drumsPhrase = new DrumPhrase(dpNodes, end());
 
-        return new Piece(id.title(), id.composer(),
-                new KeySignature(G, Mode.MINOR), TS, new Tempo(108, QUARTER),
-                List.of(melody, chords, drums));
+        // Single 6-bar section.
+        final var KEY = new KeySignature(G, Mode.MINOR);
+        final var SONG_DURATION = Duration.ofSixtyFourths(6 * 64);
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody",  FRENCH_HORN),
+                new TrackDecl.MusicTrackDecl("Strings", STRING_ENSEMBLE_1),
+                new TrackDecl.MusicTrackDecl("Drums",   DRUM_KIT)
+        );
+
+        final var march = Section.named("March")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Melody",  phrase1)
+                .track("Strings", chordsPhrase)
+                .track("Drums",   drumsPhrase)
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
+                new Tempo(108, QUARTER), trackDecls, List.of(march));
     }
 }

@@ -1,5 +1,6 @@
 package music.notation.songs.traditional.happybirthday;
 
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -33,19 +34,28 @@ public final class BeethovenHappyBirthday implements PieceContentProvider<HappyB
 
     @Override public String subtitle() { return "Beethoven (Heroic)"; }
 
+    private static final Duration SONG_DURATION = Duration.ofSixtyFourths(12 * 48);
+
     @Override
     public Piece create() {
         final var id = new HappyBirthday();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody",        ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Accompaniment", ACOUSTIC_GRAND_PIANO)
+        );
+
+        final var song = Section.named("Happy Birthday (Beethoven)")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Melody",        List.of(line1(), line2(), line3(), line4()))
+                .track("Accompaniment", heroicBass())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(120, QUARTER),                // driving but not frantic
-                List.of(rightHand(), leftHand()));
-    }
-
-    // ── Right Hand: single-line melody that grows into octave doubling ──
-
-    private Track rightHand() {
-        return Track.of("Right Hand", ACOUSTIC_GRAND_PIANO, List.of(
-                line1(), line2(), line3(), line4()));
+                trackDecls,
+                List.of(song));
     }
 
     /** Line 1 (mf): plain melody, setting the scene. */
@@ -87,10 +97,6 @@ public final class BeethovenHappyBirthday implements PieceContentProvider<HappyB
     }
 
     // ── Left Hand: heroic octave bass + block-chord stabs ──────────────
-
-    private Track leftHand() {
-        return Track.of("Left Hand (Heroic)", ACOUSTIC_GRAND_PIANO, List.of(heroicBass()));
-    }
 
     /** 12-bar oom-pah-pah pattern matching RH phrase structure, with dynamics mirroring RH. */
     private MelodicPhrase heroicBass() {

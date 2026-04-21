@@ -1,5 +1,6 @@
 package music.notation.songs.classical.traumerei;
 
+import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.structure.*;
 
@@ -31,38 +32,59 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
     public Piece create() {
         final var id = new Traumerei();
 
-        // Aux voices declared via .aux(a -> ...) inside each builder section are
-        // carried along on the returned MelodicPhrase as VoiceOverlays —
-        // no extraction or rest-padding gymnastics required.
-        final var soprano = List.<Phrase>of(
-                buildRhPickup(), buildSopranoSectionA1(),
-                buildSopranoSectionB(),
-                buildSopranoSectionC()
-        );
-        final var altoPhrases = List.<Phrase>of(
-                buildAltoPickup(), buildAltoSectionA1(),
-                buildAltoSectionB(),
-                buildAltoSectionC()
-        );
-        final var tenor = List.<Phrase>of(
-                buildLhPickup(), buildTenorSectionA1(),
-                buildTenorSectionB(),
-                buildTenorSectionC()
-        );
-        final var bass = List.<Phrase>of(
-                buildTenorPickup(), buildBassSectionA1(),
-                buildBassSectionB(),
-                buildBassSectionC()
+        // Four voices (SATB) shared across every section; declared once at
+        // piece level so sections just supply content. Aux voices declared
+        // via .aux(a -> ...) inside the builder methods travel with each
+        // MelodicPhrase as VoiceOverlays — nothing extra to wire up here.
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Soprano", ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Alto",    ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Tenor",   ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Bass",    ACOUSTIC_GRAND_PIANO)
         );
 
-        final var rightHand = Track.of("Soprano", ACOUSTIC_GRAND_PIANO, soprano);
-        final var alto      = Track.of("Alto",    ACOUSTIC_GRAND_PIANO, altoPhrases);
-        final var leftHand  = Track.of("Tenor",   ACOUSTIC_GRAND_PIANO, tenor);
-        final var tenorHand = Track.of("Bass",    ACOUSTIC_GRAND_PIANO, bass);
+        // Four sections: pickup (1 bar) → A (8 bars) → B (8 bars) → C (8 bars).
+        // Each section contributes one phrase per voice.
+        final var pickup = Section.named("Pickup")
+                .duration(Duration.ofSixtyFourths(64))           // 1 bar in 4/4
+                .timeSignature(TS)
+                .track("Soprano", buildRhPickup())
+                .track("Alto",    buildAltoPickup())
+                .track("Tenor",   buildLhPickup())
+                .track("Bass",    buildTenorPickup())
+                .build();
 
-        return new Piece(id.title(), id.composer(), KEY, TS,
+        final var sectionA = Section.named("A")
+                .duration(Duration.ofSixtyFourths(8 * 64))       // 8 bars
+                .timeSignature(TS)
+                .track("Soprano", buildSopranoSectionA1())
+                .track("Alto",    buildAltoSectionA1())
+                .track("Tenor",   buildTenorSectionA1())
+                .track("Bass",    buildBassSectionA1())
+                .build();
+
+        final var sectionB = Section.named("B")
+                .duration(Duration.ofSixtyFourths(8 * 64))
+                .timeSignature(TS)
+                .track("Soprano", buildSopranoSectionB())
+                .track("Alto",    buildAltoSectionB())
+                .track("Tenor",   buildTenorSectionB())
+                .track("Bass",    buildBassSectionB())
+                .build();
+
+        final var sectionC = Section.named("C")
+                .duration(Duration.ofSixtyFourths(8 * 64))
+                .timeSignature(TS)
+                .track("Soprano", buildSopranoSectionC())
+                .track("Alto",    buildAltoSectionC())
+                .track("Tenor",   buildTenorSectionC())
+                .track("Bass",    buildBassSectionC())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(66, QUARTER),
-                List.of(rightHand, alto, leftHand, tenorHand));
+                trackDecls,
+                List.of(pickup, sectionA, sectionB, sectionC));
     }
 
     // ── RIGHT HAND: Soprano (main) + Alto (aux) ────────────────────
@@ -108,7 +130,7 @@ public final class DefaultTraumerei implements PieceContentProvider<Traumerei> {
                 .bar(EIGHTH).o4(F,A).o5(C).o4(HALF,E,G).o4(QUARTER,C).done()
                 .bar(EIGHTH).o4(HALF,F).tieNext().o4(F).o4(E).o4(F).o4(A).done()
                 .bar(EIGHTH).o5(C).o5(A).o5(QUARTER.dot(),A).o5(G).o5(F).o5(E).done()
-                .bar(EIGHTH).o5(F).o5(A).o5(D).o5(F).o5(QUARTER.dot(),E).o5(E.s()).done()
+                .bar(EIGHTH).o5(F).o5(A).o5(D).o5(F).o5(QUARTER.dot(),E).o5(E.f()).done()
                 .bar(QUARTER).o5(D).o5(E).o5(HALF,C).done()
                 .build(attacca());
     }

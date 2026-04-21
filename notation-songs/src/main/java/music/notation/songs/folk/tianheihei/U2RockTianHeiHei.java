@@ -37,49 +37,82 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
     @Override
     public Piece create() {
         var id = new TianHeiHei();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Lead",        ELECTRIC_PIANO_1),
+                new TrackDecl.MusicTrackDecl("Piano",       ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Edge Guitar", ELECTRIC_GUITAR_CLEAN),
+                new TrackDecl.MusicTrackDecl("Bass",        ELECTRIC_BASS_PICK),
+                new TrackDecl.MusicTrackDecl("Organ",       ROCK_ORGAN),
+                new TrackDecl.MusicTrackDecl("Drums",       DRUM_KIT)
+        );
+
+        final var leadPhrases   = leadPhrases();
+        final var pianoPhrases  = pianoHarmonyPhrases();
+        final var edgePhrases   = edgeGuitarPhrases();
+        final var bassPhrases   = bassPhrases();
+        final var organPhrases  = organPhrases();
+        final var drumPhrases   = drumPhrases();
+
+        int total = 0;
+        for (Phrase p : leadPhrases) total += Bar.phraseSixtyFourths(p);
+        final Duration SONG_DURATION = Duration.ofSixtyFourths(total);
+
+        final var song = Section.named("Song")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Lead",        leadPhrases)
+                .track("Piano",       pianoPhrases)
+                .track("Edge Guitar", edgePhrases)
+                .track("Bass",        bassPhrases)
+                .track("Organ",       organPhrases)
+                .track("Drums",       drumPhrases)
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(116, QUARTER),
-                List.of(lead(), pianoHarmony(), edgeGuitar(), bass(), organ(), drums()));
+                trackDecls,
+                List.of(song));
     }
 
     // ── Lead: Electric Piano 1 ───────────────────────────────────────
 
-    private Track lead() {
+    private List<Phrase> leadPhrases() {
         var m1 = piano.buildMelodyMain1();
         var th = piano.buildMelodyTianHeiHei1();
         var ch = piano.buildMelodyMain2();
         var ending = piano.buildEnding();
-        return Track.of("Lead", ELECTRIC_PIANO_1, List.of(
+        return List.<Phrase>of(
                 piano.buildMelodyPre(), m1, th, m1, th,
                 ch, piano.buildBridge(), ch,
                 piano.overrideMelodyMain2(),
-                ending, th));
+                ending, th);
     }
 
     // ── Piano: Acoustic Grand — Chopin nocturne harmony ──────────────
 
-    private Track pianoHarmony() {
+    private List<Phrase> pianoHarmonyPhrases() {
         var m1 = piano.buildHarmonyMain1();
         var th = piano.buildHarmonyTianHei();
         var ch = piano.buildHarmonyChorus();
         var ending = piano.buildHarmonyEnding();
-        return Track.of("Piano", ACOUSTIC_GRAND_PIANO, List.of(
+        return List.<Phrase>of(
                 piano.buildHarmonyPre(), m1, th, m1, th,
                 ch, piano.buildHarmonyBridge(), ch,
                 piano.overrideHarmonyChorus(),
-                ending, th));
+                ending, th);
     }
 
     // ── Edge Guitar: dotted-quarter delay arpeggios ──────────────────
 
-    private Track edgeGuitar() {
+    private List<Phrase> edgeGuitarPhrases() {
         var m1 = edgeMain1();
         var th = edgeTianHei();
         var ch = edgeChorus();
-        return Track.of("Edge Guitar", ELECTRIC_GUITAR_CLEAN, List.of(
+        return List.<Phrase>of(
                 edgePre(), m1, th, m1, th,
                 ch, edgeBridge(), ch, ch,
-                edgeEnding(), th));
+                edgeEnding(), th);
     }
 
     // Pre: sparse — solo Edge arpeggios emerging from silence
@@ -175,14 +208,14 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
 
     // ── Bass: driving picked eighth-note patterns ────────────────────
 
-    private Track bass() {
+    private List<Phrase> bassPhrases() {
         var m1 = bassMain1();
         var th = bassTianHei();
         var ch = bassChorus();
-        return Track.of("Bass", ELECTRIC_BASS_PICK, List.of(
+        return List.<Phrase>of(
                 bassPre(), m1, th, m1, th,
                 ch, bassBridge(), ch, ch,
-                bassEnding(), th));
+                bassEnding(), th);
     }
 
     // Pre: rest then a simple entry
@@ -276,14 +309,14 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
 
     // ── Rock Organ: atmospheric sustained chords ─────────────────────
 
-    private Track organ() {
+    private List<Phrase> organPhrases() {
         var m1 = organMain1();
         var th = organTianHei();
         var ch = organChorus();
-        return Track.of("Organ", ROCK_ORGAN, List.of(
+        return List.<Phrase>of(
                 organPre(), m1, th, m1, th,
                 ch, organBridge(), ch, ch,
-                organEnding(), th));
+                organEnding(), th);
     }
 
     // Pre: silent — organ enters with the band
@@ -376,12 +409,12 @@ public final class U2RockTianHeiHei implements PieceContentProvider<TianHeiHei> 
 
     // ── Drums: anthemic U2 patterns ──────────────────────────────────
 
-    private Track drums() {
-        return Track.of("Drums", DRUM_KIT, List.of(
+    private List<Phrase> drumPhrases() {
+        return List.<Phrase>of(
                 drumsPre(), drumsMain1(), drumsTianHei(),
                 drumsMain1(), drumsTianHei(),
                 drumsChorus(), drumsBridge(), drumsChorus(), drumsChorus(),
-                drumsEnding(), drumsTianHei()));
+                drumsEnding(), drumsTianHei());
     }
 
     // Pre: minimal — just hi-hat ticking

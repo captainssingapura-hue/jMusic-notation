@@ -98,12 +98,18 @@ public final class DefaultPachelbelCanon implements PieceContentProvider<Pachelb
                         new RestNode(Duration.of(WHOLE)), new RestNode(Duration.of(WHOLE))),
                 attacca());
 
-        // --- Build the three violin parts in canon ---
-        // Violin I:   c1  c2  c3  c4  c5  c6  c7  c8      (all 8 cycles)
-        // Violin II:  --  c1  c2  c3  c4  c5  c6  c7      (enters 1 cycle later)
-        // Violin III: --  --  c1  c2  c3  c4  c5  c6      (enters 2 cycles later)
+        // --- Cello ground bass (repeats 8 times) ---
+        // D-A-Bm-F#m-G-D-G-A, each note a half note
+        var bassNotes = List.<PhraseNode>of(
+                n(D,3,HALF), n(A,2,HALF), n(B,2,HALF), ns(F,2,HALF),
+                n(G,2,HALF), n(D,3,HALF), n(G,2,HALF), n(A,2,HALF));
 
-        var violin1 = Track.of("Violin I", VIOLIN, List.of(
+        // --- Per-cycle phrases for each track ---
+        // Violin I:   c1  c2  c3  c4  c5  c6  c7  c8       (all 8 cycles)
+        // Violin II:  --  c1  c2  c3  c4  c5  c6  c7       (enters 1 cycle later)
+        // Violin III: --  --  c1  c2  c3  c4  c5  c6       (enters 2 cycles later)
+
+        var v1 = List.<Phrase>of(
                 mp(Dynamic.MP, c1, attacca()),
                 new MelodicPhrase(c2, attacca()),
                 mp(Dynamic.MF, c3, attacca()),
@@ -111,9 +117,9 @@ public final class DefaultPachelbelCanon implements PieceContentProvider<Pachelb
                 new MelodicPhrase(c5, attacca()),
                 new MelodicPhrase(c6, attacca()),
                 mp(Dynamic.F, c7, attacca()),
-                mp(Dynamic.P, c8, end())));
+                mp(Dynamic.P, c8, end()));
 
-        var violin2 = Track.of("Violin II", VIOLIN, List.of(
+        var v2 = List.<Phrase>of(
                 restCycle,
                 mp(Dynamic.MP, c1, attacca()),
                 new MelodicPhrase(c2, attacca()),
@@ -121,24 +127,18 @@ public final class DefaultPachelbelCanon implements PieceContentProvider<Pachelb
                 new MelodicPhrase(c4, attacca()),
                 new MelodicPhrase(c5, attacca()),
                 new MelodicPhrase(c6, attacca()),
-                mp(Dynamic.F, c7, end())));
+                mp(Dynamic.F, c7, end()));
 
-        var violin3 = Track.of("Violin III", VIOLIN, List.of(
+        var v3 = List.<Phrase>of(
                 restCycle, restCycle,
                 mp(Dynamic.MP, c1, attacca()),
                 new MelodicPhrase(c2, attacca()),
                 mp(Dynamic.MF, c3, attacca()),
                 new MelodicPhrase(c4, attacca()),
                 new MelodicPhrase(c5, attacca()),
-                new MelodicPhrase(c6, end())));
+                new MelodicPhrase(c6, end()));
 
-        // --- Cello ground bass (repeats 8 times) ---
-        // D-A-Bm-F#m-G-D-G-A, each note a half note
-        var bassNotes = List.<PhraseNode>of(
-                n(D,3,HALF), n(A,2,HALF), n(B,2,HALF), ns(F,2,HALF),
-                n(G,2,HALF), n(D,3,HALF), n(G,2,HALF), n(A,2,HALF));
-
-        var cello = Track.of("Cello", CELLO, List.of(
+        var cello = List.<Phrase>of(
                 mp(Dynamic.MF, bassNotes, attacca()),
                 new MelodicPhrase(bassNotes, attacca()),
                 new MelodicPhrase(bassNotes, attacca()),
@@ -146,11 +146,34 @@ public final class DefaultPachelbelCanon implements PieceContentProvider<Pachelb
                 new MelodicPhrase(bassNotes, attacca()),
                 new MelodicPhrase(bassNotes, attacca()),
                 new MelodicPhrase(bassNotes, attacca()),
-                new MelodicPhrase(bassNotes, end())));
+                new MelodicPhrase(bassNotes, end()));
 
-        return new Piece(id.title(), id.composer(),
-                new KeySignature(D, Mode.MAJOR), new TimeSignature(4, 4),
-                new Tempo(66, QUARTER), List.of(violin1, violin2, violin3, cello));
+        // --- Sections: 8 cycles × 4 bars × 4/4 = 256/64 each ---
+        final var KEY = new KeySignature(D, Mode.MAJOR);
+        final var TS = new TimeSignature(4, 4);
+        final var CYCLE_DURATION = Duration.ofSixtyFourths(4 * 64);
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Violin I",   VIOLIN),
+                new TrackDecl.MusicTrackDecl("Violin II",  VIOLIN),
+                new TrackDecl.MusicTrackDecl("Violin III", VIOLIN),
+                new TrackDecl.MusicTrackDecl("Cello",      CELLO)
+        );
+
+        final var sections = new ArrayList<Section>();
+        for (int i = 0; i < 8; i++) {
+            sections.add(Section.named("Cycle " + (i + 1))
+                    .duration(CYCLE_DURATION)
+                    .timeSignature(TS)
+                    .track("Violin I",   v1.get(i))
+                    .track("Violin II",  v2.get(i))
+                    .track("Violin III", v3.get(i))
+                    .track("Cello",      cello.get(i))
+                    .build());
+        }
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
+                new Tempo(66, QUARTER), trackDecls, sections);
     }
 
     /** Create a MelodicPhrase with a dynamic prepended. */

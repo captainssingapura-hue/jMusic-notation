@@ -35,12 +35,72 @@ public final class DefaultContraBase implements PieceContentProvider<ContraBase>
 
     @Override public String subtitle() { return "NES Original"; }
 
+    /** Section durations in 4/4 (1 bar = 64/64). */
+    private static final Duration ONE_BAR     = Duration.ofSixtyFourths(1 * 64);
+    private static final Duration VERSE_BARS  = Duration.ofSixtyFourths(31 * 64);
+    private static final Duration ENDING_BARS = Duration.ofSixtyFourths(5 * 64);
+
     @Override
     public Piece create() {
         var id = new ContraBase();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody 1", SYNTH_LEAD_SAWTOOTH),
+                new TrackDecl.MusicTrackDecl("Melody 2", SYNTH_LEAD_SAWTOOTH),
+                new TrackDecl.MusicTrackDecl("Bass",     SLAP_BASS),
+                new TrackDecl.MusicTrackDecl("Drums",    DRUM_KIT)
+        );
+
+        // Intro section (1 bar): just the descending arpeggio across all four tracks.
+        var intro = section("Intro", ONE_BAR,
+                List.of(m1Intro()),
+                List.of(m2Intro()),
+                List.of(bassIntro()),
+                List.of(drumsIntro()));
+
+        // Verse section helper: 31-bar body of the song (themes + bridge).
+        // Drums repeat the same pattern; melody/bass get a full 7-phrase cycle.
+        var verse1 = section("Verse 1", VERSE_BARS,
+                List.of(m1ThemeA(), m1ThemeB(), m1Transition(), m1Bridge(),
+                        m1ThemeC(), m1ThemeD(), m1Turnaround()),
+                List.of(m2ThemeA(), m2ThemeB(), m2Transition(), m2Bridge(),
+                        m2ThemeC(), m2ThemeD(), m2Turnaround()),
+                List.of(bassThemeA(), bassThemeB(), bassTransition(), bassBridge(),
+                        bassThemeC(), bassThemeD(), bassTurnaround()),
+                List.of(drumsMain()));
+
+        var verse2 = section("Verse 2", VERSE_BARS,
+                List.of(m1ThemeA(), m1ThemeB(), m1Transition(), m1Bridge(),
+                        m1ThemeC(), m1ThemeD(), m1Turnaround()),
+                List.of(m2ThemeA(), m2ThemeB(), m2Transition(), m2Bridge(),
+                        m2ThemeC(), m2ThemeD(), m2Turnaround()),
+                List.of(bassThemeA(), bassThemeB(), bassTransition(), bassBridge(),
+                        bassThemeC(), bassThemeD(), bassTurnaround()),
+                List.of(drumsMain()));
+
+        var ending = section("Ending", ENDING_BARS,
+                List.of(m1Ending()),
+                List.of(m2Ending()),
+                List.of(bassEnding()),
+                List.of(drumsEnding()));
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(146, QUARTER),
-                List.of(melody1(), melody2(), bass(), drums()));
+                trackDecls,
+                List.of(intro, verse1, verse2, ending));
+    }
+
+    private static Section section(String name, Duration duration,
+                                   List<Phrase> melody1, List<Phrase> melody2,
+                                   List<Phrase> bass, List<Phrase> drums) {
+        return Section.named(name)
+                .duration(duration)
+                .timeSignature(TS)
+                .track("Melody 1", new SectionTrack(melody1, List.of()))
+                .track("Melody 2", new SectionTrack(melody2, List.of()))
+                .track("Bass",     new SectionTrack(bass, List.of()))
+                .track("Drums",    new SectionTrack(drums, List.of()))
+                .build();
     }
 
     // ════════════════════════════════════════════════════════════════

@@ -42,14 +42,61 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
     @Override
     public String subtitle() { return "Rock"; }
 
+    /** Each of the 4 sections is 8 bars in 4/4 = 512/64. */
+    private static final Duration SECTION_DURATION = Duration.ofSixtyFourths(8 * 64);
+
+    private static final String[] SECTION_NAMES = {
+        "Section 1 (D major)",
+        "Section 2 (G major)",
+        "Section 3 (C major)",
+        "Section 4 (E major)"
+    };
+
     @Override
     public Piece create() {
         final var id = new TwoTigers();
-        return new Piece(id.title(), id.composer(),
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Lead Guitar",   DISTORTION_GUITAR),
+                new TrackDecl.MusicTrackDecl("Rhythm Guitar", OVERDRIVEN_GUITAR),
+                new TrackDecl.MusicTrackDecl("Bass",          ELECTRIC_BASS_PICK),
+                new TrackDecl.MusicTrackDecl("Strings",       STRING_ENSEMBLE_1),
+                new TrackDecl.MusicTrackDecl("French Horn",   FRENCH_HORN),
+                new TrackDecl.MusicTrackDecl("Choir",         CHOIR_AAHS),
+                new TrackDecl.MusicTrackDecl("Drums",         DRUM_KIT),
+                new TrackDecl.MusicTrackDecl("Lyrics",        CHOIR_AAHS)
+        );
+
+        // Per-track per-section phrase lists. Each list has exactly 4 entries.
+        final var lead    = leadGuitarPerSection();
+        final var rhythm  = rhythmGuitarPerSection();
+        final var bass    = bassPerSection();
+        final var strings = stringsPerSection();
+        final var horn    = hornPerSection();
+        final var choir   = choirPerSection();
+        final var drums   = drumsPerSection();
+        final var lyrics  = lyricsPerSection();
+
+        final var sections = new ArrayList<Section>();
+        for (int i = 0; i < SECTION_NAMES.length; i++) {
+            sections.add(Section.named(SECTION_NAMES[i])
+                    .duration(SECTION_DURATION)
+                    .timeSignature(TS)
+                    .track("Lead Guitar",   lead.get(i))
+                    .track("Rhythm Guitar", rhythm.get(i))
+                    .track("Bass",          bass.get(i))
+                    .track("Strings",       strings.get(i))
+                    .track("French Horn",   horn.get(i))
+                    .track("Choir",         choir.get(i))
+                    .track("Drums",         drums.get(i))
+                    .track("Lyrics",        lyrics.get(i))
+                    .build());
+        }
+
+        return Piece.ofSections(id.title(), id.composer(),
                 KEY_DM, TS, new Tempo(138, QUARTER),
-                List.of(buildLeadGuitar(), buildRhythmGuitar(), buildBass(),
-                        buildStrings(), buildHorn(), buildChoir(), buildDrums(),
-                        buildLyrics()));
+                trackDecls,
+                sections);
     }
 
     /** 8-bar rest placeholder (4/4 = 64 sixty-fourths per bar). */
@@ -61,7 +108,7 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
 
     // ── Lead Guitar (Distortion) ──────────────────────────────────────
 
-    private Track buildLeadGuitar() {
+    private static List<Phrase> leadGuitarPerSection() {
         // Section 1: D major, o4 melody, mf→f
         var Dm = StaffPhraseBuilderTyped.in(KEY_DM, TS, EIGHTH);
         var s1 = Dm
@@ -115,13 +162,12 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
                 .bar()      .o5(WHOLE, E).done()                         // D (bar 2)
                 .build(end());
 
-        return Track.of("Lead Guitar", DISTORTION_GUITAR,
-                List.of(s1, s2, s3, s4));
+        return List.of(s1, s2, s3, s4);
     }
 
     // ── Rhythm Guitar (Power chords) ──────────────────────────────────
 
-    private Track buildRhythmGuitar() {
+    private static List<Phrase> rhythmGuitarPerSection() {
         var pD = chord(WHOLE, p(D, 3), p(A, 3));
         var pG = chord(WHOLE, p(G, 3), p(D, 4));
         var pA = chord(WHOLE, p(A, 3), p(E, 4));
@@ -134,13 +180,12 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
         var s3 = new ChordPhrase(List.of(pC, pC, pF, pC, pC, pC, pG, pC), attacca());
         var s4 = rest8(end()); // no distortion in the soft ending
 
-        return Track.of("Rhythm Guitar", OVERDRIVEN_GUITAR,
-                List.of(s1, s2, s3, s4));
+        return List.of(s1, s2, s3, s4);
     }
 
     // ── Bass ──────────────────────────────────────────────────────────
 
-    private Track buildBass() {
+    private static List<Phrase> bassPerSection() {
         var s1 = drivingBass(KEY_DM, Dynamic.MF, D, G, A);
         var s2 = drivingBass(KEY_GM, Dynamic.F,  G, C, D);
         var s3 = drivingBass(KEY_CM, Dynamic.FF, C, F, G);
@@ -154,8 +199,7 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
                 .bar()      .o2(WHOLE, B).done().bar().o2(WHOLE, E).done()
                 .build(end());
 
-        return Track.of("Bass", ELECTRIC_BASS_PICK,
-                List.of(s1, s2, s3, s4));
+        return List.of(s1, s2, s3, s4);
     }
 
     /** Driving eighth-note bass line for one section (8 bars). */
@@ -192,7 +236,7 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
 
     // ── Strings ───────────────────────────────────────────────────────
 
-    private Track buildStrings() {
+    private static List<Phrase> stringsPerSection() {
         // Section 1: D minor, soft sustained triads
         var sDm = StaffPhraseBuilderTyped.in(KEY_DM, TS);
         var s1 = sDm
@@ -245,13 +289,12 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
                 .bar()     .o3(WHOLE, E, G, B).done()
                 .build(end());
 
-        return Track.of("Strings", STRING_ENSEMBLE_1,
-                List.of(s1, s2, s3, s4));
+        return List.of(s1, s2, s3, s4);
     }
 
     // ── French Horn ───────────────────────────────────────────────────
 
-    private Track buildHorn() {
+    private static List<Phrase> hornPerSection() {
         // Section 1: rest — horn enters in section 2
 
         // Section 2: G minor, sustained roots
@@ -281,13 +324,12 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
                 .bar()     .o4(WHOLE, B).done().bar().o4(WHOLE, E).done()
                 .build(end());
 
-        return Track.of("French Horn", FRENCH_HORN,
-                List.of(rest8(), s2, s3, s4));
+        return List.of(rest8(), s2, s3, s4);
     }
 
     // ── Choir ─────────────────────────────────────────────────────────
 
-    private Track buildChoir() {
+    private static List<Phrase> choirPerSection() {
         // Sections 1–2: rest — choir enters at the climax
 
         // Section 3: C minor, sustained "aahs"
@@ -316,13 +358,12 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
                 .bar()      .o4(WHOLE, E, G, B).done()
                 .build(end());
 
-        return Track.of("Choir", CHOIR_AAHS,
-                List.of(rest8(), rest8(), s3, s4));
+        return List.of(rest8(), rest8(), s3, s4);
     }
 
     // ── Drums ─────────────────────────────────────────────────────────
 
-    private Track buildDrums() {
+    private static List<Phrase> drumsPerSection() {
         var rockBar = List.<PhraseNode>of(
                 d(BASS_DRUM, EIGHTH),      d(CLOSED_HI_HAT, EIGHTH),
                 d(ACOUSTIC_SNARE, EIGHTH), d(CLOSED_HI_HAT, EIGHTH),
@@ -353,39 +394,44 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
 
         var silentBar = List.<PhraseNode>of(d(CLOSED_HI_HAT, WHOLE));
 
-        var nodes = new ArrayList<PhraseNode>();
-
         // Section 1: standard rock (8 bars)
-        nodes.add(new DynamicNode(Dynamic.MF));
-        for (int i = 0; i < 7; i++) nodes.addAll(rockBar);
-        nodes.addAll(fillBar);
+        var s1Nodes = new ArrayList<PhraseNode>();
+        s1Nodes.add(new DynamicNode(Dynamic.MF));
+        for (int i = 0; i < 7; i++) s1Nodes.addAll(rockBar);
+        s1Nodes.addAll(fillBar);
+        var s1 = new DrumPhrase(s1Nodes, attacca());
 
         // Section 2: building — rock → hard rock (8 bars)
-        nodes.add(new DynamicNode(Dynamic.F));
-        for (int i = 0; i < 4; i++) nodes.addAll(rockBar);
-        nodes.add(new DynamicNode(Dynamic.FF));
-        for (int i = 0; i < 3; i++) nodes.addAll(hardRockBar);
-        nodes.addAll(fillBar);
+        var s2Nodes = new ArrayList<PhraseNode>();
+        s2Nodes.add(new DynamicNode(Dynamic.F));
+        for (int i = 0; i < 4; i++) s2Nodes.addAll(rockBar);
+        s2Nodes.add(new DynamicNode(Dynamic.FF));
+        for (int i = 0; i < 3; i++) s2Nodes.addAll(hardRockBar);
+        s2Nodes.addAll(fillBar);
+        var s2 = new DrumPhrase(s2Nodes, attacca());
 
         // Section 3: climax — crashes and cymbals (8 bars)
-        nodes.add(new DynamicNode(Dynamic.FFF));
-        for (int i = 0; i < 7; i++) nodes.addAll(crashBar);
-        nodes.addAll(fillBar);
+        var s3Nodes = new ArrayList<PhraseNode>();
+        s3Nodes.add(new DynamicNode(Dynamic.FFF));
+        for (int i = 0; i < 7; i++) s3Nodes.addAll(crashBar);
+        s3Nodes.addAll(fillBar);
+        var s3 = new DrumPhrase(s3Nodes, attacca());
 
         // Section 4: sparse ride, fading (8 bars)
-        nodes.add(new DynamicNode(Dynamic.PP));
-        for (int i = 0; i < 6; i++) nodes.addAll(rideBar);
-        nodes.add(new DynamicNode(Dynamic.PPP));
-        nodes.addAll(rideBar);
-        nodes.addAll(silentBar);
+        var s4Nodes = new ArrayList<PhraseNode>();
+        s4Nodes.add(new DynamicNode(Dynamic.PP));
+        for (int i = 0; i < 6; i++) s4Nodes.addAll(rideBar);
+        s4Nodes.add(new DynamicNode(Dynamic.PPP));
+        s4Nodes.addAll(rideBar);
+        s4Nodes.addAll(silentBar);
+        var s4 = new DrumPhrase(s4Nodes, end());
 
-        return Track.of("Drums", DRUM_KIT,
-                List.of(new DrumPhrase(nodes, end())));
+        return List.of(s1, s2, s3, s4);
     }
 
     // ── Lyrics ─────────────────────────────────────────────────────────
 
-    private Track buildLyrics() {
+    private static List<Phrase> lyricsPerSection() {
         // Standard verse: A A B B C C D D — each syllable matches a note
         var verse = new LyricPhrase(List.of(
                 // A: 两只老虎 (4 quarters)
@@ -422,8 +468,7 @@ public final class RockTwoTigers implements PieceContentProvider<TwoTigers> {
         ), end());
 
         // Same lyrics for sections 1–3, augmented for section 4
-        return Track.of("Lyrics", CHOIR_AAHS,
-                List.of(verse, verse, verse, ending));
+        return List.of(verse, verse, verse, ending);
     }
 
     private static LyricEvent ly(String syllable, Duration duration) {

@@ -1,5 +1,6 @@
 package music.notation.songs.classical.bachinvention;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
@@ -41,30 +42,57 @@ public final class ColdplayBachInvention13 implements PieceContentProvider<BachI
     @Override
     public Piece create() {
         var id = new BachInvention13();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Lead Guitar",    OVERDRIVEN_GUITAR),
+                new TrackDecl.MusicTrackDecl("Counter Guitar", ELECTRIC_GUITAR_CLEAN),
+                new TrackDecl.MusicTrackDecl("Rhythm Guitar",  ELECTRIC_GUITAR_CLEAN),
+                new TrackDecl.MusicTrackDecl("Organ",          ROCK_ORGAN),
+                new TrackDecl.MusicTrackDecl("Bass",           ELECTRIC_BASS_PICK),
+                new TrackDecl.MusicTrackDecl("Synth Pad",      SYNTH_PAD_WARM),
+                new TrackDecl.MusicTrackDecl("Drums",          DRUM_KIT)
+        );
+
+        final var s1 = Section.named("Section 1")
+                .duration(Duration.ofSixtyFourths(6 * 64))
+                .timeSignature(TS)
+                .track("Lead Guitar",    bach.buildRhSection1())
+                .track("Counter Guitar", bach.buildLhSection1())
+                .track("Rhythm Guitar",  guitarSection1())
+                .track("Organ",          organSection1())
+                .track("Bass",           bassSection1())
+                .track("Synth Pad",      padSection1())
+                .track("Drums",          drumsSection1())
+                .build();
+
+        final var s2 = Section.named("Section 2")
+                .duration(Duration.ofSixtyFourths(7 * 64))
+                .timeSignature(TS)
+                .track("Lead Guitar",    bach.buildRhSection2())
+                .track("Counter Guitar", bach.buildLhSection2())
+                .track("Rhythm Guitar",  guitarSection2())
+                .track("Organ",          organSection2())
+                .track("Bass",           bassSection2())
+                .track("Synth Pad",      padSection2())
+                .track("Drums",          drumsSection2())
+                .build();
+
+        final var s3 = Section.named("Section 3")
+                .duration(Duration.ofSixtyFourths(12 * 64))
+                .timeSignature(TS)
+                .track("Lead Guitar",    bach.buildRhSection3())
+                .track("Counter Guitar", bach.buildLhSection3())
+                .track("Rhythm Guitar",  guitarSection3())
+                .track("Organ",          organSection3())
+                .track("Bass",           bassSection3())
+                .track("Synth Pad",      padSection3())
+                .track("Drums",          drumsSection3())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(100, QUARTER),
-                List.of(leadGuitar(), counterGuitar(), rhythmGuitar(), organ(), bass(), synthPad(), drums()));
-    }
-
-    // ── Lead Guitar: Bach's RH melody on overdriven guitar ──────────
-
-    private Track leadGuitar() {
-        return Track.of("Lead Guitar", OVERDRIVEN_GUITAR, List.of(
-                bach.buildRhSection1(), bach.buildRhSection2(), bach.buildRhSection3()));
-    }
-
-    // ── Counter Guitar: Bach's LH counterpoint on clean guitar ────
-
-    private Track counterGuitar() {
-        return Track.of("Counter Guitar", ELECTRIC_GUITAR_CLEAN, List.of(
-                bach.buildLhSection1(), bach.buildLhSection2(), bach.buildLhSection3()));
-    }
-
-    // ── Rhythm Guitar: shimmering Coldplay clean arpeggios ──────────
-
-    private Track rhythmGuitar() {
-        return Track.of("Rhythm Guitar", ELECTRIC_GUITAR_CLEAN, List.of(
-                guitarSection1(), guitarSection2(), guitarSection3()));
+                trackDecls,
+                List.of(s1, s2, s3));
     }
 
     // Section 1 (bars 1-6): sparse entry, dotted arpeggios
@@ -112,11 +140,6 @@ public final class ColdplayBachInvention13 implements PieceContentProvider<BachI
 
     // ── Rock Organ: sustained chords derived from Bach's LH ─────────
 
-    private Track organ() {
-        return Track.of("Organ", ROCK_ORGAN, List.of(
-                organSection1(), organSection2(), organSection3()));
-    }
-
     // Section 1 (bars 1-6): Am | Am/E | F→Dm | G→C | Am→Dm→G | F→G→Am
     private MelodicPhrase organSection1() {
         return b()
@@ -161,11 +184,6 @@ public final class ColdplayBachInvention13 implements PieceContentProvider<BachI
     }
 
     // ── Bass: driving rock bass ─────────────────────────────────────
-
-    private Track bass() {
-        return Track.of("Bass", ELECTRIC_BASS_PICK, List.of(
-                bassSection1(), bassSection2(), bassSection3()));
-    }
 
     // Section 1 (bars 1-6): sparse entry building to eighths
     private MelodicPhrase bassSection1() {
@@ -212,11 +230,6 @@ public final class ColdplayBachInvention13 implements PieceContentProvider<BachI
 
     // ── Synth Pad: atmospheric sustained chords ─────────────────────
 
-    private Track synthPad() {
-        return Track.of("Synth Pad", SYNTH_PAD_WARM, List.of(
-                padSection1(), padSection2(), padSection3()));
-    }
-
     // Section 1 (bars 1-6): building from silence
     private MelodicPhrase padSection1() {
         return b()
@@ -261,11 +274,6 @@ public final class ColdplayBachInvention13 implements PieceContentProvider<BachI
     }
 
     // ── Drums: Coldplay anthemic build ───────────────────────────────
-
-    private Track drums() {
-        return Track.of("Drums", DRUM_KIT, List.of(
-                drumsSection1(), drumsSection2(), drumsSection3()));
-    }
 
     // Section 1 (bars 1-6): sparse — hi-hat ticks building to half-time
     private DrumPhrase drumsSection1() {

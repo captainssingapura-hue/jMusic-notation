@@ -3,10 +3,7 @@ package music.notation.songs.anthem.internationale;
 import music.notation.phrase.*;
 import music.notation.structure.*;
 
-import java.util.List;
-
 import static music.notation.duration.BaseValue.*;
-import static music.notation.event.Instrument.*;
 import static music.notation.pitch.NoteName.*;
 import static music.notation.songs.PieceHelper.*;
 
@@ -25,7 +22,7 @@ final class InternationaleTracks {
 
     // ── Melody ────────────────────────────────────────────────────
 
-    static Track melody() {
+    static Phrase melodyPhrase() {
         var P = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
 
         var phrase = P
@@ -97,12 +94,12 @@ final class InternationaleTracks {
                     .o4(HALF.dot(), A).pad(QUARTER).done()
                 .build(end());
 
-        return Track.of("Melody", FRENCH_HORN, List.of(phrase));
+        return phrase;
     }
 
     // ── Harmony (with aux voice) ──────────────────────────────────
 
-    static Track harmony() {
+    static Phrase harmonyPhrase() {
         var P = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
 
         var main = P
@@ -173,12 +170,12 @@ final class InternationaleTracks {
                 .build(end());
 
         // Aux voices travel with `main` as VoiceOverlays on the MelodicPhrase.
-        return Track.of("Harmony", FRENCH_HORN, List.of(main));
+        return main;
     }
 
     // ── Chords (with aux voice) ───────────────────────────────────
 
-    static Track chords() {
+    static Phrase chordsPhrase() {
         var P = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
 
         var main = P
@@ -219,7 +216,7 @@ final class InternationaleTracks {
                 .bar().o3(HALF.dot(),A.lower(1),E,A).o2(QUARTER,A.lower(1)).done()
                 .build(end());
 
-        return Track.of("Chords", STRING_ENSEMBLE_1, List.of(main));
+        return main;
     }
 
     /** Total number of bars (including pickup). */

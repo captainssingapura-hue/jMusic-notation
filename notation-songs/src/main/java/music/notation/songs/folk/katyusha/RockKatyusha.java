@@ -1,5 +1,6 @@
 package music.notation.songs.folk.katyusha;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
@@ -23,6 +24,10 @@ import static music.notation.songs.folk.katyusha.KatyushaTracks.*;
  * Reuses melody, bass, and chord templates from {@link KatyushaTracks},
  * applying sparse overrides for dynamics and {@link ShiftedPhrase} for
  * key/octave transposition.</p>
+ *
+ * <p>Sectional structure: one section per verse plus a final Coda section.
+ * Each section supplies one phrase per named track; homogeneity is
+ * enforced by the piece-level {@link Piece#ofSections} constructor.</p>
  */
 public final class RockKatyusha implements PieceContentProvider<Katyusha> {
 
@@ -50,20 +55,63 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
     /** Coda: bars 5–8 in C minor octave 5, softer. */
     private static final VerseSpec CODA = new VerseSpec(CM, 1, Dynamic.MF);
 
+    /** 8 bars × 4/4 bar = 512/64 per verse; coda is 4 bars = 256/64. */
+    private static final Duration VERSE_DURATION = Duration.ofSixtyFourths(8 * 64);
+    private static final Duration CODA_DURATION  = Duration.ofSixtyFourths(4 * 64);
+
     // ── Piece assembly ───────────────────────────────────────────
 
     @Override
     public Piece create() {
         final var id = new Katyusha();
-        return new Piece(id.title(), id.composer(),
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody", DISTORTION_GUITAR),
+                new TrackDecl.MusicTrackDecl("Chords", DISTORTION_GUITAR),
+                new TrackDecl.MusicTrackDecl("Bass",   ELECTRIC_BASS_PICK),
+                new TrackDecl.MusicTrackDecl("Drums",  DRUM_KIT)
+        );
+
+        // Per-track per-section phrase lists. Each list has exactly 8 entries:
+        // 7 verses + 1 coda. Indexing is aligned across tracks.
+        final var melody = melodyPerSection();
+        final var bass   = bassPerSection();
+        final var chords = chordsPerSection();
+        final var drums  = drumsPerSection();
+
+        final var sections = new ArrayList<Section>();
+        for (int i = 0; i < VERSES.length; i++) {
+            sections.add(sectionFor("Verse " + (i + 1), VERSE_DURATION,
+                    melody.get(i), chords.get(i), bass.get(i), drums.get(i)));
+        }
+        int codaIdx = VERSES.length;
+        sections.add(sectionFor("Coda", CODA_DURATION,
+                melody.get(codaIdx), chords.get(codaIdx),
+                bass.get(codaIdx),   drums.get(codaIdx)));
+
+        return Piece.ofSections(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(110, QUARTER),
-                List.of(melody(), chords(), bass(), drums()));
+                trackDecls,
+                sections);
     }
 
-    // ── Melody ───────────────────────────────────────────────────
+    private static Section sectionFor(String name, Duration duration,
+                                      Phrase melody, Phrase chords,
+                                      Phrase bass, Phrase drums) {
+        return Section.named(name)
+                .duration(duration)
+                .timeSignature(TS)
+                .track("Melody", melody)
+                .track("Chords", chords)
+                .track("Bass",   bass)
+                .track("Drums",  drums)
+                .build();
+    }
 
-    private static Track melody() {
+    // ── Melody (7 verses + coda) ─────────────────────────────────
+
+    private static List<Phrase> melodyPerSection() {
         var template = buildVerse(attacca());
         var phrases = new ArrayList<Phrase>();
 
@@ -80,7 +128,6 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
         }
 
         // Coda: bars 5–8 repeated softer in C minor (octave 5), rit. to 80 BPM.
-        // Fresh builder — one phrase per builder.
         var coda = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH)
                 .bar(QUARTER).dyn(Dynamic.MF).transitionStart()
                     .o5(A).o5(D).o5(C).o5(EIGHTH,D).o5(EIGHTH,C)
@@ -91,12 +138,12 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
                 .build(end());
         phrases.add(shift(coda, CODA));
 
-        return Track.of("Melody", DISTORTION_GUITAR, phrases);
+        return phrases;
     }
 
     // ── Bass ─────────────────────────────────────────────────────
 
-    private static Track bass() {
+    private static List<Phrase> bassPerSection() {
         var template = buildBassVerse(attacca());
         var phrases = new ArrayList<Phrase>();
 
@@ -104,7 +151,6 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
             var overridden = OverlayBuilder.over(template, KEY, TS, QUARTER)
                     .at(0, b -> b.dyn(v.dyn).o3(D).o3(A).o3(D).o3(A))
                     .build(attacca());
-
             phrases.add(shift(overridden, v));
         }
 
@@ -117,12 +163,12 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
                 .build(end());
         phrases.add(shift(coda, CODA));
 
-        return Track.of("Bass", ELECTRIC_BASS_PICK, phrases);
+        return phrases;
     }
 
     // ── Chords ───────────────────────────────────────────────────
 
-    private static Track chords() {
+    private static List<Phrase> chordsPerSection() {
         var template = buildChordVerse(attacca());
         var phrases = new ArrayList<Phrase>();
 
@@ -130,7 +176,6 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
             var overridden = OverlayBuilder.over(template, KEY, TS, HALF)
                     .at(0, b -> b.dyn(v.dyn).o4(D, F, A).o4(D, F, A))
                     .build(attacca());
-
             phrases.add(shift(overridden, v));
         }
 
@@ -144,7 +189,7 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
                 .build(end());
         phrases.add(shift(coda, CODA));
 
-        return Track.of("Chords", DISTORTION_GUITAR, phrases);
+        return phrases;
     }
 
     // ── Key/octave shift helper ──────────────────────────────────
@@ -154,59 +199,64 @@ public final class RockKatyusha implements PieceContentProvider<Katyusha> {
         return new ShiftedPhrase(phrase, DM, v.key, v.octaveShift);
     }
 
-    // ── Drums ────────────────────────────────────────────────────
+    // ── Drums (per-section DrumPhrases; 7 verses + coda) ─────────
 
-    private static Track drums() {
-        var nodes = new ArrayList<PhraseNode>();
+    private static List<Phrase> drumsPerSection() {
+        var phrases = new ArrayList<Phrase>();
 
         // ── Pass 1: D → G → C → F ──
 
         // Verse 1 (D minor, f): standard drive
-        nodes.add(new DynamicNode(Dynamic.F));
-        for (int i = 0; i < 7; i++) driveBar(nodes);
-        fillA(nodes);
-
+        phrases.add(buildDrumVerse(Dynamic.F,   DrumPattern.DRIVE,       true));
         // Verse 2 (G minor, ff): open hi-hat drive
-        nodes.add(new DynamicNode(Dynamic.FF));
-        for (int i = 0; i < 7; i++) openDriveBar(nodes);
-        fillB(nodes);
-
+        phrases.add(buildDrumVerse(Dynamic.FF,  DrumPattern.OPEN_DRIVE,  false));
         // Verse 3 (C minor, fff): double-time
-        nodes.add(new DynamicNode(Dynamic.FFF));
-        for (int i = 0; i < 7; i++) doubleTimeBar(nodes);
-        fillA(nodes);
-
+        phrases.add(buildDrumVerse(Dynamic.FFF, DrumPattern.DOUBLE_TIME, true));
         // Verse 4 (F minor, ff): half-time breather
-        nodes.add(new DynamicNode(Dynamic.FF));
-        for (int i = 0; i < 7; i++) halfTimeBar(nodes);
-        fillB(nodes);
+        phrases.add(buildDrumVerse(Dynamic.FF,  DrumPattern.HALF_TIME,   false));
 
         // ── Pass 2: D → G → C (one level stronger) ──
 
         // Verse 5 (D minor, ff): open drive
-        nodes.add(new DynamicNode(Dynamic.FF));
-        for (int i = 0; i < 7; i++) openDriveBar(nodes);
-        fillA(nodes);
-
+        phrases.add(buildDrumVerse(Dynamic.FF,  DrumPattern.OPEN_DRIVE,  true));
         // Verse 6 (G minor, fff): double-time
-        nodes.add(new DynamicNode(Dynamic.FFF));
-        for (int i = 0; i < 7; i++) doubleTimeBar(nodes);
-        fillB(nodes);
-
+        phrases.add(buildDrumVerse(Dynamic.FFF, DrumPattern.DOUBLE_TIME, false));
         // Verse 7 (C minor, fff): double-time climax → transition fill
-        nodes.add(new DynamicNode(Dynamic.FFF));
-        for (int i = 0; i < 7; i++) doubleTimeBar(nodes);
-        fillA(nodes);
+        phrases.add(buildDrumVerse(Dynamic.FFF, DrumPattern.DOUBLE_TIME, true));
 
-        // Coda: 4 bars half-time, softer → crash ending
-        nodes.add(new DynamicNode(Dynamic.MF));
-        for (int i = 0; i < 3; i++) halfTimeBar(nodes);
-        nodes.add(d(CRASH_CYMBAL, EIGHTH));
-        nodes.add(d(BASS_DRUM, EIGHTH));
-        nodes.add(d(ACOUSTIC_SNARE, QUARTER));
-        nodes.add(new RestNode(HALF));
+        // Coda: 4 bars half-time, softer → crash ending.
+        var codaNodes = new ArrayList<PhraseNode>();
+        codaNodes.add(new DynamicNode(Dynamic.MF));
+        for (int i = 0; i < 3; i++) halfTimeBar(codaNodes);
+        codaNodes.add(d(CRASH_CYMBAL, EIGHTH));
+        codaNodes.add(d(BASS_DRUM, EIGHTH));
+        codaNodes.add(d(ACOUSTIC_SNARE, QUARTER));
+        codaNodes.add(new RestNode(HALF));
+        phrases.add(new DrumPhrase(codaNodes, end()));
 
-        return Track.of("Drums", DRUM_KIT, List.of(new DrumPhrase(nodes, end())));
+        return phrases;
+    }
+
+    /** Drum pattern selector for the 7-bar body of a verse. */
+    private enum DrumPattern { DRIVE, OPEN_DRIVE, DOUBLE_TIME, HALF_TIME }
+
+    /**
+     * Build one verse's DrumPhrase: a starting dynamic, 7 bars of the chosen
+     * pattern, and a fill (A or B) for bar 8. Result totals {@value #VERSE_DURATION}/64.
+     */
+    private static DrumPhrase buildDrumVerse(Dynamic dyn, DrumPattern pattern, boolean useFillA) {
+        var nodes = new ArrayList<PhraseNode>();
+        nodes.add(new DynamicNode(dyn));
+        for (int i = 0; i < 7; i++) {
+            switch (pattern) {
+                case DRIVE       -> driveBar(nodes);
+                case OPEN_DRIVE  -> openDriveBar(nodes);
+                case DOUBLE_TIME -> doubleTimeBar(nodes);
+                case HALF_TIME   -> halfTimeBar(nodes);
+            }
+        }
+        if (useFillA) fillA(nodes); else fillB(nodes);
+        return new DrumPhrase(nodes, attacca());
     }
 
     // ── Drum patterns ────────────────────────────────────────────

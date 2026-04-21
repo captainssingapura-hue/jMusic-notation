@@ -64,15 +64,27 @@ public final class MidiPlayer {
         boolean[] tempoAdded = {false};
         List<Track> tracks = piece.tracks();
 
+        // Pass 1 — control tracks emit tempo events into their own MIDI tracks.
+        // Marking tempoAdded[0] = true here prevents music-track fallback below
+        // from duplicating tempo on the first music track.
+        for (Track track : tracks) {
+            if (piece.isControlTrack(track.name())) {
+                renderControlTrack(sequence, track, tempoAdded, piece);
+            }
+        }
+
+        // Pass 2 — music tracks. Skips control tracks. First music track still
+        // emits an initial tempo event if no control track has (backward-compat
+        // for flat-constructed pieces that don't use control tracks at all).
         for (int t = 0; t < tracks.size(); t++) {
             Track track = tracks.get(t);
+            if (piece.isControlTrack(track.name())) continue;
+
             List<Instrument> instruments = trackInstruments.get(t);
             List<Integer> volumes = trackVolumes.get(t);
 
-            // Interpret and render main track
             renderTrack(sequence, track, instruments, volumes, nextChannel, tempoAdded, piece);
 
-            // Render aux tracks — inherit parent's instrument and volume assignment
             for (Track auxTrack : track.auxTracks()) {
                 renderTrack(sequence, auxTrack, instruments, volumes,
                         nextChannel, tempoAdded, piece);
@@ -240,6 +252,10 @@ public final class MidiPlayer {
     public static long computeLeadingPaddingTicks(Piece piece) {
         long globalMin = Long.MAX_VALUE;
         for (Track track : piece.tracks()) {
+            // Control tracks carry only tempo markers inside VoidPhrase-shaped
+            // content; their "leading padding" would be the entire piece and
+            // would clobber the audible minimum. Skip them.
+            if (piece.isControlTrack(track.name())) continue;
             globalMin = Math.min(globalMin, leadingPaddingForTrack(track));
             for (Track auxTrack : track.auxTracks()) {
                 globalMin = Math.min(globalMin, leadingPaddingForTrack(auxTrack));
@@ -294,6 +310,46 @@ public final class MidiPlayer {
             }
         }
         return new long[]{padding, 1}; // all padding
+    }
+
+    /**
+     * Render a control track: emit its tempo events (and an initial tempo at
+     * tick 0 if none was declared) into a dedicated MIDI track. No channel,
+     * no program change, no note events. Marks {@code tempoAdded[0] = true}
+     * so music tracks skip fallback tempo emission.
+     */
+    private static void renderControlTrack(Sequence sequence, Track track,
+                                           boolean[] tempoAdded, Piece piece)
+            throws InvalidMidiDataException {
+        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80, piece.tempo().bpm());
+        for (Phrase phrase : track.phrases()) {
+            interpreter.interpret(phrase);
+        }
+        List<PlayEvent.TempoChange> tempoEvents = interpreter.getEvents().stream()
+                .filter(e -> e instanceof PlayEvent.TempoChange)
+                .map(e -> (PlayEvent.TempoChange) e)
+                .toList();
+
+        javax.sound.midi.Track midiTrack = sequence.createTrack();
+
+        if (!tempoAdded[0]) {
+            boolean hasTempoAtZero = tempoEvents.stream().anyMatch(t -> t.tick() == 0);
+            if (!hasTempoAtZero) {
+                addTempoEvent(midiTrack, 0, piece.tempo().bpm());
+            }
+            for (PlayEvent.TempoChange tc : tempoEvents) {
+                addTempoEvent(midiTrack, tc.tick(), tc.bpm());
+            }
+            tempoAdded[0] = true;
+        } else {
+            // Unexpected — another control track already claimed tempo. Still
+            // emit this track's tempo events onto its own MIDI track (MIDI
+            // readers merge tempo events across tracks), but without the
+            // initial-tempo fallback.
+            for (PlayEvent.TempoChange tc : tempoEvents) {
+                addTempoEvent(midiTrack, tc.tick(), tc.bpm());
+            }
+        }
     }
 
     private static void renderTrack(Sequence sequence, Track track, List<Instrument> instruments,

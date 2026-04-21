@@ -1,5 +1,6 @@
 package music.notation.songs.nursery.twotigers;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.structure.*;
@@ -30,54 +31,65 @@ public final class DefaultTwoTigersCanon implements PieceContentProvider<TwoTige
     @Override
     public String subtitle() { return "Canon"; }
 
+    private static final KeySignature KEY = new KeySignature(C, Mode.MAJOR);
+    private static final TimeSignature TS = new TimeSignature(4, 4);
+    // 18 bars total: 2 full verses (16 motifs = 16 bars) + 2 bars of padding
+    // distributed across voices for the staggered entries / exits.
+    private static final Duration TOTAL_DURATION = Duration.ofSixtyFourths(18 * 64);
+
     @Override
     public Piece create() {
         final var id = new TwoTigers();
 
-        // ── 1-bar rest ─────────────────────────────────────────────────
-
         var rest1 = new MelodicPhrase(
                 List.of(new RestNode(WHOLE)), attacca());
 
-        // ── Compose voices from shared motifs ──────────────────────────
-        // Each voice plays the verse (A A B B C C D D) twice.
-        // Voices are staggered by 2 bars (1 section = 2 motif bars).
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Voice 1", ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Voice 2", STRING_ENSEMBLE_1),
+                new TrackDecl.MusicTrackDecl("Voice 3", FLUTE),
+                new TrackDecl.MusicTrackDecl("Drums",   DRUM_KIT)
+        );
 
-        // Voice 1 (Piano):   [verse] [verse] _ _
-        var voice1 = Track.of("Voice 1", ACOUSTIC_GRAND_PIANO, List.of(
+        // Each voice plays the verse (A A B B C C D D) twice; entries are
+        // staggered by one bar. The canon runs as one continuous section
+        // since every voice's timeline threads through without natural
+        // intermediate boundaries.
+        List<Phrase> voice1 = List.of(
                 MOTIF_A, MOTIF_A, MOTIF_B, MOTIF_B, MOTIF_C, MOTIF_C, MOTIF_D, MOTIF_D,
                 MOTIF_A, MOTIF_A, MOTIF_B, MOTIF_B, MOTIF_C, MOTIF_C, MOTIF_D, MOTIF_D_END,
-                rest1, rest1));
+                rest1, rest1);
 
-        // Voice 2 (Strings): _ [verse] [verse] _
-        var voice2 = Track.of("Voice 2", STRING_ENSEMBLE_1, List.of(
-                rest1,
+        List<Phrase> voice2 = List.of(rest1,
                 MOTIF_A, MOTIF_A, MOTIF_B, MOTIF_B, MOTIF_C, MOTIF_C, MOTIF_D, MOTIF_D,
                 MOTIF_A, MOTIF_A, MOTIF_B, MOTIF_B, MOTIF_C, MOTIF_C, MOTIF_D, MOTIF_D_END,
-                rest1));
+                rest1);
 
-        // Voice 3 (Flute):   _ _ [verse] [verse]
-        var voice3 = Track.of("Voice 3", FLUTE, List.of(
-                rest1, rest1,
+        List<Phrase> voice3 = List.of(rest1, rest1,
                 MOTIF_A, MOTIF_A, MOTIF_B, MOTIF_B, MOTIF_C, MOTIF_C, MOTIF_D, MOTIF_D,
-                MOTIF_A, MOTIF_A, MOTIF_B, MOTIF_B, MOTIF_C, MOTIF_C, MOTIF_D, MOTIF_D_END));
+                MOTIF_A, MOTIF_A, MOTIF_B, MOTIF_B, MOTIF_C, MOTIF_C, MOTIF_D, MOTIF_D_END);
 
-        // ── Drums: 18 bars ─────────────────────────────────────────────
-
+        // Drums: continuous 18-bar groove underneath.
         var drumBar = List.<PhraseNode>of(
                 d(BASS_DRUM, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(ACOUSTIC_SNARE, QUARTER), d(CLOSED_HI_HAT, QUARTER));
-
         var dpNodes = new ArrayList<PhraseNode>();
         dpNodes.add(new DynamicNode(Dynamic.MF));
         for (int i = 0; i < 18; i++) dpNodes.addAll(drumBar);
+        var drums = new DrumPhrase(dpNodes, end());
 
-        var drums = Track.of("Drums", DRUM_KIT,
-                List.of(new DrumPhrase(dpNodes, end())));
+        final var canon = Section.named("Canon")
+                .duration(TOTAL_DURATION)
+                .timeSignature(TS)
+                .track("Voice 1", voice1)
+                .track("Voice 2", voice2)
+                .track("Voice 3", voice3)
+                .track("Drums",   drums)
+                .build();
 
-        return new Piece(id.title(), id.composer(),
-                new KeySignature(C, Mode.MAJOR), new TimeSignature(4, 4),
-                new Tempo(144, QUARTER),
-                List.of(voice1, voice2, voice3, drums));
+        return Piece.ofSections(id.title(), id.composer(),
+                KEY, TS, new Tempo(144, QUARTER),
+                trackDecls,
+                List.of(canon));
     }
 }

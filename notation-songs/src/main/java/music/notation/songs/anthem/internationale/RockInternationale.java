@@ -1,5 +1,6 @@
 package music.notation.songs.anthem.internationale;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
@@ -27,15 +28,34 @@ public final class RockInternationale implements PieceContentProvider<Internatio
     public Piece create() {
         final var id = new Internationale();
 
-        return new Piece(id.title(), id.composer(),
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody",  FRENCH_HORN),
+                new TrackDecl.MusicTrackDecl("Harmony", FRENCH_HORN),
+                new TrackDecl.MusicTrackDecl("Chords",  STRING_ENSEMBLE_1),
+                new TrackDecl.MusicTrackDecl("Drums",   DRUM_KIT)
+        );
+
+        final Duration SONG_DURATION = Duration.ofSixtyFourths(BAR_COUNT * TS.barSixtyFourths());
+
+        final var anthem = Section.named("Anthem")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Melody",  melodyPhrase())
+                .track("Harmony", harmonyPhrase())
+                .track("Chords",  chordsPhrase())
+                .track("Drums",   drumsPhrase())
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(108, QUARTER),
-                List.of(melody(), harmony(), chords(), drums()));
+                trackDecls,
+                List.of(anthem));
     }
 
     // ── Drum track ────────────────────────────────────────────────
 
-    private static Track drums() {
+    private static Phrase drumsPhrase() {
         var nodes = new ArrayList<PhraseNode>();
         nodes.add(new DynamicNode(Dynamic.F));
 
@@ -93,7 +113,7 @@ public final class RockInternationale implements PieceContentProvider<Internatio
         nodes.add(d(ACOUSTIC_SNARE, QUARTER));
         nodes.add(new RestNode(HALF));
 
-        return Track.of("Drums", DRUM_KIT, List.of(new DrumPhrase(nodes, end())));
+        return new DrumPhrase(nodes, end());
     }
 
     // ── Patterns ──────────────────────────────────────────────────
