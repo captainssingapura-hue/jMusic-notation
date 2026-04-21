@@ -1,5 +1,6 @@
 package music.notation.songs.classical.furelise;
 
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
@@ -30,8 +31,8 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
 
     private final ManualFurElise manual = new ManualFurElise();
 
-    private StaffPhraseBuilder b() {
-        return StaffPhraseBuilder.in(KEY, TS, EIGHTH);
+    private StaffPhraseBuilderTyped b() {
+        return StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
     }
 
     @Override public String subtitle() { return "Soul Techno"; }
@@ -39,27 +40,41 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
     @Override
     public Piece create() {
         // Reuse the full Manual arrangement for the melody (RH) and LH arpeggios
-        final Piece manualPiece = manual.create();
-        final Track manualRh = manualPiece.tracks().get(0);
-        final Track manualLh = manualPiece.tracks().get(1);
+        final var rhPhrases = manual.rightHandPhrases();
+        final var lhPhrases = manual.leftHandPhrases();
 
         // Align accompaniment to RH total duration (bars)
-        final int totalBars = totalBars(manualRh);
+        final int totalBars = totalBars(rhPhrases);
+        final Duration SONG_DURATION = Duration.ofSixtyFourths(totalBars * BAR_SIXTY_FOURTHS);
 
         final var id = new FurElise();
-        return new Piece(id.title(), id.composer(), KEY, TS,
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Lead Synth", SYNTH_LEAD_SAWTOOTH),
+                new TrackDecl.MusicTrackDecl("Rhodes",     ELECTRIC_PIANO_1),
+                new TrackDecl.MusicTrackDecl("Slap Bass",  SLAP_BASS),
+                new TrackDecl.MusicTrackDecl("Warm Pad",   SYNTH_PAD_WARM),
+                new TrackDecl.MusicTrackDecl("Drums",      DRUM_KIT)
+        );
+
+        final var song = Section.named("Rondo")
+                .duration(SONG_DURATION)
+                .timeSignature(TS)
+                .track("Lead Synth", rhPhrases)
+                .track("Rhodes",     lhPhrases)
+                .track("Slap Bass",  bassGroove(totalBars))
+                .track("Warm Pad",   padLayer(totalBars))
+                .track("Drums",      drumsTrack(totalBars))
+                .build();
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
                 new Tempo(120, QUARTER),
-                List.of(
-                        Track.of("Lead Synth", SYNTH_LEAD_SAWTOOTH, manualRh.phrases()),
-                        Track.of("Rhodes",     ELECTRIC_PIANO_1,    manualLh.phrases()),
-                        Track.of("Slap Bass",  SLAP_BASS,           List.of(bassGroove(totalBars))),
-                        Track.of("Warm Pad",   SYNTH_PAD_WARM,      List.of(padLayer(totalBars))),
-                        Track.of("Drums",      DRUM_KIT,            List.of(drumsTrack(totalBars)))
-                ));
+                trackDecls,
+                List.of(song));
     }
 
-    private static int totalBars(Track track) {
-        int sf = track.phrases().stream().mapToInt(Bar::phraseSixtyFourths).sum();
+    private static int totalBars(List<Phrase> phrases) {
+        int sf = phrases.stream().mapToInt(Bar::phraseSixtyFourths).sum();
         return sf / BAR_SIXTY_FOURTHS;
     }
 
@@ -71,14 +86,15 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
     private MelodicPhrase bassGroove(int totalBars) {
         var bb = b();
         for (int bar = 0; bar < totalBars; bar++) {
-            switch (bar % 8) {
-                case 0, 1, 2 -> bb.bar(EIGHTH).o2(A).o3(E).o2(A);       // Am
-                case 3       -> bb.bar(EIGHTH).o2(E).o2(B).o3(D);       // E7 (dominant)
-                case 4       -> bb.bar(EIGHTH).o2(A).o3(E).o2(A);       // Am
-                case 5       -> bb.bar(EIGHTH).o2(A).o3(E).o3(G);       // Am with passing tone
-                case 6       -> bb.bar(EIGHTH).o2(F).o3(C).o2(F);       // bVI (F) soul shift
-                case 7       -> bb.bar(EIGHTH).o2(E).o2(B).o2(E);       // E leading back
-            }
+            bb = switch (bar % 8) {
+                case 0, 1, 2 -> bb.bar(EIGHTH).o2(A).o3(E).o2(A).done();       // Am
+                case 3       -> bb.bar(EIGHTH).o2(E).o2(B).o3(D).done();       // E7 (dominant)
+                case 4       -> bb.bar(EIGHTH).o2(A).o3(E).o2(A).done();       // Am
+                case 5       -> bb.bar(EIGHTH).o2(A).o3(E).o3(G).done();       // Am with passing tone
+                case 6       -> bb.bar(EIGHTH).o2(F).o3(C).o2(F).done();       // bVI (F) soul shift
+                case 7       -> bb.bar(EIGHTH).o2(E).o2(B).o2(E).done();       // E leading back
+                default      -> bb;
+            };
         }
         return bb.build(end());
     }
@@ -90,13 +106,14 @@ public final class SoulTechnoFurElise implements PieceContentProvider<FurElise> 
     private MelodicPhrase padLayer(int totalBars) {
         var bb = b();
         for (int bar = 0; bar < totalBars; bar++) {
-            switch (bar % 8) {
-                case 0, 1, 2 -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)); // Am
-                case 3       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B);                 // E
-                case 4, 5    -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)); // Am
-                case 6       -> bb.bar().o4(QUARTER.dot(), F, A, C.higher(1));           // F (bVI)
-                case 7       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B);                 // E
-            }
+            bb = switch (bar % 8) {
+                case 0, 1, 2 -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)).done(); // Am
+                case 3       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B).done();                 // E
+                case 4, 5    -> bb.bar().o4(QUARTER.dot(), A, C.higher(1), E.higher(1)).done(); // Am
+                case 6       -> bb.bar().o4(QUARTER.dot(), F, A, C.higher(1)).done();           // F (bVI)
+                case 7       -> bb.bar().o4(QUARTER.dot(), E, G.s(), B).done();                 // E
+                default      -> bb;
+            };
         }
         return bb.build(end());
     }

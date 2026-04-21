@@ -1,5 +1,6 @@
 package music.notation.play;
 
+import music.notation.duration.Duration;
 import music.notation.event.ChordEvent;
 import music.notation.event.Instrument;
 import music.notation.event.Ornament;
@@ -9,6 +10,7 @@ import music.notation.pitch.Pitch;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public final class PhraseInterpreter {
 
@@ -18,6 +20,8 @@ public final class PhraseInterpreter {
     private long tick;
     private int velocity;
     private boolean inSlur;
+    /** 0 = main line; 1..N = {@link VoiceOverlay} slots while rendering. */
+    private int currentVoice;
     private boolean elisionPending;
     private long elisionTrailingPad;   // trailing padding of the just-finished phrase (ticks)
     private long elisionBarSize;       // size of prev phrase's last bar (ticks)
@@ -34,6 +38,15 @@ public final class PhraseInterpreter {
 
     public void emitProgramChange(Instrument instrument) {
         events.add(new PlayEvent.ProgramChange(0, instrument.program()));
+    }
+
+    // Centralize note emission so every NoteOn/NoteOff carries `currentVoice`.
+    private void addNoteOn(long t, int midi, int vel) {
+        events.add(new PlayEvent.NoteOn(t, midi, vel, currentVoice));
+    }
+
+    private void addNoteOff(long t, int midi) {
+        events.add(new PlayEvent.NoteOff(t, midi, currentVoice));
     }
 
     public void interpret(Phrase phrase) {
@@ -61,14 +74,48 @@ public final class PhraseInterpreter {
         }
         switch (phrase) {
             case MelodicPhrase mp -> {
+                long startTick = tick;
                 for (PhraseNode node : mp.nodes()) {
                     interpretNode(node);
+                }
+                long endTick = tick;
+                // Render voice overlays in parallel: rewind to startTick, walk
+                // overlay bars (absent slots fast-forward as silence), then
+                // restore to endTick. Velocity/slur state is scoped per voice
+                // so dynamics in one voice don't leak back into the main line.
+                if (!mp.voices().isEmpty()) {
+                    for (int vi = 0; vi < mp.voices().size(); vi++) {
+                        VoiceOverlay voice = mp.voices().get(vi);
+                        int savedVelocity = velocity;
+                        boolean savedSlur = inSlur;
+                        currentVoice = vi + 1; // main = 0, overlays 1..N
+                        tick = startTick;
+                        for (int i = 0; i < voice.size(); i++) {
+                            Optional<Bar> slot = voice.at(i);
+                            if (slot.isEmpty()) {
+                                int barSize = mp.bars().get(i).expectedSixtyFourths();
+                                tick += MidiMapper.toTicks(Duration.ofSixtyFourths(barSize));
+                            } else {
+                                for (PhraseNode node : slot.get().nodes()) {
+                                    interpretNode(node);
+                                }
+                            }
+                        }
+                        velocity = savedVelocity;
+                        inSlur = savedSlur;
+                    }
+                    currentVoice = 0;
+                    tick = endTick;
                 }
                 applyBoundaryGap(mp.marking(), mp);
             }
             case RestPhrase rp -> {
                 tick += MidiMapper.toTicks(rp.duration());
                 applyBoundaryGap(rp.marking(), rp);
+            }
+            case VoidPhrase vp -> {
+                tick += MidiMapper.toTicks(vp.duration());
+                applyBoundaryGap(vp.marking(), vp);
             }
             case ChordPhrase cp -> {
                 for (ChordEvent chord : cp.chords()) {
@@ -99,10 +146,11 @@ public final class PhraseInterpreter {
                     switch (e) {
                         case PlayEvent.NoteOn on ->
                             events.set(i, new PlayEvent.NoteOn(
-                                    on.tick(), sp.shiftMidiNote(on.midiNote()), on.velocity()));
+                                    on.tick(), sp.shiftMidiNote(on.midiNote()),
+                                    on.velocity(), on.voice()));
                         case PlayEvent.NoteOff off ->
                             events.set(i, new PlayEvent.NoteOff(
-                                    off.tick(), sp.shiftMidiNote(off.midiNote())));
+                                    off.tick(), sp.shiftMidiNote(off.midiNote()), off.voice()));
                         default -> {} // ProgramChange etc. — leave as-is
                     }
                 }
@@ -163,8 +211,8 @@ public final class PhraseInterpreter {
             for (GraceNote g : n.graceNotes()) {
                 int gMidi = MidiMapper.toMidiNote(g.pitch());
                 int gVel = g.accented() ? velocity : (int) (velocity * 0.7);
-                events.add(new PlayEvent.NoteOn(tick, gMidi, gVel));
-                events.add(new PlayEvent.NoteOff(tick + graceDur, gMidi));
+                addNoteOn(tick, gMidi, gVel);
+                addNoteOff(tick + graceDur, gMidi);
                 tick += graceDur;
                 graceTotal += graceDur;
             }
@@ -176,9 +224,9 @@ public final class PhraseInterpreter {
             // Poly: emit all pitches simultaneously (like a chord)
             for (Pitch p : n.pitches()) {
                 int midi = MidiMapper.toMidiNote(p);
-                events.add(new PlayEvent.NoteOn(tick, midi, velocity));
+                addNoteOn(tick, midi, velocity);
                 long offTick = tick + mainDur + (inSlur ? LEGATO_OVERLAP_TICKS : 0);
-                events.add(new PlayEvent.NoteOff(offTick, midi));
+                addNoteOff(offTick, midi);
             }
             tick += mainDur;
         } else {
@@ -192,13 +240,13 @@ public final class PhraseInterpreter {
     }
 
     private void emitNote(int midi, long dur) {
-        events.add(new PlayEvent.NoteOn(tick, midi, velocity));
+        addNoteOn(tick, midi, velocity);
         long offTick = tick + dur;
         if (inSlur) {
             // Delay note-off past the next note-on for smooth legato
             offTick += LEGATO_OVERLAP_TICKS;
         }
-        events.add(new PlayEvent.NoteOff(offTick, midi));
+        addNoteOff(offTick, midi);
         tick += dur;
     }
 
@@ -215,8 +263,8 @@ public final class PhraseInterpreter {
                 while (remaining > 0) {
                     long d = Math.min(sub, remaining);
                     int note = onMain ? midi : above;
-                    events.add(new PlayEvent.NoteOn(tick, note, velocity));
-                    events.add(new PlayEvent.NoteOff(tick + d, note));
+                    addNoteOn(tick, note, velocity);
+                    addNoteOff(tick + d, note);
                     tick += d;
                     remaining -= d;
                     onMain = !onMain;
@@ -251,8 +299,8 @@ public final class PhraseInterpreter {
                 long remaining = totalDur;
                 while (remaining > 0) {
                     long d = Math.min(sub, remaining);
-                    events.add(new PlayEvent.NoteOn(tick, midi, velocity));
-                    events.add(new PlayEvent.NoteOff(tick + d, midi));
+                    addNoteOn(tick, midi, velocity);
+                    addNoteOff(tick + d, midi);
                     tick += d;
                     remaining -= d;
                 }
@@ -277,8 +325,8 @@ public final class PhraseInterpreter {
         long dur = MidiMapper.toTicks(chord.duration());
         for (Pitch p : chord.pitches()) {
             int midi = MidiMapper.toMidiNote(p);
-            events.add(new PlayEvent.NoteOn(tick, midi, velocity));
-            events.add(new PlayEvent.NoteOff(tick + dur, midi));
+            addNoteOn(tick, midi, velocity);
+            addNoteOff(tick + dur, midi);
         }
         tick += dur;
     }

@@ -2,6 +2,7 @@ package music.notation.songs.rock.bluelotus;
 
 import music.notation.chord.MajorTriad;
 import music.notation.chord.MinorTriad;
+import music.notation.duration.Duration;
 import music.notation.event.Dynamic;
 import music.notation.phrase.*;
 import music.notation.structure.*;
@@ -120,10 +121,12 @@ public final class DefaultBlueLotus implements PieceContentProvider<BlueLotus> {
                 .bar().n(_1, WHOLE, MORDENT)
                 .build(end());
 
-        var lead = Track.of("Lead", OVERDRIVEN_GUITAR, List.of(
-                leadIntro, verseLine1, verseLine2,
-                chorusLine1, chorusLine2, chorusLine3, chorusLine4,
-                outro));
+        // Per-section lead phrase lists (intro, verse, chorus 1-2, outro)
+        var leadIntroPhrases   = List.<Phrase>of(leadIntro);
+        var leadVersePhrases   = List.<Phrase>of(verseLine1, verseLine2);
+        var leadChorus1Phrases = List.<Phrase>of(chorusLine1, chorusLine2);
+        var leadChorus2Phrases = List.<Phrase>of(chorusLine3, chorusLine4);
+        var leadOutroPhrases   = List.<Phrase>of(outro);
 
         // =====================================================================
         //  GUITAR — clean arpeggios (verse) / chords (chorus) in E♭ major
@@ -161,13 +164,16 @@ public final class DefaultBlueLotus implements PieceContentProvider<BlueLotus> {
         var AbChord = chord(WHOLE, abMaj);
         var cm = new PhraseMarking(PhraseConnection.ATTACCA, false);
 
-        var guitar = Track.of("Guitar", ELECTRIC_GUITAR_CLEAN, List.of(
-                arpIntro, arpCycle, arpCycle,
+        // Per-section guitar phrase lists
+        var guitarIntroPhrases   = List.<Phrase>of(arpIntro);
+        var guitarVersePhrases   = List.<Phrase>of(arpCycle, arpCycle);
+        var guitarChorus1Phrases = List.<Phrase>of(
                 new ChordPhrase(List.of(EbChord, BbChord, CmChord, AbChord,
-                        EbChord, BbChord, CmChord, AbChord), cm),
+                        EbChord, BbChord, CmChord, AbChord), cm));
+        var guitarChorus2Phrases = List.<Phrase>of(
                 new ChordPhrase(List.of(EbChord, BbChord, CmChord, AbChord,
-                        EbChord, BbChord, CmChord, AbChord), cm),
-                arpOutro));
+                        EbChord, BbChord, CmChord, AbChord), cm));
+        var guitarOutroPhrases   = List.<Phrase>of(arpOutro);
 
         // =====================================================================
         //  BASS — root notes in E♭ major (8 × 4 bars = 32 bars)
@@ -186,12 +192,12 @@ public final class DefaultBlueLotus implements PieceContentProvider<BlueLotus> {
                 .bar().l(_5,WHOLE).bar().l(_6,WHOLE).bar().l(_4,WHOLE)
                 .build(end());
 
-        var bass = Track.of("Bass", ELECTRIC_BASS_FINGER, List.of(
-                rest4,
-                bassMf, bassCycle,
-                bassF, bassCycle,
-                bassCycle, bassCycle,
-                bassMp));
+        // Per-section bass phrase lists
+        var bassIntroPhrases   = List.<Phrase>of(rest4);
+        var bassVersePhrases   = List.<Phrase>of(bassMf, bassCycle);
+        var bassChorus1Phrases = List.<Phrase>of(bassF, bassCycle);
+        var bassChorus2Phrases = List.<Phrase>of(bassCycle, bassCycle);
+        var bassOutroPhrases   = List.<Phrase>of(bassMp);
 
         // =====================================================================
         //  DRUMS (4 + 8 + 8 + 8 + 4 = 32 bars)
@@ -204,16 +210,53 @@ public final class DefaultBlueLotus implements PieceContentProvider<BlueLotus> {
                 d(CRASH_CYMBAL, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(ACOUSTIC_SNARE, QUARTER), d(OPEN_HI_HAT, QUARTER));
 
-        var drums = Track.of("Drums", DRUM_KIT, List.of(
-                rest4,
-                drumPhrase(Dynamic.MP, drumBar, 8, attacca()),
-                drumPhrase(Dynamic.MF, drumBarCrash, drumBar, 8, attacca()),
-                drumPhrase(Dynamic.F, drumBarCrash, drumBar, 8, attacca()),
-                drumPhrase(Dynamic.MP, drumBar, 4, end())));
+        // Per-section drum phrase lists
+        var drumsIntro   = List.<Phrase>of(rest4);
+        var drumsVerse   = List.<Phrase>of(drumPhrase(Dynamic.MP, drumBar, 8, attacca()));
+        var drumsChorus1 = List.<Phrase>of(drumPhrase(Dynamic.MF, drumBarCrash, drumBar, 8, attacca()));
+        var drumsChorus2 = List.<Phrase>of(drumPhrase(Dynamic.F,  drumBarCrash, drumBar, 8, attacca()));
+        var drumsOutro   = List.<Phrase>of(drumPhrase(Dynamic.MP, drumBar, 4, end()));
 
-        return new Piece(id.title(), id.composer(),
-                new KeySignature(E, Mode.MAJOR),
-                TS, new Tempo(90, QUARTER), List.of(lead, guitar, bass, drums));
+        // ── Sections: 4-bar Intro/Outro, 8-bar Verse / Chorus 1 / Chorus 2 ──
+        final var KEY = new KeySignature(E, Mode.MAJOR);
+        final Duration FOUR_BARS  = Duration.ofSixtyFourths(4 * 64);
+        final Duration EIGHT_BARS = Duration.ofSixtyFourths(8 * 64);
+
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Lead",   OVERDRIVEN_GUITAR),
+                new TrackDecl.MusicTrackDecl("Guitar", ELECTRIC_GUITAR_CLEAN),
+                new TrackDecl.MusicTrackDecl("Bass",   ELECTRIC_BASS_FINGER),
+                new TrackDecl.MusicTrackDecl("Drums",  DRUM_KIT)
+        );
+
+        final var sections = List.of(
+                section("Intro",    FOUR_BARS,
+                        leadIntroPhrases, guitarIntroPhrases, bassIntroPhrases, drumsIntro),
+                section("Verse",    EIGHT_BARS,
+                        leadVersePhrases, guitarVersePhrases, bassVersePhrases, drumsVerse),
+                section("Chorus 1", EIGHT_BARS,
+                        leadChorus1Phrases, guitarChorus1Phrases, bassChorus1Phrases, drumsChorus1),
+                section("Chorus 2", EIGHT_BARS,
+                        leadChorus2Phrases, guitarChorus2Phrases, bassChorus2Phrases, drumsChorus2),
+                section("Outro",    FOUR_BARS,
+                        leadOutroPhrases, guitarOutroPhrases, bassOutroPhrases, drumsOutro)
+        );
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
+                new Tempo(90, QUARTER), trackDecls, sections);
+    }
+
+    private static Section section(String name, Duration duration,
+                                   List<Phrase> lead, List<Phrase> guitar,
+                                   List<Phrase> bass, List<Phrase> drums) {
+        return Section.named(name)
+                .duration(duration)
+                .timeSignature(TS)
+                .track("Lead",   new SectionTrack(lead, List.of()))
+                .track("Guitar", new SectionTrack(guitar, List.of()))
+                .track("Bass",   new SectionTrack(bass, List.of()))
+                .track("Drums",  new SectionTrack(drums, List.of()))
+                .build();
     }
 
     private static DrumPhrase drumPhrase(Dynamic dyn, Bar bar, int bars,

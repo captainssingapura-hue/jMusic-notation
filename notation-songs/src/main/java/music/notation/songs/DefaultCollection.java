@@ -42,11 +42,9 @@ import music.notation.songs.rock.therock.TheRock;
 import music.notation.songs.traditional.happybirthday.BeethovenHappyBirthday;
 import music.notation.songs.traditional.happybirthday.BrahmsHappyBirthday;
 import music.notation.songs.traditional.happybirthday.ChopinHappyBirthday;
-import music.notation.songs.traditional.happybirthday.CombinedHappyBirthday;
 import music.notation.songs.traditional.happybirthday.DefaultHappyBirthday;
 import music.notation.songs.traditional.happybirthday.HappyBirthday;
 import music.notation.songs.traditional.happybirthday.MozartHappyBirthday;
-import music.notation.songs.traditional.happybirthday.SoulTechnoCombinedHappyBirthday;
 import music.notation.structure.Collection;
 
 import java.util.List;
@@ -81,8 +79,7 @@ public final class DefaultCollection implements Collection {
                 Entry.of(new FurElise(), new ManualFurElise(), new SoulTechnoFurElise()),
                 Entry.of(new ContraBase(), new DefaultContraBase()),
                 Entry.of(new HappyBirthday(), new DefaultHappyBirthday(), new MozartHappyBirthday(),
-                        new ChopinHappyBirthday(), new BeethovenHappyBirthday(), new BrahmsHappyBirthday(),
-                        new CombinedHappyBirthday(), new SoulTechnoCombinedHappyBirthday())
+                        new ChopinHappyBirthday(), new BeethovenHappyBirthday(), new BrahmsHappyBirthday())
         );
     }
 }

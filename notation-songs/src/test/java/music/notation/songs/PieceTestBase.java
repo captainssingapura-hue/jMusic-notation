@@ -120,6 +120,7 @@ public abstract class PieceTestBase {
                 }
             });
             case RestPhrase rp -> {} // no pitches
+            case VoidPhrase vp -> {} // no pitches
             case LyricPhrase lp -> {} // no pitches
             case ShiftedPhrase sp -> checkMidiRange(trackName, sp.source());
             case LayeredPhrase lp -> checkMidiRange(trackName, lp.resolve());

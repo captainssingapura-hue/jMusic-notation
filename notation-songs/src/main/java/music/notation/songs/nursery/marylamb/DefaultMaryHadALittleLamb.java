@@ -40,9 +40,6 @@ public final class DefaultMaryHadALittleLamb implements PieceContentProvider<Mar
                         orn(C,5,HALF, LOWER_MORDENT), new RestNode(Duration.of(HALF))),
                 end());
 
-        var melody = Track.of("Melody", ACOUSTIC_GRAND_PIANO, List.of(
-                phrase1, phrase2, phrase3, phrase4));
-
         // --- Chords ---
         final var CMaj = new MajorTriad(C, 3);
         final var FMaj = new MajorTriad(F, 3);
@@ -53,31 +50,50 @@ public final class DefaultMaryHadALittleLamb implements PieceContentProvider<Mar
         var cm = new PhraseMarking(PhraseConnection.ATTACCA, false);
         var ce = new PhraseMarking(PhraseConnection.CAESURA, false);
 
-        var accompaniment = Track.of("Chords", STRING_ENSEMBLE_1, List.of(
-                new ChordPhrase(List.of(I, I, I, V), cm),
-                new ChordPhrase(List.of(V, V, I, I), cm),
-                new ChordPhrase(List.of(I, I, I, IV), cm),
-                new ChordPhrase(List.of(V, V, V, I), ce)));
-
-        // --- Drums (light 4/4: kick-hat-snare-hat, 2 measures per phrase) ---
+        // --- Drums (light 4/4: kick-hat-snare-hat, 2 bars per phrase) ---
         var dp = List.<PhraseNode>of(
                 d(BASS_DRUM, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(ACOUSTIC_SNARE, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(BASS_DRUM, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(ACOUSTIC_SNARE, QUARTER), d(CLOSED_HI_HAT, QUARTER));
-
         var dpFirst = new java.util.ArrayList<PhraseNode>();
         dpFirst.add(new DynamicNode(Dynamic.MP));
         dpFirst.addAll(dp);
 
-        var drums = Track.of("Drums", DRUM_KIT, List.of(
-                new DrumPhrase(dpFirst, attacca()),
-                new DrumPhrase(dp, attacca()),
-                new DrumPhrase(dp, attacca()),
-                new DrumPhrase(dp, end())));
+        // --- Sections: 4 lyric phrases × 2 bars each ---
+        final var KEY = new KeySignature(C, Mode.MAJOR);
+        final var TS = new TimeSignature(4, 4);
+        final var SECTION_DURATION = Duration.ofSixtyFourths(2 * 64);
 
-        return new Piece(id.title(), id.composer(),
-                new KeySignature(C, Mode.MAJOR), new TimeSignature(4, 4),
-                new Tempo(112, QUARTER), List.of(melody, accompaniment, drums));
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody", ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Chords", STRING_ENSEMBLE_1),
+                new TrackDecl.MusicTrackDecl("Drums",  DRUM_KIT)
+        );
+
+        final var sections = List.of(
+                section("Mary had a little lamb",       SECTION_DURATION, TS,
+                        phrase1, new ChordPhrase(List.of(I, I, I, V), cm), new DrumPhrase(dpFirst, attacca())),
+                section("Little lamb, little lamb",     SECTION_DURATION, TS,
+                        phrase2, new ChordPhrase(List.of(V, V, I, I), cm), new DrumPhrase(dp, attacca())),
+                section("Mary had a little lamb (rep)", SECTION_DURATION, TS,
+                        phrase3, new ChordPhrase(List.of(I, I, I, IV), cm), new DrumPhrase(dp, attacca())),
+                section("Its fleece was white as snow", SECTION_DURATION, TS,
+                        phrase4, new ChordPhrase(List.of(V, V, V, I), ce), new DrumPhrase(dp, end()))
+        );
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
+                new Tempo(112, QUARTER), trackDecls, sections);
+    }
+
+    private static Section section(String name, Duration duration, TimeSignature ts,
+                                   Phrase melody, Phrase chords, Phrase drums) {
+        return Section.named(name)
+                .duration(duration)
+                .timeSignature(ts)
+                .track("Melody", melody)
+                .track("Chords", chords)
+                .track("Drums",  drums)
+                .build();
     }
 }

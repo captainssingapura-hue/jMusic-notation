@@ -42,8 +42,6 @@ public final class DefaultOdeToJoy implements PieceContentProvider<OdeToJoy> {
                         n(C,5,EIGHTH), orn(C,5,HALF, TURN)),
                 end());
 
-        var melody = Track.of("Melody", VIOLIN, List.of(phrase1, phrase2, phrase3, phrase4));
-
         // --- Chords ---
         final var CMaj = new MajorTriad(C, 3);
         final var FMaj = new MajorTriad(F, 3);
@@ -54,31 +52,50 @@ public final class DefaultOdeToJoy implements PieceContentProvider<OdeToJoy> {
         var cm = new PhraseMarking(PhraseConnection.ATTACCA, false);
         var ce = new PhraseMarking(PhraseConnection.CAESURA, false);
 
-        var accompaniment = Track.of("Chords", ACOUSTIC_GRAND_PIANO, List.of(
-                new ChordPhrase(List.of(I, I, V, I), cm),
-                new ChordPhrase(List.of(I, IV, V, I), cm),
-                new ChordPhrase(List.of(I, I, V, I), cm),
-                new ChordPhrase(List.of(I, IV, V, I), ce)));
-
-        // --- Drums (stately 4/4: kick-hat-snare-hat, 2 measures per phrase) ---
+        // --- Drums (stately 4/4: kick-hat-snare-hat, 2 bars per phrase) ---
         var dp = List.<PhraseNode>of(
                 d(BASS_DRUM, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(ACOUSTIC_SNARE, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(BASS_DRUM, QUARTER), d(CLOSED_HI_HAT, QUARTER),
                 d(ACOUSTIC_SNARE, QUARTER), d(CLOSED_HI_HAT, QUARTER));
-
         var dpFirst = new java.util.ArrayList<PhraseNode>();
         dpFirst.add(new DynamicNode(Dynamic.MF));
         dpFirst.addAll(dp);
 
-        var drums = Track.of("Drums", DRUM_KIT, List.of(
-                new DrumPhrase(dpFirst, attacca()),
-                new DrumPhrase(dp, attacca()),
-                new DrumPhrase(dp, attacca()),
-                new DrumPhrase(dp, end())));
+        // --- Sections: 4 phrases × 2 bars each (classic AABA') ---
+        final var KEY = new KeySignature(C, Mode.MAJOR);
+        final var TS = new TimeSignature(4, 4);
+        final var SECTION_DURATION = Duration.ofSixtyFourths(2 * 64);
 
-        return new Piece(id.title(), id.composer(),
-                new KeySignature(C, Mode.MAJOR), new TimeSignature(4, 4),
-                new Tempo(108, QUARTER), List.of(melody, accompaniment, drums));
+        final var trackDecls = List.<TrackDecl>of(
+                new TrackDecl.MusicTrackDecl("Melody", VIOLIN),
+                new TrackDecl.MusicTrackDecl("Chords", ACOUSTIC_GRAND_PIANO),
+                new TrackDecl.MusicTrackDecl("Drums",  DRUM_KIT)
+        );
+
+        final var sections = List.of(
+                section("A1", SECTION_DURATION, TS,
+                        phrase1, new ChordPhrase(List.of(I, I, V, I),  cm), new DrumPhrase(dpFirst, attacca())),
+                section("A2", SECTION_DURATION, TS,
+                        phrase2, new ChordPhrase(List.of(I, IV, V, I), cm), new DrumPhrase(dp, attacca())),
+                section("B",  SECTION_DURATION, TS,
+                        phrase3, new ChordPhrase(List.of(I, I, V, I),  cm), new DrumPhrase(dp, attacca())),
+                section("A'", SECTION_DURATION, TS,
+                        phrase4, new ChordPhrase(List.of(I, IV, V, I), ce), new DrumPhrase(dp, end()))
+        );
+
+        return Piece.ofSections(id.title(), id.composer(), KEY, TS,
+                new Tempo(108, QUARTER), trackDecls, sections);
+    }
+
+    private static Section section(String name, Duration duration, TimeSignature ts,
+                                   Phrase melody, Phrase chords, Phrase drums) {
+        return Section.named(name)
+                .duration(duration)
+                .timeSignature(ts)
+                .track("Melody", melody)
+                .track("Chords", chords)
+                .track("Drums",  drums)
+                .build();
     }
 }

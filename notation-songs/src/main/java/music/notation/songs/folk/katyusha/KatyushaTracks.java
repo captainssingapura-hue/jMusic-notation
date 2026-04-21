@@ -37,21 +37,21 @@ final class KatyushaTracks {
      *   <li>Bars 7–8: "На высокий берег на крутой" — dotted rhythm return, cadence</li>
      * </ol>
      */
-    static MelodicPhrase buildVerse(StaffPhraseBuilder P, PhraseMarking ending) {
-        return P
+    static MelodicPhrase buildVerse(PhraseMarking ending) {
+        return StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH)
                 // Line 1 (bars 1–2): A. B C. A | C B A B E
-                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, E).o5(QUARTER.dot(), F).o4(EIGHTH, D)
-                .bar(QUARTER).o5(F).o4(EIGHTH,E).o4(EIGHTH,D).o4(E).o3(A)
+                .bar().o4(QUARTER.dot(), D).o4(EIGHTH, E).o5(QUARTER.dot(), F).o4(EIGHTH, D).done()
+                .bar(QUARTER).o5(F).o4(EIGHTH,E).o4(EIGHTH,D).o4(E).o3(A).done()
                 // Line 2 (bars 3–4): B. C D. B | D D B C A
-                .bar().o4(QUARTER.dot(), E).o5(EIGHTH, F).o5(QUARTER.dot(), G).o4(EIGHTH, E)
-                .bar(EIGHTH).o5(G).o5(G).o4(F).slur().o5(E).o4(QUARTER,D).r(QUARTER)
+                .bar().o4(QUARTER.dot(), E).o5(EIGHTH, F).o5(QUARTER.dot(), G).o4(EIGHTH, E).done()
+                .bar(EIGHTH).o5(G).o5(G).o4(F).slur().o5(E).o4(QUARTER,D).r(QUARTER).done()
                 // Line 3 (bars 5–6): E' A' G' A' G F' E' D.~ | ~E rest
                 .bar(QUARTER).o5(A).o5(D).o5(C).o5(EIGHTH,D).o5(EIGHTH,C)
-                    .aux(HALF).o4(F).o4(F.s())
-                .bar(QUARTER).o4(B,G).o4(EIGHTH,A).o4(EIGHTH,G).o4(A).o4(D)
+                    .aux(HALF, a -> a.o4(F).o4(F.s())).done()
+                .bar(QUARTER).o4(B,G).o4(EIGHTH,A).o4(EIGHTH,G).o4(A).o4(D).done()
                 // Line 4 (bars 7–8): A F D E C B E C B A
-                .bar(EIGHTH).r(EIGHTH).o4(QUARTER,B).o4(G).o4(QUARTER.dot(),A).o4(F)
-                .bar(EIGHTH).o4(E).o3(A).o4(F).o4(E).o4(QUARTER,D).r(QUARTER)
+                .bar(EIGHTH).r(EIGHTH).o4(QUARTER,B).o4(G).o4(QUARTER.dot(),A).o4(F).done()
+                .bar(EIGHTH).o4(E).o3(A).o4(F).o4(E).o4(QUARTER,D).r(QUARTER).done()
                 .build(ending);
     }
 
@@ -61,77 +61,67 @@ final class KatyushaTracks {
      * @param verses number of verse repetitions (typically 2–4)
      */
     static Track melody(int verses) {
-        var P = StaffPhraseBuilder.in(KEY, TS, EIGHTH);
         var phrases = new java.util.ArrayList<Phrase>();
-        var auxPhrases = new java.util.ArrayList<Phrase>();
-
         for (int v = 0; v < verses; v++) {
             var ending = (v < verses - 1) ? attacca() : end();
-            phrases.add(buildVerse(P, ending));
-            auxPhrases.addAll(P.auxPhrases());
+            // Each verse uses its own fresh builder (one-shot).
+            phrases.add(buildVerse(ending));
         }
-
-        if (auxPhrases.isEmpty()) {
-            return Track.of("Melody", ACCORDION, phrases);
-        }
-        var auxTracks = List.of(Track.of("Melody Aux", ACCORDION, auxPhrases));
-        return new Track("Melody", ACCORDION, phrases, auxTracks);
+        return Track.of("Melody", ACCORDION, phrases);
     }
 
     // ── Bass line (one verse) ─────────────────────────────────────
 
-    static MelodicPhrase buildBassVerse(StaffPhraseBuilder P, PhraseMarking ending) {
-        return P
+    static MelodicPhrase buildBassVerse(PhraseMarking ending) {
+        return StaffPhraseBuilderTyped.in(KEY, TS, QUARTER)
                 // Dm              | Dm → A
-                .bar().o3(D).o3(A).o3(D).o3(A)
-                .bar().o3(D).o3(A).o2(A).o3(E)
+                .bar().o3(D).o3(A).o3(D).o3(A).done()
+                .bar().o3(D).o3(A).o2(A).o3(E).done()
                 // Gm              | Gm → Dm
-                .bar().o3(G).o3(D).o3(G).o3(D)
-                .bar().o3(G).o3(D).o3(D).o3(A)
+                .bar().o3(G).o3(D).o3(G).o3(D).done()
+                .bar().o3(G).o3(D).o3(D).o3(A).done()
                 // Bb              | Gm → Dm
-                .bar().o2(B).o3(F).o2(B).o3(F)
-                .bar().o3(G).o3(D).o3(D).o3(A)
+                .bar().o2(B).o3(F).o2(B).o3(F).done()
+                .bar().o3(G).o3(D).o3(D).o3(A).done()
                 // Gm → Dm         | A → Dm
-                .bar().o3(G).o3(D).o3(D).o3(A)
-                .bar().o2(A).o3(E).o2(HALF, D)
+                .bar().o3(G).o3(D).o3(D).o3(A).done()
+                .bar().o2(A).o3(E).o2(HALF, D).done()
                 .build(ending);
     }
 
     static Track bass(int verses) {
-        var P = StaffPhraseBuilder.in(KEY, TS, QUARTER);
         var phrases = new java.util.ArrayList<Phrase>();
         for (int v = 0; v < verses; v++) {
-            phrases.add(buildBassVerse(P, (v < verses - 1) ? attacca() : end()));
+            phrases.add(buildBassVerse((v < verses - 1) ? attacca() : end()));
         }
         return Track.of("Bass", ACOUSTIC_BASS, phrases);
     }
 
     // ── Chord accompaniment ───────────────────────────────────────
 
-    static MelodicPhrase buildChordVerse(StaffPhraseBuilder P, PhraseMarking ending) {
+    static MelodicPhrase buildChordVerse(PhraseMarking ending) {
         // Dm=D,F,A  Gm=G,Bb,D  A=A,C#,E  Bb=Bb,D,F  C=C,E,G
         // Key sig provides Bb automatically
-        return P
+        return StaffPhraseBuilderTyped.in(KEY, TS, HALF)
                 // Dm | Dm → A
-                .bar().o4(D, F, A).o4(D, F, A)
-                .bar().o4(D, F, A).o4(A, C.s().higher(1), E.higher(1))
+                .bar().o4(D, F, A).o4(D, F, A).done()
+                .bar().o4(D, F, A).o4(A, C.s().higher(1), E.higher(1)).done()
                 // Gm | Gm → Dm
-                .bar().o4(G, B, D.higher(1)).o4(G, B, D.higher(1))
-                .bar().o4(G, B, D.higher(1)).o4(D, F, A)
+                .bar().o4(G, B, D.higher(1)).o4(G, B, D.higher(1)).done()
+                .bar().o4(G, B, D.higher(1)).o4(D, F, A).done()
                 // Bb | Gm → Dm
-                .bar().o3(B, D.higher(1), F.higher(1)).o3(B, D.higher(1), F.higher(1))
-                .bar().o4(G, B, D.higher(1)).o4(D, F, A)
+                .bar().o3(B, D.higher(1), F.higher(1)).o3(B, D.higher(1), F.higher(1)).done()
+                .bar().o4(G, B, D.higher(1)).o4(D, F, A).done()
                 // Gm → Dm | A → Dm
-                .bar().o4(G, B, D.higher(1)).o4(D, F, A)
-                .bar().o4(A, C.s().higher(1), E.higher(1)).o4(D, F, A)
+                .bar().o4(G, B, D.higher(1)).o4(D, F, A).done()
+                .bar().o4(A, C.s().higher(1), E.higher(1)).o4(D, F, A).done()
                 .build(ending);
     }
 
     static Track chords(int verses) {
-        var P = StaffPhraseBuilder.in(KEY, TS, HALF);
         var phrases = new java.util.ArrayList<Phrase>();
         for (int v = 0; v < verses; v++) {
-            phrases.add(buildChordVerse(P, (v < verses - 1) ? attacca() : end()));
+            phrases.add(buildChordVerse((v < verses - 1) ? attacca() : end()));
         }
         return Track.of("Chords", ACOUSTIC_GUITAR_NYLON, phrases);
     }

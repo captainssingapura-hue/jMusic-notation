@@ -143,8 +143,8 @@ class TempoPlaybackTest {
 
     @Test
     void buildSequenceEmitsTempoMetaMessages() throws InvalidMidiDataException {
-        var P = StaffPhraseBuilder.in(KEY, TS, QUARTER);
-        var phrase = P.bar().tempo(140).o4(C).o4(D).o4(E).o4(F)
+        var P = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
+        var phrase = P.bar().tempo(140).o4(C).o4(D).o4(E).o4(F).done()
                 .build(attacca());
 
         var piece = new Piece("Test", "Test", KEY, TS, new Tempo(120, QUARTER),
