@@ -31,12 +31,17 @@ class SimpleSongsMidiParityTest {
 
     private static final Map<String, String> EXPECTED = new LinkedHashMap<>();
     static {
-        EXPECTED.put("TwinkleStar",     "e2866722e73fa6a2c3227a298e7fe57c50a4940f1f7d2592c4693f7b4ab4421f");
-        EXPECTED.put("MaryLamb",        "9db03f9fcf1682994126d8fa4d6a7c82d0f55914cd21450f1edaa0382cba0238");
-        EXPECTED.put("AntsGoMarching",  "6756f4e85d87f8b866407649e6dda1d0e7aa1b48405ece072720f5dd8abebcf8");
-        EXPECTED.put("OdeToJoy",        "4be9f709b437e83f5967c8f96f72df35d4c3c53371bb67d83e4c2fafea198e7b");
-        EXPECTED.put("PachelbelCanon",  "42b0d0ad52c0a503918002eb4a74ce6c06423244d25be3d6a39c90bfe316d3a7");
-        EXPECTED.put("BlueLotus",       "e7e9e5ac91f35b4d6f09e8f99b473f03c0ca1ae5c710c98c4d5e2ab1652b69d0");
+        // Re-recorded after Phase 1 ornament-rendering retirement
+        // (.docs/microtiming.md / radiant-painting-swan.md). TwinkleStar uses
+        // MORDENT/TURN/TRILL/TREMOLO/LOWER_MORDENT — all now play as plain notes.
+        EXPECTED.put("TwinkleStar",     "42366ddfd7b354ac5b79b996d15812add458becdc8d73138d03878923282d6f9");
+        // Re-recorded after Phase 1 ornament-rendering retirement.
+        EXPECTED.put("MaryLamb",        "c97039449617448828579fdbc76a12eadb517f79f8354c231735b7257675a4b5");
+        // Re-recorded after Phase 1 ornament-rendering retirement.
+        EXPECTED.put("AntsGoMarching",  "fc9f9523c22ca608a966eb02a581f90794cd5c1d96c9ea0c56f75f6baf2a8d9c");
+        EXPECTED.put("OdeToJoy",        "e5165fc69546b6fffada5301ff8147c98d4857b134a7a3672599893ccdfc9096");
+        EXPECTED.put("PachelbelCanon",  "17e52e3f5f8dfab38f03d36a7417afcec35f584e47867f47b8ce5f4489cb7873");
+        EXPECTED.put("BlueLotus",       "b61a01a4543fbd69589a5398d556bce59d5cdcb046af0c7954aad56c2e3c56cc");
         EXPECTED.put("TheRock",         "aa9849bbc114b0b121a374b38a1c4bc821c370ebfce743f7d4b75428feaab399");
         EXPECTED.put("ContraBase",      "894b6fbce12509e25b80ff72ca71d9751908982a5addf2e334414c07ab85057a");
     }

@@ -3,7 +3,6 @@ package music.notation.play;
 import music.notation.duration.Duration;
 import music.notation.event.ChordEvent;
 import music.notation.event.Instrument;
-import music.notation.event.Ornament;
 import music.notation.event.PercussionSound;
 import music.notation.phrase.*;
 import music.notation.pitch.Pitch;
@@ -161,7 +160,8 @@ public final class PhraseInterpreter {
 
     private void interpretNode(PhraseNode node) {
         switch (node) {
-            case NoteNode n -> interpretNote(n);
+            case SimplePitchNode n -> interpretSimple(n);
+            case PolyPitchNode n -> interpretPoly(n);
             case RestNode r -> tick += MidiMapper.toTicks(r.duration());
             case DynamicNode d -> {
                 int v = MidiMapper.toVelocity(d.dynamic());
@@ -197,46 +197,49 @@ public final class PhraseInterpreter {
         }
     }
 
-    private void interpretNote(NoteNode n) {
-        long dur = MidiMapper.toTicks(n.duration());
+    private void interpretSimple(SimplePitchNode n) {
+        long mainDur = emitGraceNotes(n.graceNotes(), MidiMapper.toTicks(n.duration()),
+                n.equalDivision());
+        int midi = MidiMapper.toMidiNote(n.pitch());
+        // Ornament rendering retired — see .docs/microtiming.md.
+        // The ornament field is preserved on the model but plays as a
+        // plain held note for the full duration.
+        emitNote(midi, mainDur);
+    }
 
-        // Grace notes precede the main note. In equal-division (tuplet) mode,
-        // each grace and the main note each take dur / (graceCount + 1).
-        // Otherwise each grace plays briefly and the main keeps the remainder.
-        long mainDur = dur;
-        if (!n.graceNotes().isEmpty()) {
-            int slots = n.graceNotes().size() + 1;
-            long graceDur = n.equalDivision() ? dur / slots : MidiMapper.GRACE_NOTE_TICK;
-            long graceTotal = 0;
-            for (GraceNote g : n.graceNotes()) {
-                int gMidi = MidiMapper.toMidiNote(g.pitch());
-                int gVel = g.accented() ? velocity : (int) (velocity * 0.7);
-                addNoteOn(tick, gMidi, gVel);
-                addNoteOff(tick + graceDur, gMidi);
-                tick += graceDur;
-                graceTotal += graceDur;
-            }
-            // Main note absorbs any leftover (division remainder)
-            mainDur = Math.max(dur - graceTotal, MidiMapper.GRACE_NOTE_TICK);
+    private void interpretPoly(PolyPitchNode n) {
+        long mainDur = emitGraceNotes(n.graceNotes(), MidiMapper.toTicks(n.duration()),
+                n.equalDivision());
+        // Poly: emit all pitches simultaneously (like a chord)
+        for (Pitch p : n.pitches()) {
+            int midi = MidiMapper.toMidiNote(p);
+            addNoteOn(tick, midi, velocity);
+            long offTick = tick + mainDur + (inSlur ? LEGATO_OVERLAP_TICKS : 0);
+            addNoteOff(offTick, midi);
         }
+        tick += mainDur;
+    }
 
-        if (n.isPolyphonic()) {
-            // Poly: emit all pitches simultaneously (like a chord)
-            for (Pitch p : n.pitches()) {
-                int midi = MidiMapper.toMidiNote(p);
-                addNoteOn(tick, midi, velocity);
-                long offTick = tick + mainDur + (inSlur ? LEGATO_OVERLAP_TICKS : 0);
-                addNoteOff(offTick, midi);
-            }
-            tick += mainDur;
-        } else {
-            int midi = MidiMapper.toMidiNote(n.pitch());
-            if (n.ornament().isPresent()) {
-                emitOrnament(n.ornament().get(), midi, mainDur);
-            } else {
-                emitNote(midi, mainDur);
-            }
+    /**
+     * Emit any leading grace notes and return the remaining duration available
+     * to the main note. In equal-division (tuplet) mode each grace and the main
+     * each take {@code dur / (graceCount + 1)}; otherwise each grace plays
+     * briefly and the main keeps the remainder.
+     */
+    private long emitGraceNotes(List<GraceNote> graces, long dur, boolean equalDivision) {
+        if (graces.isEmpty()) return dur;
+        int slots = graces.size() + 1;
+        long graceDur = equalDivision ? dur / slots : MidiMapper.GRACE_NOTE_TICK;
+        long graceTotal = 0;
+        for (GraceNote g : graces) {
+            int gMidi = MidiMapper.toMidiNote(g.pitch());
+            int gVel = g.accented() ? velocity : (int) (velocity * 0.7);
+            addNoteOn(tick, gMidi, gVel);
+            addNoteOff(tick + graceDur, gMidi);
+            tick += graceDur;
+            graceTotal += graceDur;
         }
+        return Math.max(dur - graceTotal, MidiMapper.GRACE_NOTE_TICK);
     }
 
     private void emitNote(int midi, long dur) {
@@ -248,77 +251,6 @@ public final class PhraseInterpreter {
         }
         addNoteOff(offTick, midi);
         tick += dur;
-    }
-
-    private void emitOrnament(Ornament ornament, int midi, long totalDur) {
-        long sub = MidiMapper.ORNAMENT_TICK;
-        int above = MidiMapper.stepAbove(midi);
-        int below = MidiMapper.stepBelow(midi);
-
-        switch (ornament) {
-            case TRILL -> {
-                // Alternate main note and note above for the full duration
-                long remaining = totalDur;
-                boolean onMain = true;
-                while (remaining > 0) {
-                    long d = Math.min(sub, remaining);
-                    int note = onMain ? midi : above;
-                    addNoteOn(tick, note, velocity);
-                    addNoteOff(tick + d, note);
-                    tick += d;
-                    remaining -= d;
-                    onMain = !onMain;
-                }
-            }
-            case MORDENT -> {
-                // note, note above, note — then sustain remainder
-                long mordentTime = sub * 3;
-                long sustain = totalDur - mordentTime;
-                emitNote(midi, sub);
-                emitNote(above, sub);
-                emitNote(midi, sub + Math.max(0, sustain));
-            }
-            case LOWER_MORDENT -> {
-                long mordentTime = sub * 3;
-                long sustain = totalDur - mordentTime;
-                emitNote(midi, sub);
-                emitNote(below, sub);
-                emitNote(midi, sub + Math.max(0, sustain));
-            }
-            case TURN -> {
-                // above, main, below, main
-                long turnTime = sub * 4;
-                long sustain = totalDur - turnTime;
-                emitNote(above, sub);
-                emitNote(midi, sub);
-                emitNote(below, sub);
-                emitNote(midi, sub + Math.max(0, sustain));
-            }
-            case TREMOLO -> {
-                // Rapid repetition of the same note
-                long remaining = totalDur;
-                while (remaining > 0) {
-                    long d = Math.min(sub, remaining);
-                    addNoteOn(tick, midi, velocity);
-                    addNoteOff(tick + d, midi);
-                    tick += d;
-                    remaining -= d;
-                }
-            }
-            case APPOGGIATURA -> {
-                // Leaning note (note above) takes half the duration
-                long lean = totalDur / 2;
-                long main = totalDur - lean;
-                emitNote(above, lean);
-                emitNote(midi, main);
-            }
-            case ACCIACCATURA -> {
-                // Very short crushed note before the main note
-                long grace = MidiMapper.GRACE_NOTE_TICK;
-                emitNote(above, grace);
-                emitNote(midi, totalDur - grace);
-            }
-        }
     }
 
     private void interpretChord(ChordEvent chord) {

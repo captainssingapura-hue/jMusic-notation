@@ -1,0 +1,5213 @@
+{
+  "score" : {
+    "tracks" : [ {
+      "id" : "track_0",
+      "kind" : "PITCHED",
+      "notes" : [ {
+        "type" : "PitchedNote",
+        "tickMs" : 789,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 987,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 1184,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 1382,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 1579,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 1776,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 1974,
+        "durationMs" : 197,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 2171,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 2368,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 2961,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 3158,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 3355,
+        "durationMs" : 198,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 3553,
+        "durationMs" : 394,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 4145,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 4342,
+        "durationMs" : 197,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 4539,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 4737,
+        "durationMs" : 395,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 5329,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 5526,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 5724,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 5921,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 6118,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 6316,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 6513,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 6711,
+        "durationMs" : 197,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 6908,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 7105,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 7697,
+        "durationMs" : 198,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 7895,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 8092,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 8289,
+        "durationMs" : 412,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 8882,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 9079,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 9276,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 9474,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 10263,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 10461,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 10658,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 10855,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 11053,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 11250,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 11447,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 11645,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 11842,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 12434,
+        "durationMs" : 198,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 12632,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 12829,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 13026,
+        "durationMs" : 395,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 13618,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 13816,
+        "durationMs" : 197,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 14013,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 14211,
+        "durationMs" : 394,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 14803,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 15000,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 15197,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 15395,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 15592,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 15789,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 15987,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 16184,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 16382,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 16579,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 17171,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 17368,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 17566,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 17763,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 18355,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 18553,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 18750,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 18947,
+        "durationMs" : 412,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 19539,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 19737,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 19934,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 20132,
+        "durationMs" : 592,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 20724,
+        "durationMs" : 197,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 20921,
+        "durationMs" : 214,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 21118,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 21316,
+        "durationMs" : 608,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 21908,
+        "durationMs" : 197,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 22105,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 22303,
+        "durationMs" : 213,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 22500,
+        "durationMs" : 609,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 23092,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 23289,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 23487,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 23684,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 24276,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 24474,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 25066,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 25263,
+        "durationMs" : 214,
+        "midi" : 88
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 25855,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 26053,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 26645,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 26842,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 27039,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 27237,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 27434,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 27632,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 27829,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 28026,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 28224,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 28421,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 29013,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 29211,
+        "durationMs" : 213,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 29408,
+        "durationMs" : 214,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 29605,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 30197,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 30395,
+        "durationMs" : 214,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 30592,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 30789,
+        "durationMs" : 412,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 31382,
+        "durationMs" : 213,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 31579,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 31776,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 31974,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 32171,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 32368,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 32566,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 32763,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 32961,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 33158,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 33750,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 33947,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 34145,
+        "durationMs" : 214,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 34342,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 34934,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 35132,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 35329,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 35526,
+        "durationMs" : 412,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 36118,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 36316,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 36513,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 36711,
+        "durationMs" : 592,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 37303,
+        "durationMs" : 197,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 37500,
+        "durationMs" : 214,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 37697,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 37895,
+        "durationMs" : 608,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 38487,
+        "durationMs" : 197,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 38684,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 38882,
+        "durationMs" : 213,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 39079,
+        "durationMs" : 609,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 39671,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 39868,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 40066,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 40263,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 40855,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 41053,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 41645,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 41842,
+        "durationMs" : 214,
+        "midi" : 88
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 42434,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 42632,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 43224,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 43421,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 43618,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 43816,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 44013,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 44211,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 44408,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 44605,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 44803,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 45000,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 45592,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 45789,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 45987,
+        "durationMs" : 214,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 46184,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 46776,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 46974,
+        "durationMs" : 214,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 47171,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 47368,
+        "durationMs" : 412,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 47961,
+        "durationMs" : 213,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 48158,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 48355,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 48553,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 48750,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 48947,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 49145,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 49342,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 49539,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 49737,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 50329,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 50526,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 50724,
+        "durationMs" : 214,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 50921,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 51513,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 51711,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 51908,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52105,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52697,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52697,
+        "durationMs" : 198,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52895,
+        "durationMs" : 197,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52895,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53092,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53092,
+        "durationMs" : 197,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53092,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53289,
+        "durationMs" : 790,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54079,
+        "durationMs" : 296,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54375,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54474,
+        "durationMs" : 394,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54868,
+        "durationMs" : 395,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55263,
+        "durationMs" : 296,
+        "midi" : 82
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55559,
+        "durationMs" : 99,
+        "midi" : 81
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55658,
+        "durationMs" : 197,
+        "midi" : 81
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55855,
+        "durationMs" : 198,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56053,
+        "durationMs" : 197,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56250,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56447,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56645,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56842,
+        "durationMs" : 395,
+        "midi" : 70
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57237,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57632,
+        "durationMs" : 98,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57730,
+        "durationMs" : 99,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57829,
+        "durationMs" : 99,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57928,
+        "durationMs" : 98,
+        "midi" : 70
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 58026,
+        "durationMs" : 790,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 58816,
+        "durationMs" : 197,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59013,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59211,
+        "durationMs" : 592,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59803,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60000,
+        "durationMs" : 197,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60197,
+        "durationMs" : 198,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60395,
+        "durationMs" : 394,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60789,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60888,
+        "durationMs" : 99,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60987,
+        "durationMs" : 99,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61086,
+        "durationMs" : 98,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61184,
+        "durationMs" : 296,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61480,
+        "durationMs" : 99,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61579,
+        "durationMs" : 99,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61678,
+        "durationMs" : 98,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61776,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61875,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61974,
+        "durationMs" : 98,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62072,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62171,
+        "durationMs" : 99,
+        "midi" : 83
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62270,
+        "durationMs" : 98,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62368,
+        "durationMs" : 99,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62467,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62566,
+        "durationMs" : 98,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62664,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62763,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62862,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62961,
+        "durationMs" : 98,
+        "midi" : 84
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63059,
+        "durationMs" : 99,
+        "midi" : 83
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63158,
+        "durationMs" : 99,
+        "midi" : 81
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63257,
+        "durationMs" : 98,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63355,
+        "durationMs" : 99,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63454,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63553,
+        "durationMs" : 98,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63651,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63750,
+        "durationMs" : 99,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63849,
+        "durationMs" : 98,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63947,
+        "durationMs" : 99,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64046,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64145,
+        "durationMs" : 98,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64243,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64342,
+        "durationMs" : 99,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64441,
+        "durationMs" : 98,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64539,
+        "durationMs" : 99,
+        "midi" : 83
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64638,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64737,
+        "durationMs" : 99,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64836,
+        "durationMs" : 98,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64934,
+        "durationMs" : 99,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65033,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65132,
+        "durationMs" : 98,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65230,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65329,
+        "durationMs" : 99,
+        "midi" : 84
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65428,
+        "durationMs" : 98,
+        "midi" : 83
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65526,
+        "durationMs" : 99,
+        "midi" : 81
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65625,
+        "durationMs" : 99,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65724,
+        "durationMs" : 98,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65822,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65921,
+        "durationMs" : 99,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66020,
+        "durationMs" : 98,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66118,
+        "durationMs" : 99,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66217,
+        "durationMs" : 99,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66316,
+        "durationMs" : 98,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66414,
+        "durationMs" : 99,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66513,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66612,
+        "durationMs" : 99,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66711,
+        "durationMs" : 98,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66809,
+        "durationMs" : 99,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66908,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 67007,
+        "durationMs" : 98,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 67105,
+        "durationMs" : 99,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 67204,
+        "durationMs" : 99,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 67303,
+        "durationMs" : 98,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 67401,
+        "durationMs" : 99,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 67500,
+        "durationMs" : 592,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 68092,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 68289,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 68487,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 68684,
+        "durationMs" : 592,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 69276,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 69474,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 70066,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 70263,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 70855,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 71053,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 71250,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 71447,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 71645,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 71842,
+        "durationMs" : 197,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 72039,
+        "durationMs" : 198,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 72237,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 72829,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 73026,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 73224,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 73421,
+        "durationMs" : 395,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 74013,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 74211,
+        "durationMs" : 197,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 74408,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 74605,
+        "durationMs" : 395,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 75197,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 75395,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 75592,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 75789,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 75987,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 76184,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 76382,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 76579,
+        "durationMs" : 197,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 76776,
+        "durationMs" : 198,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 76974,
+        "durationMs" : 394,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 77566,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 77763,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 77961,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 78158,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 78750,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 78947,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 79145,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 79342,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 79934,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 80132,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 80329,
+        "durationMs" : 197,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 80526,
+        "durationMs" : 592,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 81118,
+        "durationMs" : 198,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 81316,
+        "durationMs" : 214,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 81513,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 81711,
+        "durationMs" : 608,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 82303,
+        "durationMs" : 197,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 82500,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 82697,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 82895,
+        "durationMs" : 608,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 83487,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 83684,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 83882,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 84079,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 84671,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 84868,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 85461,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 85658,
+        "durationMs" : 214,
+        "midi" : 88
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 86250,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 86447,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 87039,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 87237,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 87434,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 87632,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 87829,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 88026,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 88224,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 88421,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 88618,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 88816,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 89408,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 89605,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 89803,
+        "durationMs" : 213,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 90000,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 90592,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 90789,
+        "durationMs" : 214,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 90987,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 91184,
+        "durationMs" : 411,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 91776,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 91974,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 92171,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 92368,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 92566,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 92763,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 92961,
+        "durationMs" : 213,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 93158,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 93355,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 93553,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 94145,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 94342,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 94539,
+        "durationMs" : 214,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 94737,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 95329,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 95526,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 95724,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 95921,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97105,
+        "durationMs" : 1184,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97105,
+        "durationMs" : 1184,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97105,
+        "durationMs" : 1184,
+        "midi" : 70
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97105,
+        "durationMs" : 1184,
+        "midi" : 73
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98289,
+        "durationMs" : 790,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98289,
+        "durationMs" : 790,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98289,
+        "durationMs" : 790,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99079,
+        "durationMs" : 197,
+        "midi" : 73
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99079,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99276,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99276,
+        "durationMs" : 198,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99474,
+        "durationMs" : 789,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99474,
+        "durationMs" : 789,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99474,
+        "durationMs" : 789,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100263,
+        "durationMs" : 395,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100263,
+        "durationMs" : 395,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100263,
+        "durationMs" : 395,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100658,
+        "durationMs" : 1184,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100658,
+        "durationMs" : 1184,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100658,
+        "durationMs" : 1184,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101842,
+        "durationMs" : 790,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101842,
+        "durationMs" : 790,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102632,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102632,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102829,
+        "durationMs" : 197,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102829,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103026,
+        "durationMs" : 790,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103026,
+        "durationMs" : 790,
+        "midi" : 66
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103026,
+        "durationMs" : 790,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103816,
+        "durationMs" : 395,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103816,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104211,
+        "durationMs" : 394,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104211,
+        "durationMs" : 394,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104605,
+        "durationMs" : 395,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104605,
+        "durationMs" : 395,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105000,
+        "durationMs" : 395,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105000,
+        "durationMs" : 395,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105395,
+        "durationMs" : 1184,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105395,
+        "durationMs" : 1184,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106579,
+        "durationMs" : 1184,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106579,
+        "durationMs" : 1184,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106579,
+        "durationMs" : 1184,
+        "midi" : 70
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106579,
+        "durationMs" : 1184,
+        "midi" : 73
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107763,
+        "durationMs" : 790,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107763,
+        "durationMs" : 790,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107763,
+        "durationMs" : 790,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108553,
+        "durationMs" : 197,
+        "midi" : 73
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108553,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108750,
+        "durationMs" : 197,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108750,
+        "durationMs" : 197,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108947,
+        "durationMs" : 790,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108947,
+        "durationMs" : 790,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 109737,
+        "durationMs" : 395,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 109737,
+        "durationMs" : 395,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 110132,
+        "durationMs" : 1184,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 110132,
+        "durationMs" : 1184,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 111316,
+        "durationMs" : 789,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 111316,
+        "durationMs" : 789,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112105,
+        "durationMs" : 198,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112105,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112303,
+        "durationMs" : 197,
+        "midi" : 63
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112303,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112500,
+        "durationMs" : 789,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112500,
+        "durationMs" : 789,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112500,
+        "durationMs" : 789,
+        "midi" : 70
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113289,
+        "durationMs" : 395,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113289,
+        "durationMs" : 395,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113289,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113684,
+        "durationMs" : 790,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113684,
+        "durationMs" : 790,
+        "midi" : 66
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113684,
+        "durationMs" : 790,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114474,
+        "durationMs" : 394,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114474,
+        "durationMs" : 394,
+        "midi" : 66
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114474,
+        "durationMs" : 394,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114868,
+        "durationMs" : 790,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114868,
+        "durationMs" : 790,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114868,
+        "durationMs" : 790,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 116053,
+        "durationMs" : 394,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 116053,
+        "durationMs" : 394,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 116053,
+        "durationMs" : 394,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 117237,
+        "durationMs" : 131,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 117368,
+        "durationMs" : 132,
+        "midi" : 61
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 117500,
+        "durationMs" : 132,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 117632,
+        "durationMs" : 131,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 117763,
+        "durationMs" : 132,
+        "midi" : 73
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 117895,
+        "durationMs" : 131,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118026,
+        "durationMs" : 132,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118158,
+        "durationMs" : 131,
+        "midi" : 73
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118289,
+        "durationMs" : 132,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118421,
+        "durationMs" : 132,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118553,
+        "durationMs" : 131,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118684,
+        "durationMs" : 132,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118816,
+        "durationMs" : 131,
+        "midi" : 81
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118947,
+        "durationMs" : 132,
+        "midi" : 84
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119079,
+        "durationMs" : 132,
+        "midi" : 88
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119211,
+        "durationMs" : 131,
+        "midi" : 86
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119342,
+        "durationMs" : 132,
+        "midi" : 84
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119474,
+        "durationMs" : 131,
+        "midi" : 83
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119605,
+        "durationMs" : 132,
+        "midi" : 81
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119737,
+        "durationMs" : 131,
+        "midi" : 84
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119868,
+        "durationMs" : 132,
+        "midi" : 88
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120000,
+        "durationMs" : 132,
+        "midi" : 93
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120132,
+        "durationMs" : 131,
+        "midi" : 96
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120263,
+        "durationMs" : 132,
+        "midi" : 100
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120395,
+        "durationMs" : 131,
+        "midi" : 98
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120526,
+        "durationMs" : 132,
+        "midi" : 96
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120658,
+        "durationMs" : 131,
+        "midi" : 95
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120789,
+        "durationMs" : 132,
+        "midi" : 94
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120921,
+        "durationMs" : 132,
+        "midi" : 93
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121053,
+        "durationMs" : 131,
+        "midi" : 92
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121184,
+        "durationMs" : 132,
+        "midi" : 91
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121316,
+        "durationMs" : 131,
+        "midi" : 90
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121447,
+        "durationMs" : 132,
+        "midi" : 89
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121579,
+        "durationMs" : 132,
+        "midi" : 88
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121711,
+        "durationMs" : 131,
+        "midi" : 87
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121842,
+        "durationMs" : 132,
+        "midi" : 86
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 121974,
+        "durationMs" : 131,
+        "midi" : 85
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 122105,
+        "durationMs" : 132,
+        "midi" : 84
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 122237,
+        "durationMs" : 131,
+        "midi" : 83
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 122368,
+        "durationMs" : 132,
+        "midi" : 82
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 122500,
+        "durationMs" : 132,
+        "midi" : 81
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 122632,
+        "durationMs" : 131,
+        "midi" : 80
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 122763,
+        "durationMs" : 132,
+        "midi" : 79
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 122895,
+        "durationMs" : 131,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 123026,
+        "durationMs" : 132,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 123158,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 123355,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 123553,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 123750,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 123947,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 124145,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 124342,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 124934,
+        "durationMs" : 198,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 125132,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 125329,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 125526,
+        "durationMs" : 395,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 126118,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 126316,
+        "durationMs" : 197,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 126513,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 126711,
+        "durationMs" : 394,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 127303,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 127500,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 127697,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 127895,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 128092,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 128289,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 128487,
+        "durationMs" : 197,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 128684,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 128882,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 129079,
+        "durationMs" : 395,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 129671,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 129868,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 130066,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 130263,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 130855,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 131053,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 131250,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 131447,
+        "durationMs" : 412,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 132039,
+        "durationMs" : 198,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 132237,
+        "durationMs" : 197,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 132434,
+        "durationMs" : 198,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 132632,
+        "durationMs" : 592,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 133224,
+        "durationMs" : 197,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 133421,
+        "durationMs" : 214,
+        "midi" : 77
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 133618,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 133816,
+        "durationMs" : 608,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 134408,
+        "durationMs" : 197,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 134605,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 134803,
+        "durationMs" : 213,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 135000,
+        "durationMs" : 609,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 135592,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 135789,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 135987,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 136184,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 136776,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 136974,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 137566,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 137763,
+        "durationMs" : 214,
+        "midi" : 88
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 138355,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 138553,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 139145,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 139342,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 139539,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 139737,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 139934,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 140132,
+        "durationMs" : 213,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 140329,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 140526,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 140724,
+        "durationMs" : 214,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 140921,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 141513,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 141711,
+        "durationMs" : 213,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 141908,
+        "durationMs" : 214,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 142105,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 142697,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 142895,
+        "durationMs" : 214,
+        "midi" : 68
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 143092,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 143289,
+        "durationMs" : 412,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 143882,
+        "durationMs" : 213,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 144079,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 144276,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 144474,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 144671,
+        "durationMs" : 214,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 144868,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 145066,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 145263,
+        "durationMs" : 214,
+        "midi" : 74
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 145461,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 145658,
+        "durationMs" : 411,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 146250,
+        "durationMs" : 214,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 146447,
+        "durationMs" : 214,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 146645,
+        "durationMs" : 214,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 146842,
+        "durationMs" : 411,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 147434,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 147632,
+        "durationMs" : 213,
+        "midi" : 72
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 147829,
+        "durationMs" : 214,
+        "midi" : 71
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 148026,
+        "durationMs" : 806,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 148026,
+        "durationMs" : 806,
+        "midi" : 69
+      } ]
+    }, {
+      "id" : "track_1",
+      "kind" : "PITCHED",
+      "notes" : [ {
+        "type" : "PitchedNote",
+        "tickMs" : 2368,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 2566,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 2763,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 3553,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 3750,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 3947,
+        "durationMs" : 198,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 4737,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 4934,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 5132,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 7105,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 7303,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 7500,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 8289,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 8487,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 8684,
+        "durationMs" : 198,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 9474,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 9671,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 9868,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 11842,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 12039,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 12237,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 13026,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 13224,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 13421,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 14211,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 14408,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 14605,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 16579,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 16776,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 16974,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 17763,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 17961,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 18158,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 18947,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 19145,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 19342,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 20132,
+        "durationMs" : 197,
+        "midi" : 48
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 20329,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 20526,
+        "durationMs" : 198,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 21316,
+        "durationMs" : 197,
+        "midi" : 43
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 21513,
+        "durationMs" : 198,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 21711,
+        "durationMs" : 197,
+        "midi" : 59
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 22500,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 22697,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 22895,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 23684,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 23882,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 24079,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 24671,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 24868,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 25461,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 25658,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 26250,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 26447,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 28421,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 28618,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 28816,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 29605,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 29803,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 30000,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 30789,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 30987,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 31184,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 33158,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 33355,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 33553,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 34342,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 34539,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 34737,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 35526,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 35724,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 35921,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 36711,
+        "durationMs" : 197,
+        "midi" : 48
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 36908,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 37105,
+        "durationMs" : 198,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 37895,
+        "durationMs" : 197,
+        "midi" : 43
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 38092,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 38289,
+        "durationMs" : 198,
+        "midi" : 59
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 39079,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 39276,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 39474,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 40263,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 40461,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 40658,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 41250,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 41447,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 42039,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 42237,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 42829,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 43026,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 45000,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 45197,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 45395,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 46184,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 46382,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 46579,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 47368,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 47566,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 47763,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 49737,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 49934,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 50132,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 50921,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 51118,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 51316,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52105,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52303,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52500,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52697,
+        "durationMs" : 198,
+        "midi" : 58
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52697,
+        "durationMs" : 198,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52895,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 52895,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53092,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53092,
+        "durationMs" : 197,
+        "midi" : 58
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53092,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53289,
+        "durationMs" : 198,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53487,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53684,
+        "durationMs" : 198,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 53882,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54079,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54276,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54474,
+        "durationMs" : 197,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54671,
+        "durationMs" : 197,
+        "midi" : 58
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 54868,
+        "durationMs" : 198,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55066,
+        "durationMs" : 197,
+        "midi" : 58
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55263,
+        "durationMs" : 198,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55461,
+        "durationMs" : 197,
+        "midi" : 58
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55658,
+        "durationMs" : 197,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 55855,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56053,
+        "durationMs" : 197,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56053,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56053,
+        "durationMs" : 197,
+        "midi" : 58
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56250,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56447,
+        "durationMs" : 198,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56447,
+        "durationMs" : 198,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56447,
+        "durationMs" : 198,
+        "midi" : 58
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56645,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 56842,
+        "durationMs" : 197,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57039,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57237,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57434,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57632,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 57829,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 58026,
+        "durationMs" : 198,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 58224,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 58421,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 58618,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 58816,
+        "durationMs" : 197,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59013,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59211,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59408,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59605,
+        "durationMs" : 198,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 59803,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60000,
+        "durationMs" : 197,
+        "midi" : 50
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60000,
+        "durationMs" : 197,
+        "midi" : 62
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60197,
+        "durationMs" : 198,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60395,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60592,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60789,
+        "durationMs" : 198,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 60987,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61184,
+        "durationMs" : 198,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61382,
+        "durationMs" : 197,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61579,
+        "durationMs" : 395,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 61579,
+        "durationMs" : 395,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62171,
+        "durationMs" : 197,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62171,
+        "durationMs" : 197,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62368,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62368,
+        "durationMs" : 198,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62566,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62566,
+        "durationMs" : 197,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62566,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62763,
+        "durationMs" : 395,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62763,
+        "durationMs" : 395,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 62763,
+        "durationMs" : 395,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63158,
+        "durationMs" : 395,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63158,
+        "durationMs" : 395,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63553,
+        "durationMs" : 394,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63553,
+        "durationMs" : 394,
+        "midi" : 59
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 63947,
+        "durationMs" : 395,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64539,
+        "durationMs" : 198,
+        "midi" : 65
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64539,
+        "durationMs" : 198,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64737,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64737,
+        "durationMs" : 197,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64934,
+        "durationMs" : 198,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64934,
+        "durationMs" : 198,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 64934,
+        "durationMs" : 198,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65132,
+        "durationMs" : 394,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65132,
+        "durationMs" : 394,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65132,
+        "durationMs" : 394,
+        "midi" : 67
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65526,
+        "durationMs" : 395,
+        "midi" : 53
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65526,
+        "durationMs" : 395,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65921,
+        "durationMs" : 395,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 65921,
+        "durationMs" : 395,
+        "midi" : 59
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66316,
+        "durationMs" : 395,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 66316,
+        "durationMs" : 395,
+        "midi" : 59
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 69671,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 69868,
+        "durationMs" : 214,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 70461,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 70658,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 72237,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 72434,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 72632,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 73421,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 73618,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 73816,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 74605,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 74803,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 75000,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 76974,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 77171,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 77368,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 78158,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 78355,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 78553,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 79342,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 79539,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 79737,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 80526,
+        "durationMs" : 198,
+        "midi" : 48
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 80724,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 80921,
+        "durationMs" : 197,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 81711,
+        "durationMs" : 197,
+        "midi" : 43
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 81908,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 82105,
+        "durationMs" : 198,
+        "midi" : 59
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 82895,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 83092,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 83289,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 84079,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 84276,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 84474,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 85066,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 85263,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 85855,
+        "durationMs" : 198,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 86053,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 86645,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 86842,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 88816,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 89013,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 89211,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 90000,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 90197,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 90395,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 91184,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 91382,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 91579,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 93553,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 93750,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 93947,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 94737,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 94934,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 95132,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 95921,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 96118,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 96316,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 96513,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 96711,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 96908,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97105,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97303,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97500,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97697,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 97895,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98092,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98289,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98487,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98684,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 98882,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99079,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99276,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99474,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99671,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 99868,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100066,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100263,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100461,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100658,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 100855,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101053,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101250,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101447,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101645,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101842,
+        "durationMs" : 197,
+        "midi" : 38
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 101842,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102039,
+        "durationMs" : 198,
+        "midi" : 38
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102039,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102237,
+        "durationMs" : 197,
+        "midi" : 38
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102237,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102434,
+        "durationMs" : 198,
+        "midi" : 38
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102434,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102632,
+        "durationMs" : 197,
+        "midi" : 38
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102632,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102829,
+        "durationMs" : 197,
+        "midi" : 38
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 102829,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103026,
+        "durationMs" : 198,
+        "midi" : 39
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103026,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103224,
+        "durationMs" : 197,
+        "midi" : 39
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103224,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103421,
+        "durationMs" : 197,
+        "midi" : 39
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103421,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103618,
+        "durationMs" : 198,
+        "midi" : 39
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103618,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103816,
+        "durationMs" : 197,
+        "midi" : 39
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 103816,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104013,
+        "durationMs" : 198,
+        "midi" : 39
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104013,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104211,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104211,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104408,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104408,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104605,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104605,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104803,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 104803,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105000,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105000,
+        "durationMs" : 197,
+        "midi" : 44
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105197,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105197,
+        "durationMs" : 198,
+        "midi" : 44
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105395,
+        "durationMs" : 197,
+        "midi" : 33
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105395,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105592,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105789,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 105987,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106184,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106382,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106579,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106776,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 106974,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107171,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107368,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107566,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107763,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 107961,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108158,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108355,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108553,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108750,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 108947,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 109145,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 109342,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 109539,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 109737,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 109934,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 110132,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 110329,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 110526,
+        "durationMs" : 198,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 110724,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 110921,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 111118,
+        "durationMs" : 198,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 111316,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 111513,
+        "durationMs" : 198,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 111711,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 111908,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112105,
+        "durationMs" : 198,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112303,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112500,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112697,
+        "durationMs" : 198,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 112895,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113092,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113289,
+        "durationMs" : 198,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113487,
+        "durationMs" : 197,
+        "midi" : 46
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113684,
+        "durationMs" : 198,
+        "midi" : 47
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 113882,
+        "durationMs" : 197,
+        "midi" : 47
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114079,
+        "durationMs" : 197,
+        "midi" : 47
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114276,
+        "durationMs" : 198,
+        "midi" : 47
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114474,
+        "durationMs" : 197,
+        "midi" : 47
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114671,
+        "durationMs" : 197,
+        "midi" : 47
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 114868,
+        "durationMs" : 790,
+        "midi" : 48
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 116053,
+        "durationMs" : 394,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 116053,
+        "durationMs" : 394,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 117237,
+        "durationMs" : 395,
+        "midi" : 33
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118026,
+        "durationMs" : 790,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118026,
+        "durationMs" : 790,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 118026,
+        "durationMs" : 790,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119211,
+        "durationMs" : 789,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119211,
+        "durationMs" : 789,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 119211,
+        "durationMs" : 789,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120395,
+        "durationMs" : 789,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120395,
+        "durationMs" : 789,
+        "midi" : 60
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 120395,
+        "durationMs" : 789,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 124342,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 124539,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 124737,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 125526,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 125724,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 125921,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 126711,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 126908,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 127105,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 129079,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 129276,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 129474,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 130263,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 130461,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 130658,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 131447,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 131645,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 131842,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 132632,
+        "durationMs" : 197,
+        "midi" : 48
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 132829,
+        "durationMs" : 197,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 133026,
+        "durationMs" : 198,
+        "midi" : 69
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 133816,
+        "durationMs" : 197,
+        "midi" : 43
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 134013,
+        "durationMs" : 198,
+        "midi" : 55
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 134211,
+        "durationMs" : 197,
+        "midi" : 59
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 135000,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 135197,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 135395,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 136184,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 136382,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 136579,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 137171,
+        "durationMs" : 197,
+        "midi" : 64
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 137368,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 137961,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 138158,
+        "durationMs" : 197,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 138750,
+        "durationMs" : 197,
+        "midi" : 75
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 138947,
+        "durationMs" : 198,
+        "midi" : 76
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 140921,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 141118,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 141316,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 142105,
+        "durationMs" : 198,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 142303,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 142500,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 143289,
+        "durationMs" : 198,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 143487,
+        "durationMs" : 197,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 143684,
+        "durationMs" : 198,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 145658,
+        "durationMs" : 197,
+        "midi" : 45
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 145855,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 146053,
+        "durationMs" : 197,
+        "midi" : 57
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 146842,
+        "durationMs" : 197,
+        "midi" : 40
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 147039,
+        "durationMs" : 198,
+        "midi" : 52
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 147237,
+        "durationMs" : 197,
+        "midi" : 56
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 148026,
+        "durationMs" : 790,
+        "midi" : 33
+      }, {
+        "type" : "PitchedNote",
+        "tickMs" : 148026,
+        "durationMs" : 790,
+        "midi" : 45
+      } ]
+    } ]
+  },
+  "tempo" : {
+    "changes" : [ {
+      "tickMs" : 0,
+      "bpm" : 76
+    } ]
+  },
+  "instruments" : {
+    "byTrack" : {
+      "track_1" : {
+        "changes" : [ {
+          "tickMs" : 0,
+          "program" : 0
+        } ]
+      },
+      "track_0" : {
+        "changes" : [ {
+          "tickMs" : 0,
+          "program" : 0
+        } ]
+      }
+    }
+  },
+  "articulations" : {
+    "byTrack" : { }
+  }
+}

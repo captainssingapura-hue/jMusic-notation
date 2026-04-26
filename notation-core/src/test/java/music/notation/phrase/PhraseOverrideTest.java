@@ -163,7 +163,7 @@ class PhraseOverrideTest {
     @Test
     void overridingEmptyBarsThrows() {
         var phrase = new MelodicPhrase(
-                java.util.List.of(NoteNode.of(
+                java.util.List.of(PitchNode.of(
                         music.notation.pitch.Pitch.of(C, music.notation.pitch.Accidental.NATURAL, 4),
                         QUARTER)),
                 new PhraseMarking(PhraseConnection.CAESURA, true));

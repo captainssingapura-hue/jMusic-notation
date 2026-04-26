@@ -167,7 +167,7 @@ class LayeredPhraseTest {
     @Test
     void baseWithNoBarStructureThrows() {
         var noBarPhrase = new MelodicPhrase(
-                java.util.List.of(NoteNode.of(
+                java.util.List.of(PitchNode.of(
                         music.notation.pitch.Pitch.of(C, music.notation.pitch.Accidental.NATURAL, 4),
                         QUARTER)),
                 ATTACCA);

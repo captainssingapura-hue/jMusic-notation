@@ -24,8 +24,8 @@ class TempoPlaybackTest {
     void instantTempoChangeEmitsEvent() {
         var nodes = List.<PhraseNode>of(
                 new TempoChangeNode(140),
-                NoteNode.of(p(C, 4), QUARTER),
-                NoteNode.of(p(D, 4), QUARTER),
+                PitchNode.of(p(C, 4), QUARTER),
+                PitchNode.of(p(D, 4), QUARTER),
                 new RestNode(HALF)
         );
         var phrase = new MelodicPhrase(nodes, attacca());
@@ -43,9 +43,9 @@ class TempoPlaybackTest {
     @Test
     void tempoChangeAtMidPhrase() {
         var nodes = List.<PhraseNode>of(
-                NoteNode.of(p(C, 4), QUARTER),
+                PitchNode.of(p(C, 4), QUARTER),
                 new TempoChangeNode(90),
-                NoteNode.of(p(D, 4), QUARTER),
+                PitchNode.of(p(D, 4), QUARTER),
                 new RestNode(HALF)
         );
         var phrase = new MelodicPhrase(nodes, attacca());
@@ -65,10 +65,10 @@ class TempoPlaybackTest {
         // 4 quarter notes with transition from 120 to 60
         var nodes = List.<PhraseNode>of(
                 new TempoTransitionStartNode(),
-                NoteNode.of(p(C, 4), QUARTER),
-                NoteNode.of(p(D, 4), QUARTER),
-                NoteNode.of(p(E, 4), QUARTER),
-                NoteNode.of(p(F, 4), QUARTER),
+                PitchNode.of(p(C, 4), QUARTER),
+                PitchNode.of(p(D, 4), QUARTER),
+                PitchNode.of(p(E, 4), QUARTER),
+                PitchNode.of(p(F, 4), QUARTER),
                 new TempoTransitionEndNode(60, TransitionMethod.LINEAR)
         );
         var phrase = new MelodicPhrase(nodes, attacca());
@@ -100,12 +100,12 @@ class TempoPlaybackTest {
     void transitionAcrossPhraseBoundary() {
         var nodes1 = List.<PhraseNode>of(
                 new TempoTransitionStartNode(),
-                NoteNode.of(p(C, 4), WHOLE)
+                PitchNode.of(p(C, 4), WHOLE)
         );
         var phrase1 = new MelodicPhrase(nodes1, attacca());
 
         var nodes2 = List.<PhraseNode>of(
-                NoteNode.of(p(D, 4), WHOLE),
+                PitchNode.of(p(D, 4), WHOLE),
                 new TempoTransitionEndNode(80, TransitionMethod.LINEAR)
         );
         var phrase2 = new MelodicPhrase(nodes2, attacca());
@@ -125,7 +125,7 @@ class TempoPlaybackTest {
     void shiftedPhrasePreservesTempoEvents() {
         var nodes = List.<PhraseNode>of(
                 new TempoChangeNode(100),
-                NoteNode.of(p(C, 4), WHOLE)
+                PitchNode.of(p(C, 4), WHOLE)
         );
         var inner = new MelodicPhrase(nodes, attacca());
         var shifted = new ShiftedPhrase(inner,
@@ -173,7 +173,7 @@ class TempoPlaybackTest {
     void unpairedTransitionStartIsHarmless() {
         var nodes = List.<PhraseNode>of(
                 new TempoTransitionStartNode(),
-                NoteNode.of(p(C, 4), WHOLE)
+                PitchNode.of(p(C, 4), WHOLE)
         );
         var phrase = new MelodicPhrase(nodes, attacca());
 

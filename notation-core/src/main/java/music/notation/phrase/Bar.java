@@ -42,7 +42,7 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes, List<AuxBar>
     /** Duration of a single node in 64th-note units. */
     public static int nodeSixtyFourths(PhraseNode node) {
         return switch (node) {
-            case NoteNode n -> n.duration().sixtyFourths();
+            case PitchNode n -> n.duration().sixtyFourths();
             case RestNode r -> r.duration().sixtyFourths();
             case PercussionNote p -> p.duration().sixtyFourths();
             case DynamicNode d -> 0;

@@ -14,7 +14,6 @@ public final class MidiMapper {
     public static int toMidiNote(Pitch pitch) {
         return switch (pitch) {
             case StaffPitch sp -> staffPitchToMidi(sp);
-            case NumberedPitch np -> numberedPitchToMidi(np);
         };
     }
 
@@ -36,19 +35,6 @@ public final class MidiMapper {
             case DOUBLE_SHARP -> 2;
         };
         return (sp.octave().value() + 1) * 12 + semitone + accidentalOffset;
-    }
-
-    private static int numberedPitchToMidi(NumberedPitch np) {
-        int tonicSemitone = switch (np.tonic()) {
-            case C -> 0;
-            case D -> 2;
-            case E -> 4;
-            case F -> 5;
-            case G -> 7;
-            case A -> 9;
-            case B -> 11;
-        };
-        return (np.octave().value() + 1) * 12 + tonicSemitone + np.tonicAccidentalOffset() + np.semitoneOffset();
     }
 
     public static long toTicks(Duration duration) {

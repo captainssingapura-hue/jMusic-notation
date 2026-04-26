@@ -19,16 +19,16 @@ public final class PieceHelper {
 
     private PieceHelper() {}
 
-    public static NoteNode n(NoteName name, int oct, BaseValue dur) {
-        return NoteNode.of(Pitch.of(name, oct), Duration.of(dur));
+    public static PitchNode n(NoteName name, int oct, BaseValue dur) {
+        return PitchNode.of(Pitch.of(name, oct), Duration.of(dur));
     }
 
-    public static NoteNode orn(NoteName name, int oct, BaseValue dur, Ornament o) {
-        return NoteNode.ornamented(Pitch.of(name, oct), Duration.of(dur), o);
+    public static PitchNode orn(NoteName name, int oct, BaseValue dur, Ornament o) {
+        return PitchNode.ornamented(Pitch.of(name, oct), Duration.of(dur), o);
     }
 
-    public static NoteNode nd(NoteName name, int oct, BaseValue dur) {
-        return NoteNode.of(Pitch.of(name, oct), Duration.dotted(dur));
+    public static PitchNode nd(NoteName name, int oct, BaseValue dur) {
+        return PitchNode.of(Pitch.of(name, oct), Duration.dotted(dur));
     }
 
     public static ChordEvent chord(BaseValue dur, Pitch... pitches) {
@@ -51,8 +51,8 @@ public final class PieceHelper {
         return new PercussionNote(sound, Duration.of(dur));
     }
 
-    public static NoteNode ns(NoteName name, int oct, BaseValue dur) {
-        return NoteNode.of(Pitch.of(name, Accidental.SHARP, oct), Duration.of(dur));
+    public static PitchNode ns(NoteName name, int oct, BaseValue dur) {
+        return PitchNode.of(Pitch.of(name, Accidental.SHARP, oct), Duration.of(dur));
     }
 
     public static Pitch p(NoteName name, int oct) {

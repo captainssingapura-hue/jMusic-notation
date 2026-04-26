@@ -192,7 +192,7 @@ public record MelodicPhrase(
         var result = new ArrayList<PhraseNode>(nodes.size());
         int i = 0;
         while (i < nodes.size()) {
-            if (!(nodes.get(i) instanceof NoteNode first) || !first.hasTie()) {
+            if (!(nodes.get(i) instanceof PitchNode first) || !first.hasTie()) {
                 result.add(nodes.get(i));
                 i++;
                 continue;
@@ -213,7 +213,7 @@ public record MelodicPhrase(
                             "tieNext() at phrase index " + i
                                     + " has no following note to tie to (pitches " + first.pitches() + ")");
                 }
-                if (!(nodes.get(scan) instanceof NoteNode next)) {
+                if (!(nodes.get(scan) instanceof PitchNode next)) {
                     throw new IllegalStateException(
                             "tieNext() at phrase index " + i
                                     + " requires a following note, but found "
@@ -228,15 +228,15 @@ public record MelodicPhrase(
                 scan++;
                 stillTied = next.hasTie();
             }
-            var merged = new NoteNode(
-                    first.pitches(),
-                    Duration.ofSixtyFourths(combined),
-                    first.articulations(),
-                    first.ornament(),
-                    first.graceNotes(),
-                    first.equalDivision(),
-                    false // chain terminated
-            );
+            Duration mergedDur = Duration.ofSixtyFourths(combined);
+            PitchNode merged = switch (first) {
+                case SimplePitchNode sp -> new SimplePitchNode(
+                        sp.pitch(), mergedDur, sp.ornament(), sp.graceNotes(),
+                        sp.equalDivision(), false);
+                case PolyPitchNode pp -> new PolyPitchNode(
+                        pp.pitches(), mergedDur, pp.graceNotes(),
+                        pp.equalDivision(), false);
+            };
             result.add(merged);
             result.addAll(interleavedMarkers);
             i = scan;
@@ -261,25 +261,25 @@ public record MelodicPhrase(
         var result = new ArrayList<PhraseNode>(nodes.size());
 
         for (int i = 0; i < nodes.size(); ) {
-            // Look for pattern: NoteNode, SlurStart, ..., NoteNode, SlurEnd
+            // Look for pattern: PitchNode, SlurStart, ..., PitchNode, SlurEnd
             if (i + 3 < nodes.size()
-                    && nodes.get(i) instanceof NoteNode before
+                    && nodes.get(i) instanceof PitchNode before
                     && nodes.get(i + 1) instanceof SlurStart) {
 
-                // Skip zero-duration markers between SlurStart and the next NoteNode
+                // Skip zero-duration markers between SlurStart and the next PitchNode
                 int j = i + 2;
                 while (j < nodes.size() && isZeroDurationMarker(nodes.get(j))
                         && !(nodes.get(j) instanceof SlurEnd)) {
                     j++;
                 }
 
-                if (j < nodes.size() && nodes.get(j) instanceof NoteNode after
+                if (j < nodes.size() && nodes.get(j) instanceof PitchNode after
                         && j + 1 < nodes.size() && nodes.get(j + 1) instanceof SlurEnd
                         && before.pitches().equals(after.pitches())) {
                     // Same pitch(es) — merge into one sustained note
                     int combined = before.duration().sixtyFourths()
                             + after.duration().sixtyFourths();
-                    var merged = NoteNode.poly(
+                    PitchNode merged = PitchNode.poly(
                             Duration.ofSixtyFourths(combined), before.pitches());
                     // Replace "before" with merged, skip SlurStart..SlurEnd
                     result.add(merged);
@@ -288,12 +288,12 @@ public record MelodicPhrase(
                     // Chain: if another SlurStart+same-pitch follows, keep merging
                     while (i + 2 < nodes.size()
                             && nodes.get(i) instanceof SlurStart
-                            && nodes.get(i + 1) instanceof NoteNode next
+                            && nodes.get(i + 1) instanceof PitchNode next
                             && nodes.get(i + 2) instanceof SlurEnd
                             && next.pitches().equals(merged.pitches())) {
                         int chainCombined = merged.duration().sixtyFourths()
                                 + next.duration().sixtyFourths();
-                        merged = NoteNode.poly(
+                        merged = PitchNode.poly(
                                 Duration.ofSixtyFourths(chainCombined), merged.pitches());
                         result.set(result.size() - 1, merged);
                         i += 3;

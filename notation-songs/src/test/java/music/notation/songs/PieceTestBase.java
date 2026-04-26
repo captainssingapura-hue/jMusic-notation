@@ -129,7 +129,7 @@ public abstract class PieceTestBase {
 
     static void checkNodeMidi(final String trackName, final PhraseNode node) {
         switch (node) {
-            case NoteNode n -> {
+            case PitchNode n -> {
                 for (final Pitch p : n.pitches()) {
                     final int midi = MidiMapper.toMidiNote(p);
                     assertTrue(midi >= 0 && midi <= 127,

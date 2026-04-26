@@ -24,7 +24,9 @@ class HappyBirthdayMidiParityTest {
     /** Golden hashes captured from the flat-constructed pieces. */
     private static final Map<String, String> EXPECTED = Map.of(
             "Default",   "87afed2f4bf8edf1109df79e02af72fe5f28d99a76ec2ab4816a2b397dd4b41f",
-            "Mozart",    "7fd21a81dcad11593447b45c2995f73f4f0222eaf660d25d45daa700b813ada9",
+            // Mozart variant uses ornaments — re-recorded after Phase 1 ornament-rendering retirement
+            // (.docs/microtiming.md / radiant-painting-swan.md).
+            "Mozart",    "8dde573ed2a2c213bdac1200f17ed6c6e902836255dad2d2f801484d7d816881",
             "Chopin",    "6ac79d69c335806f60a90da27787a2a86b8fd913f210960bdc26ef8144c0314c",
             "Beethoven", "b150b7ded5a66bd856c22d0baff5d700523e1dcc26e0e0d9cb23b075d43b1bc0",
             "Brahms",    "fdc22c07140e0dec1184cb0ed82c0bf9fa1442252f6477ba69a82c3a2a4f3e5a"

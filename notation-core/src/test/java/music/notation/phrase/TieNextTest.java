@@ -31,10 +31,10 @@ class TieNextTest {
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
         // 3 original notes → 2 after merge (F+F sustained, then G)
-        long noteCount = phrase.nodes().stream().filter(n -> n instanceof NoteNode).count();
+        long noteCount = phrase.nodes().stream().filter(n -> n instanceof PitchNode).count();
         assertEquals(2, noteCount);
 
-        var first = (NoteNode) phrase.nodes().stream().filter(n -> n instanceof NoteNode).findFirst().get();
+        var first = (PitchNode) phrase.nodes().stream().filter(n -> n instanceof PitchNode).findFirst().get();
         assertEquals(QUARTER.sixtyFourths() + QUARTER.sixtyFourths(),
                 first.duration().sixtyFourths(),
                 "merged note should have combined duration");
@@ -49,10 +49,10 @@ class TieNextTest {
                 .bar().o4(QUARTER, F).tieNext().o4(QUARTER, F).tieNext().o4(HALF, F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
-        long noteCount = phrase.nodes().stream().filter(n -> n instanceof NoteNode).count();
+        long noteCount = phrase.nodes().stream().filter(n -> n instanceof PitchNode).count();
         assertEquals(1, noteCount, "three tied notes should collapse to one");
 
-        var merged = (NoteNode) phrase.nodes().stream().filter(n -> n instanceof NoteNode).findFirst().get();
+        var merged = (PitchNode) phrase.nodes().stream().filter(n -> n instanceof PitchNode).findFirst().get();
         assertEquals(QUARTER.sixtyFourths() * 2 + HALF.sixtyFourths(),
                 merged.duration().sixtyFourths());
     }
@@ -66,7 +66,7 @@ class TieNextTest {
                       .tieNext().o4(HALF.dot(), F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
-        var merged = (NoteNode) phrase.nodes().stream().filter(n -> n instanceof NoteNode).findFirst().get();
+        var merged = (SimplePitchNode) phrase.nodes().stream().filter(n -> n instanceof PitchNode).findFirst().get();
         assertTrue(merged.ornament().isPresent(), "ornament from first note must survive the tie");
         assertEquals(music.notation.event.Ornament.TRILL, merged.ornament().get());
     }
@@ -79,9 +79,9 @@ class TieNextTest {
                 .bar().o4(QUARTER, F).tieNext().mf().o4(HALF.dot(), F).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
-        // Expect: merged NoteNode, then DynamicNode preserved after it.
+        // Expect: merged PitchNode, then DynamicNode preserved after it.
         var nodes = phrase.nodes();
-        long noteCount = nodes.stream().filter(n -> n instanceof NoteNode).count();
+        long noteCount = nodes.stream().filter(n -> n instanceof PitchNode).count();
         assertEquals(1, noteCount);
         assertTrue(nodes.stream().anyMatch(n -> n instanceof DynamicNode d && d.dynamic() == Dynamic.MF),
                 "DynamicNode between the tied pair should be preserved");
@@ -95,9 +95,9 @@ class TieNextTest {
                 .bar().o4(QUARTER, C, E, G).tieNext().o4(HALF.dot(), C, E, G).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
 
-        long noteCount = phrase.nodes().stream().filter(n -> n instanceof NoteNode).count();
+        long noteCount = phrase.nodes().stream().filter(n -> n instanceof PitchNode).count();
         assertEquals(1, noteCount);
-        var merged = (NoteNode) phrase.nodes().stream().filter(n -> n instanceof NoteNode).findFirst().get();
+        var merged = (PitchNode) phrase.nodes().stream().filter(n -> n instanceof PitchNode).findFirst().get();
         assertEquals(3, merged.pitches().size());
     }
 

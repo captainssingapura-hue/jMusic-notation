@@ -14,9 +14,11 @@
 
     <modules>
         <module>notation-core</module>
+        <module>notation-performance</module>
         <module>notation-play</module>
         <module>notation-songs</module>
         <module>notation-ui</module>
+        <module>notation-experiments</module>
     </modules>
 
     <properties>
