@@ -155,6 +155,13 @@ public final class MidiCodec {
                     }
                 }
 
+                VolumeControl vc = p.volume().byTrack().get(t.id());
+                if (vc != null) {
+                    for (VolumeChange change : vc.changes()) {
+                        addVolumeChange(mt, change, channel, tempoMap);
+                    }
+                }
+
                 emitNotes(mt, t.notes(), channel, tempoMap);
             }
 
@@ -223,6 +230,21 @@ public final class MidiCodec {
         long midiTick = map.msToTick(change.tickMs());
         ShortMessage msg = new ShortMessage();
         msg.setMessage(ShortMessage.PROGRAM_CHANGE, channel, change.program(), 0);
+        track.add(new MidiEvent(msg, midiTick));
+    }
+
+    /**
+     * Emit a MIDI Channel Volume control change (CC #7) for a single
+     * {@link VolumeChange} entry. Per the import doctrine, CC events are
+     * silently dropped on read — so volume is a write-only side-channel
+     * over the codec boundary.
+     */
+    private static void addVolumeChange(javax.sound.midi.Track track, VolumeChange change,
+                                        int channel, TempoMap map)
+            throws InvalidMidiDataException {
+        long midiTick = map.msToTick(change.tickMs());
+        ShortMessage msg = new ShortMessage();
+        msg.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #7=*/ 7, change.level());
         track.add(new MidiEvent(msg, midiTick));
     }
 

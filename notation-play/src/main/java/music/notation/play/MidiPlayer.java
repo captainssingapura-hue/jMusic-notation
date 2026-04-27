@@ -6,6 +6,8 @@ import music.notation.performance.Instrumentation;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
 import music.notation.performance.TrackId;
+import music.notation.performance.Volume;
+import music.notation.performance.VolumeControl;
 import music.notation.phrase.*;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
@@ -75,23 +77,26 @@ public final class MidiPlayer {
     /**
      * Build a MIDI Sequence with explicit instrument and volume assignments per track.
      *
-     * <p>Phase 3b: instrument overrides are applied to the concretized
-     * {@link Performance}'s {@link Instrumentation}. <b>Volume overrides
-     * are silently ignored</b> — the new {@link Performance} model has no
-     * volume side-channel yet. UI mixing is a known regression to be
-     * restored by a future {@code Volume} side-channel + codec emission
-     * of MIDI CC #7. See {@code .docs/agent-delegation-retrospective.md}.</p>
+     * <p>Instrument overrides are applied to the concretized
+     * {@link Performance}'s {@link Instrumentation}. Volume overrides
+     * (in MIDI CC #7 range, 0–127) are applied to its {@link Volume}
+     * side-channel; the codec emits CC #7 events on each track's MIDI
+     * channel at tick 0.</p>
      *
-     * @param trackInstruments per-track list of instruments
-     * @param trackVolumes     per-track list of volumes (silently dropped — pending Phase 3 follow-up)
+     * @param trackInstruments per-track list of instruments (only the first
+     *                         element is used; multi-instrument-per-track is
+     *                         a deferred regression)
+     * @param trackVolumes     per-track list of volume levels 0–127 (only
+     *                         the first element is used)
      */
     public static Sequence buildSequence(Piece piece, List<List<Instrument>> trackInstruments,
                                          List<List<Integer>> trackVolumes)
             throws InvalidMidiDataException {
         try {
             Performance perf = PieceConcretizer.concretize(piece);
-            Performance overridden = applyInstrumentOverrides(perf, piece, trackInstruments);
-            byte[] bytes = MidiCodec.toMidi(overridden);
+            Performance withInstruments = applyInstrumentOverrides(perf, piece, trackInstruments);
+            Performance withVolumes = applyVolumeOverrides(withInstruments, piece, trackVolumes);
+            byte[] bytes = MidiCodec.toMidi(withVolumes);
             return MidiSystem.getSequence(new ByteArrayInputStream(bytes));
         } catch (IOException e) {
             throw new InvalidMidiDataException("buildSequence(...) failed: " + e.getMessage());
@@ -138,7 +143,45 @@ public final class MidiPlayer {
         }
 
         return new Performance(base.score(), base.tempo(),
-                new Instrumentation(newInstr), base.articulations());
+                new Instrumentation(newInstr), base.volume(), base.articulations());
+    }
+
+    /**
+     * Apply per-piece-track volume overrides to a concretized
+     * {@link Performance}. Like {@link #applyInstrumentOverrides}, only
+     * the first volume slot per piece track is used; aux Performance
+     * tracks ("&lt;name&gt; Aux N") inherit the parent's volume.
+     *
+     * <p>Levels are clamped to MIDI CC #7 range 0–127. A null or empty
+     * override list is a no-op.</p>
+     */
+    private static Performance applyVolumeOverrides(
+            Performance base, Piece piece, List<List<Integer>> trackVolumes) {
+        if (trackVolumes == null) return base;
+
+        Map<String, Integer> levelByPieceName = new LinkedHashMap<>();
+        List<Track> pieceTracks = piece.tracks();
+        for (int t = 0; t < pieceTracks.size() && t < trackVolumes.size(); t++) {
+            List<Integer> volList = trackVolumes.get(t);
+            if (volList == null || volList.isEmpty()) continue;
+            int level = Math.max(0, Math.min(127, volList.get(0)));
+            levelByPieceName.put(pieceTracks.get(t).name(), level);
+        }
+        if (levelByPieceName.isEmpty()) return base;
+        Set<String> pieceNames = levelByPieceName.keySet();
+
+        Map<TrackId, VolumeControl> newVol = new LinkedHashMap<>(base.volume().byTrack());
+        for (var pt : base.score().tracks()) {
+            String perfName = pt.id().name();
+            String pieceName = resolvePieceTrackName(perfName, pieceNames);
+            Integer overrideLevel = pieceName == null ? null : levelByPieceName.get(pieceName);
+            if (overrideLevel != null) {
+                newVol.put(pt.id(), VolumeControl.constant(overrideLevel));
+            }
+        }
+
+        return new Performance(base.score(), base.tempo(),
+                base.instruments(), new Volume(newVol), base.articulations());
     }
 
     /** Resolve a Performance Track name to its parent piece-track name. */
