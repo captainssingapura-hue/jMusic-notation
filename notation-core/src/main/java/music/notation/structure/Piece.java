@@ -1,7 +1,13 @@
 package music.notation.structure;
 
 import music.notation.event.Instrument;
+import music.notation.phrase.Bar;
+import music.notation.phrase.DrumPhrase;
+import music.notation.phrase.MelodicPhrase;
 import music.notation.phrase.Phrase;
+import music.notation.phrase.PhraseConnection;
+import music.notation.phrase.PhraseMarking;
+import music.notation.phrase.PhraseNode;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -183,5 +189,82 @@ public record Piece(
                         section.name(), missing, extra));
             }
         }
+    }
+
+    // ── Phase 4c: factory accepting the new typed track shapes ────────
+
+    /**
+     * Phase 4c factory: build a {@link Piece} directly from the new
+     * {@link MelodicTrack} and {@link DrumTrack} shapes. Internally
+     * each new track is converted into a legacy {@link Track} (one
+     * per new track, wrapping its bars in a single phrase) so the
+     * resulting {@link Piece} fits the current type system unchanged.
+     *
+     * <p>Authoring-side benefits: no need to construct
+     * {@link MelodicPhrase} / {@link DrumPhrase} explicitly, no
+     * {@link PhraseMarking} ceremony, bars sit directly on the track.
+     * Caveats matching {@link MelodicTrack#auxTracks()} semantics:
+     * aux tracks are converted recursively. Phrase-boundary markings
+     * (BREATH/CAESURA) are not represented by the new types and so
+     * are rendered as {@code ATTACCA} (no inter-phrase gap) by the
+     * resulting Piece — same as if the legacy phrases had been
+     * authored with attacca markings.</p>
+     *
+     * <p>This factory is the migration on-ramp: songs that don't
+     * depend on the lost markings can author with the new types
+     * today; songs that do can stay on the legacy {@link Piece}
+     * constructors until the markings get a new home in a later
+     * phase.</p>
+     */
+    public static Piece ofTrackKinds(String title, String composer,
+                                     KeySignature key, TimeSignature timeSig, Tempo tempo,
+                                     List<MelodicTrack> melodicTracks,
+                                     List<DrumTrack> drumTracks) {
+        var legacyTracks = new ArrayList<Track>(melodicTracks.size() + drumTracks.size());
+        for (MelodicTrack mt : melodicTracks) {
+            legacyTracks.add(toLegacyTrack(mt));
+        }
+        for (DrumTrack dt : drumTracks) {
+            legacyTracks.add(toLegacyTrack(dt));
+        }
+        return new Piece(title, composer, key, timeSig, tempo, legacyTracks);
+    }
+
+    private static final PhraseMarking ATTACCA_MARKING =
+            new PhraseMarking(PhraseConnection.ATTACCA, false);
+
+    private static Track toLegacyTrack(MelodicTrack mt) {
+        var nodes = new ArrayList<PhraseNode>();
+        for (Bar b : mt.bars()) {
+            nodes.addAll(b.nodes());
+        }
+        var phrase = new MelodicPhrase(nodes, mt.bars(), ATTACCA_MARKING);
+        var auxLegacy = new ArrayList<Track>(mt.auxTracks().size());
+        for (MelodicTrack aux : mt.auxTracks()) {
+            auxLegacy.add(toLegacyTrack(aux));
+        }
+        return new Track(mt.name(), mt.defaultInstrument(),
+                List.of(phrase), auxLegacy);
+    }
+
+    private static Track toLegacyTrack(DrumTrack dt) {
+        var nodes = new ArrayList<PhraseNode>();
+        for (Bar b : dt.bars()) {
+            nodes.addAll(b.nodes());
+        }
+        Phrase phrase = nodes.isEmpty()
+                // Empty drum track: single attacca phrase carrying nothing.
+                // DrumPhrase requires a non-empty node list, so we use
+                // MelodicPhrase here as a backwards-compat carrier.
+                ? new MelodicPhrase(List.of(new music.notation.phrase.PaddingNode(
+                        music.notation.duration.Duration.ofSixtyFourths(0))),
+                        dt.bars(), ATTACCA_MARKING)
+                : new DrumPhrase(nodes, ATTACCA_MARKING);
+        var auxLegacy = new ArrayList<Track>(dt.auxTracks().size());
+        for (DrumTrack aux : dt.auxTracks()) {
+            auxLegacy.add(toLegacyTrack(aux));
+        }
+        return new Track(dt.name(), Instrument.DRUM_KIT,
+                List.of(phrase), auxLegacy);
     }
 }
