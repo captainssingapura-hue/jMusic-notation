@@ -1,11 +1,14 @@
 package music.notation.play;
 
 import music.notation.event.Instrument;
+import music.notation.performance.MidiCodec;
+import music.notation.performance.Performance;
 import music.notation.phrase.*;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
 
 import javax.sound.midi.*;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,14 +24,23 @@ public final class MidiPlayer {
 
     /**
      * Build a MIDI Sequence using each track's default instrument.
-     * Convenience for tests and simple playback.
+     *
+     * <p>Phase 3a: this single-argument overload routes through the new
+     * {@link PieceConcretizer} + {@link MidiCodec} pipeline. The
+     * override-bearing overloads ({@link #buildSequence(Piece, List)} and
+     * {@link #buildSequence(Piece, List, List)}) still use
+     * {@link PhraseInterpreter} for now; Phase 3b will migrate them
+     * once the multi-instrument-per-track translation lands on the new
+     * path.</p>
      */
     public static Sequence buildSequence(Piece piece) throws InvalidMidiDataException {
-        var defaults = new ArrayList<List<Instrument>>();
-        for (Track track : piece.tracks()) {
-            defaults.add(List.of(track.defaultInstrument()));
+        try {
+            Performance perf = PieceConcretizer.concretize(piece);
+            byte[] bytes = MidiCodec.toMidi(perf);
+            return MidiSystem.getSequence(new ByteArrayInputStream(bytes));
+        } catch (IOException e) {
+            throw new InvalidMidiDataException("buildSequence(Piece) failed: " + e.getMessage());
         }
-        return buildSequence(piece, defaults);
     }
 
     /**

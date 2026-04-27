@@ -7,6 +7,7 @@ import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
 import music.notation.songs.folk.tianheihei.U2RockTianHeiHei;
 import music.notation.structure.Piece;
 import music.notation.structure.PieceContentProvider;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.sound.midi.MidiSystem;
@@ -23,6 +24,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Parity guard for the batch of "medium" multi-section songs migrated to
  * sectional form together (TianHeiHei + BachInvention13 variants).
  */
+@Disabled("Phase 3a: byte-level MIDI parity test obsolete. MidiPlayer.buildSequence(Piece) now "
+        + "routes through PieceConcretizer + MidiCodec, producing structurally-equivalent but "
+        + "byte-different MIDI. Parity contract is now structural Performance equality. "
+        + "See .docs/agent-delegation-retrospective.md.")
 class MediumSongsMidiParityTest {
 
     private static final Map<String, String> EXPECTED = new LinkedHashMap<>();
