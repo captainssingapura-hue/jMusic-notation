@@ -1,5 +1,6 @@
 package music.notation.phrase;
 
+import music.notation.structure.DrumTrack;
 import music.notation.structure.TimeSignature;
 
 import java.util.ArrayList;
@@ -23,5 +24,24 @@ public record DrumPhrase(List<PhraseNode> nodes, PhraseMarking marking) implemen
             nodes.addAll(bar.nodes());
         }
         return new DrumPhrase(nodes, marking);
+    }
+
+    /**
+     * Phase 4b adapter: convert this phrase into a {@link DrumTrack}.
+     *
+     * <p><b>Lossy migration.</b> The phrase marking is dropped. All
+     * nodes are collapsed into a single Bar sized to the total duration
+     * — {@code DrumPhrase} has never carried a bar structure, so this
+     * is the closest faithful representation.</p>
+     *
+     * @param name the resulting track's name
+     */
+    public DrumTrack toDrumTrack(String name) {
+        int total = 0;
+        for (PhraseNode n : nodes) {
+            total += Bar.nodeSixtyFourths(n);
+        }
+        Bar bar = new Bar(total, nodes, List.of());
+        return new DrumTrack(name, List.of(bar), List.of());
     }
 }

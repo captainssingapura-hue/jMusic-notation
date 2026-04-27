@@ -1,6 +1,8 @@
 package music.notation.phrase;
 
 import music.notation.duration.Duration;
+import music.notation.event.Instrument;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.TimeSignature;
 
 import java.util.ArrayList;
@@ -43,6 +45,33 @@ public record MelodicPhrase(
     /** Backwards-compatible constructor: nodes + bars + marking, no voices. */
     public MelodicPhrase(List<PhraseNode> nodes, List<Bar> bars, PhraseMarking marking) {
         this(nodes, bars, marking, List.of());
+    }
+
+    /**
+     * Phase 4b adapter: convert this phrase into a {@link MelodicTrack}.
+     *
+     * <p><b>Lossy migration.</b> Voice overlays and the phrase marking
+     * (BREATH/CAESURA/ATTACCA/ELISION boundary connection) are dropped
+     * — they have no representation on {@code MelodicTrack} yet. Bars
+     * survive verbatim. For phrases built without bar structure (the
+     * backwards-compat constructor), all nodes are wrapped into a
+     * single Bar sized to their total duration.</p>
+     *
+     * @param name the resulting track's name
+     * @param instrument the resulting track's default instrument; must not be {@link Instrument#DRUM_KIT}
+     */
+    public MelodicTrack toMelodicTrack(String name, Instrument instrument) {
+        List<Bar> outBars;
+        if (!bars.isEmpty()) {
+            outBars = bars;
+        } else {
+            int total = 0;
+            for (PhraseNode n : nodes) {
+                total += Bar.nodeSixtyFourths(n);
+            }
+            outBars = List.of(new Bar(total, nodes, List.of()));
+        }
+        return new MelodicTrack(name, instrument, outBars, List.of());
     }
 
     private static void validateVoices(List<Bar> bars, List<VoiceOverlay> voices) {

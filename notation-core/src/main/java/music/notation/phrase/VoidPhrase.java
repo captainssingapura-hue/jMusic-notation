@@ -1,7 +1,13 @@
 package music.notation.phrase;
 
 import music.notation.duration.Duration;
+import music.notation.event.Instrument;
+import music.notation.structure.DrumTrack;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.TimeSignature;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A phrase that is intentionally silent for a fixed number of bars.
@@ -48,5 +54,28 @@ public record VoidPhrase(int bars, int barSixtyFourths, PhraseMarking marking) i
     /** An N-bar silent phrase with an explicit marking. */
     public static VoidPhrase ofBars(TimeSignature ts, int bars, PhraseMarking marking) {
         return new VoidPhrase(bars, ts.barSixtyFourths(), marking);
+    }
+
+    /**
+     * Phase 4b adapter: a void phrase becomes N empty Bars, each one
+     * containing a single {@link RestNode} of the bar's duration. The
+     * phrase marking is dropped.
+     */
+    public MelodicTrack toMelodicTrack(String name, Instrument instrument) {
+        return new MelodicTrack(name, instrument, buildBars(), List.of());
+    }
+
+    /** Phase 4b adapter: same shape as {@link #toMelodicTrack} but on a {@link DrumTrack}. */
+    public DrumTrack toDrumTrack(String name) {
+        return new DrumTrack(name, buildBars(), List.of());
+    }
+
+    private List<Bar> buildBars() {
+        var out = new ArrayList<Bar>(bars);
+        Duration barDur = Duration.ofSixtyFourths(barSixtyFourths);
+        for (int i = 0; i < bars; i++) {
+            out.add(new Bar(barSixtyFourths, List.of(new RestNode(barDur)), List.of()));
+        }
+        return out;
     }
 }
