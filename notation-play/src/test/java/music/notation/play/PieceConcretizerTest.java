@@ -230,8 +230,13 @@ class PieceConcretizerTest {
     }
 
     @Test
-    void tieFlag_propagatesToConcrete_mergedByPhraseLayer() {
-        // Build a melodic phrase via fromBars so resolveTies merges the pair.
+    void tieFlag_propagatesToConcrete_pairSurvivesWithFlag() {
+        // Tie merge has been removed (Phase 3-tie-cleanup): both source
+        // PitchNodes survive into the Performance, with the first carrying
+        // tiedToNext = true. Codec-level coalescing of tied chains is a
+        // future phase; until then, tied notes are emitted as separate
+        // re-articulated notes at MIDI render time — sonic regression
+        // accepted. See .docs/agent-delegation-retrospective.md.
         var bar = Bar.of(64,
                 PitchNode.of(Pitch.of(NoteName.C, 4), Duration.of(QUARTER)).withTiedToNext(),
                 PitchNode.of(Pitch.of(NoteName.C, 4), Duration.of(QUARTER)),
@@ -241,11 +246,26 @@ class PieceConcretizerTest {
 
         Performance p = PieceConcretizer.concretize(piece);
         Track t = p.score().tracks().get(0);
-        assertEquals(2, t.notes().size(), "ties merged by MelodicPhrase.resolveTies before concretize");
-        PitchedNote merged = (PitchedNote) t.notes().get(0);
-        assertEquals(0, merged.tickMs());
-        assertEquals(1000, merged.durationMs(), "two tied quarters = half = 1000ms at 120bpm");
-        assertEquals(60, merged.midi());
+        assertEquals(3, t.notes().size(),
+                "tied pair survives as two separate notes plus the trailing D");
+
+        PitchedNote first = (PitchedNote) t.notes().get(0);
+        PitchedNote second = (PitchedNote) t.notes().get(1);
+        PitchedNote tail = (PitchedNote) t.notes().get(2);
+
+        assertEquals(0, first.tickMs());
+        assertEquals(500, first.durationMs(), "quarter at 120bpm = 500ms");
+        assertEquals(60, first.midi());
+        assertTrue(first.tiedToNext(), "first carries the tie flag");
+
+        assertEquals(500, second.tickMs(), "second starts where first ends");
+        assertEquals(500, second.durationMs());
+        assertEquals(60, second.midi());
+        assertFalse(second.tiedToNext());
+
+        assertEquals(1000, tail.tickMs());
+        assertEquals(1000, tail.durationMs(), "D half-note = 1000ms");
+        assertEquals(62, tail.midi());
     }
 
     @Test
