@@ -67,8 +67,6 @@ public final class PhraseMetrics {
             switch (node) {
                 case PaddingNode p -> padding += p.duration().sixtyFourths();
                 case DynamicNode d -> {}
-                case SlurStart s -> {}
-                case SlurEnd s -> {}
                 case TempoChangeNode t -> {}
                 case TempoTransitionStartNode t -> {}
                 case TempoTransitionEndNode t -> {}
@@ -85,8 +83,6 @@ public final class PhraseMetrics {
             switch (node) {
                 case PaddingNode p -> padding += p.duration().sixtyFourths();
                 case DynamicNode d -> {}
-                case SlurStart s -> {}
-                case SlurEnd s -> {}
                 case TempoChangeNode t -> {}
                 case TempoTransitionStartNode t -> {}
                 case TempoTransitionEndNode t -> {}

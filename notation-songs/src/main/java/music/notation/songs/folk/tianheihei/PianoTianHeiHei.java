@@ -101,8 +101,8 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
                 .bar().o4(B.f()).o4(A).o4(HALF,G).done() // fill: resolve Bb down to G
                 .bar().o5(D).o5(C).o5(HALF,D).done()
                 .bar().r().o5(C).o5(HALF,D).done()
-                .bar().o4(G).o4(A).o4(QUARTER.dot(),B).o4(EIGHTH,A).slurStart().done() // fill: ascending preparation
-                .bar().o4(EIGHTH,A).o4(EIGHTH.dot(),G).slurEnd().pad(Duration.ofSixtyFourths(44)).done()
+                .bar().o4(G).o4(A).o4(QUARTER.dot(),B).o4(EIGHTH,A).done() // fill: ascending preparation
+                .bar().o4(EIGHTH,A).o4(EIGHTH.dot(),G).pad(Duration.ofSixtyFourths(44)).done()
                 .build(elision());
     }
 
@@ -129,15 +129,15 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
                 .bar(EIGHTH).o4(QUARTER,A).o5(QUARTER.dot(),G).o5(D).o5(D).o5(E).done()
                 .bar(EIGHTH).o5(QUARTER,G).o5(E).o5(QUARTER.dot(),G).o5(G).o5(E).done()
                 .bar(EIGHTH).o5(QUARTER,G).o5(E).o5(QUARTER,G).o5(D).o5(D).o5(E).done()
-                .bar(EIGHTH).o5(A).o5(G).o5(A).o5(G).o5(A).o5(QUARTER,G).o5(A).slurStart()
+                .bar(EIGHTH).o5(A).o5(G).o5(A).o5(G).o5(A).o5(QUARTER,G).o5(A)
                     .aux(a -> a.o5(HALF,C).o4(QUARTER,G).o5(QUARTER,C)).done()
-                .bar(EIGHTH).o5(A).slurEnd().o5(G).o5(B).o5(A).pad(HALF).done()
+                .bar(EIGHTH).o5(A).o5(G).o5(B).o5(A).pad(HALF).done()
                 .build(elision());
     }
 
     Phrase overrideMelodyMain2(){
         return OverlayBuilder.over(buildMelodyMain2(), KEY, TS, QUARTER)
-                .at(8, b -> b.o5(EIGHTH,A).slurEnd().o5(G).o5(QUARTER.dot(),A).pad(QUARTER))
+                .at(8, b -> b.o5(EIGHTH,A).o5(G).o5(QUARTER.dot(),A).pad(QUARTER))
                 .build(elision());
     }
 

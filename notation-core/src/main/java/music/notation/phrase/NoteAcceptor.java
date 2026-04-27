@@ -132,22 +132,6 @@ abstract class NoteAcceptor<SELF extends NoteAcceptor<SELF>> {
     public SELF ff()  { return dyn(Dynamic.FF); }
     public SELF fff() { return dyn(Dynamic.FFF); }
 
-    // ── Slur ─────────────────────────────────────────────────────
-
-    public SELF slurStart() {
-        requireNotConsumed();
-        current.add(new SlurStart());
-        return self();
-    }
-
-    public SELF slurEnd() {
-        requireNotConsumed();
-        current.add(new SlurEnd());
-        return self();
-    }
-
-    public SELF slur() { return slurStart(); }
-
     // ── Tie (self-closing; chains naturally) ────────────────────
 
     /**

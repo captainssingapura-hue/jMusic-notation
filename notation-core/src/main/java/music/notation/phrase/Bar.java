@@ -46,8 +46,6 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes, List<AuxBar>
             case RestNode r -> r.duration().sixtyFourths();
             case PercussionNote p -> p.duration().sixtyFourths();
             case DynamicNode d -> 0;
-            case SlurStart s -> 0;
-            case SlurEnd s -> 0;
             case TempoChangeNode t -> 0;
             case TempoTransitionStartNode t -> 0;
             case TempoTransitionEndNode t -> 0;

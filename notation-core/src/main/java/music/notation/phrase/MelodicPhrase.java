@@ -110,16 +110,16 @@ public record MelodicPhrase(
         for (Bar bar : bars) {
             flat.addAll(bar.nodes());
         }
-        // Tie-merge has been removed: notes flagged with `.tieNext()` are
-        // now preserved as two distinct PitchNodes carrying the
-        // {@link Tieable#tiedToNext()} flag, and the renderer is expected
-        // to coalesce them at MIDI emission time. Until codec-level tie
-        // coalescing is wired (a future phase), tied notes will sound as
-        // separate re-articulated notes — a deliberate transient
-        // regression. See .docs/agent-delegation-retrospective.md.
-        // resolveSlurs still handles legacy SlurStart/SlurEnd same-pitch
-        // ties for songs that haven't migrated to .tieNext().
-        List<PhraseNode> resolved = resolveSlurs(flat);
+        // Tie-merge and slur-resolution have both been removed:
+        //  - Notes flagged with `.tieNext()` are preserved as two distinct
+        //    PitchNodes carrying the {@link Tieable#tiedToNext()} flag; the
+        //    renderer is expected to coalesce them at MIDI emission time.
+        //  - SlurStart/SlurEnd nodes (and the slur builder methods that
+        //    produced them) have been deleted entirely. Songs that used
+        //    slurs for same-pitch ties or for legato extension will sound
+        //    re-articulated / non-legato — accepted regression. See
+        //    .docs/agent-delegation-retrospective.md.
+        List<PhraseNode> resolved = flat;
         List<VoiceOverlay> voices = collectVoices(bars);
         return new MelodicPhrase(resolved, List.of(bars), marking, voices);
     }
@@ -178,73 +178,4 @@ public record MelodicPhrase(
     }
 
 
-    // ── Slur / tie resolution ──────────────────────────────────────────────
-
-    /**
-     * Walk the flat node list and resolve slur regions.
-     *
-     * <p>Pattern: {@code NoteNode(P,D1), SlurStart, NoteNode(P,D2), SlurEnd}
-     * with the same pitch P → merged into {@code NoteNode(P, D1+D2)}.
-     * The merge chains: if the merged note is followed by another
-     * SlurStart+same-pitch, it keeps merging.</p>
-     *
-     * <p>If the pitches differ, the SlurStart/SlurEnd markers are kept for
-     * the playback layer to interpret as legato.</p>
-     */
-    static List<PhraseNode> resolveSlurs(List<PhraseNode> nodes) {
-        var result = new ArrayList<PhraseNode>(nodes.size());
-
-        for (int i = 0; i < nodes.size(); ) {
-            // Look for pattern: PitchNode, SlurStart, ..., PitchNode, SlurEnd
-            if (i + 3 < nodes.size()
-                    && nodes.get(i) instanceof PitchNode before
-                    && nodes.get(i + 1) instanceof SlurStart) {
-
-                // Skip zero-duration markers between SlurStart and the next PitchNode
-                int j = i + 2;
-                while (j < nodes.size() && isZeroDurationMarker(nodes.get(j))
-                        && !(nodes.get(j) instanceof SlurEnd)) {
-                    j++;
-                }
-
-                if (j < nodes.size() && nodes.get(j) instanceof PitchNode after
-                        && j + 1 < nodes.size() && nodes.get(j + 1) instanceof SlurEnd
-                        && before.pitches().equals(after.pitches())) {
-                    // Same pitch(es) — merge into one sustained note
-                    int combined = before.duration().sixtyFourths()
-                            + after.duration().sixtyFourths();
-                    PitchNode merged = PitchNode.poly(
-                            Duration.ofSixtyFourths(combined), before.pitches());
-                    // Replace "before" with merged, skip SlurStart..SlurEnd
-                    result.add(merged);
-                    i = j + 2; // past SlurEnd
-
-                    // Chain: if another SlurStart+same-pitch follows, keep merging
-                    while (i + 2 < nodes.size()
-                            && nodes.get(i) instanceof SlurStart
-                            && nodes.get(i + 1) instanceof PitchNode next
-                            && nodes.get(i + 2) instanceof SlurEnd
-                            && next.pitches().equals(merged.pitches())) {
-                        int chainCombined = merged.duration().sixtyFourths()
-                                + next.duration().sixtyFourths();
-                        merged = PitchNode.poly(
-                                Duration.ofSixtyFourths(chainCombined), merged.pitches());
-                        result.set(result.size() - 1, merged);
-                        i += 3;
-                    }
-                    continue;
-                }
-            }
-            // No merge — emit node as-is
-            result.add(nodes.get(i));
-            i++;
-        }
-        return result;
-    }
-
-    private static boolean isZeroDurationMarker(PhraseNode node) {
-        return node instanceof DynamicNode
-                || node instanceof SlurStart
-                || node instanceof SlurEnd;
-    }
 }

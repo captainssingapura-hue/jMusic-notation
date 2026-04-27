@@ -356,8 +356,6 @@ public final class PieceConcretizer {
                     tick += dur;
                 }
                 case PaddingNode p -> tick += MidiMapper.toTicks(p.duration());
-                case SlurStart s -> { /* doctrine: no legato extension */ }
-                case SlurEnd s -> { /* doctrine: no legato extension */ }
                 case TempoChangeNode t -> {
                     currentBpm = t.bpm();
                     tempoTimeline.add(tick, t.bpm());

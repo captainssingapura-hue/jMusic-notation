@@ -13,12 +13,8 @@ import java.util.Optional;
 
 public final class PhraseInterpreter {
 
-    /** Small overlap for legato: previous note-off is delayed past next note-on. */
-    private static final long LEGATO_OVERLAP_TICKS = MidiMapper.TICKS_PER_QUARTER / 48; // 10 ticks
-
     private long tick;
     private int velocity;
-    private boolean inSlur;
     /** 0 = main line; 1..N = {@link VoiceOverlay} slots while rendering. */
     private int currentVoice;
     private boolean elisionPending;
@@ -86,7 +82,6 @@ public final class PhraseInterpreter {
                     for (int vi = 0; vi < mp.voices().size(); vi++) {
                         VoiceOverlay voice = mp.voices().get(vi);
                         int savedVelocity = velocity;
-                        boolean savedSlur = inSlur;
                         currentVoice = vi + 1; // main = 0, overlays 1..N
                         tick = startTick;
                         for (int i = 0; i < voice.size(); i++) {
@@ -101,7 +96,6 @@ public final class PhraseInterpreter {
                             }
                         }
                         velocity = savedVelocity;
-                        inSlur = savedSlur;
                     }
                     currentVoice = 0;
                     tick = endTick;
@@ -176,8 +170,6 @@ public final class PhraseInterpreter {
                 emitNote(midi, dur);
             }
             case PaddingNode p -> tick += MidiMapper.toTicks(p.duration());
-            case SlurStart s -> inSlur = true;
-            case SlurEnd s -> inSlur = false;
             case TempoChangeNode t -> {
                 currentBpm = t.bpm();
                 events.add(new PlayEvent.TempoChange(tick, t.bpm()));
@@ -214,8 +206,7 @@ public final class PhraseInterpreter {
         for (Pitch p : n.pitches()) {
             int midi = MidiMapper.toMidiNote(p);
             addNoteOn(tick, midi, velocity);
-            long offTick = tick + mainDur + (inSlur ? LEGATO_OVERLAP_TICKS : 0);
-            addNoteOff(offTick, midi);
+            addNoteOff(tick + mainDur, midi);
         }
         tick += mainDur;
     }
@@ -244,12 +235,7 @@ public final class PhraseInterpreter {
 
     private void emitNote(int midi, long dur) {
         addNoteOn(tick, midi, velocity);
-        long offTick = tick + dur;
-        if (inSlur) {
-            // Delay note-off past the next note-on for smooth legato
-            offTick += LEGATO_OVERLAP_TICKS;
-        }
-        addNoteOff(offTick, midi);
+        addNoteOff(tick + dur, midi);
         tick += dur;
     }
 

@@ -44,7 +44,7 @@ final class KatyushaTracks {
                 .bar(QUARTER).o5(F).o4(EIGHTH,E).o4(EIGHTH,D).o4(E).o3(A).done()
                 // Line 2 (bars 3–4): B. C D. B | D D B C A
                 .bar().o4(QUARTER.dot(), E).o5(EIGHTH, F).o5(QUARTER.dot(), G).o4(EIGHTH, E).done()
-                .bar(EIGHTH).o5(G).o5(G).o4(F).slur().o5(E).o4(QUARTER,D).r(QUARTER).done()
+                .bar(EIGHTH).o5(G).o5(G).o4(F).o5(E).o4(QUARTER,D).r(QUARTER).done()
                 // Line 3 (bars 5–6): E' A' G' A' G F' E' D.~ | ~E rest
                 .bar(QUARTER).o5(A).o5(D).o5(C).o5(EIGHTH,D).o5(EIGHTH,C)
                     .aux(HALF, a -> a.o4(F).o4(F.s())).done()

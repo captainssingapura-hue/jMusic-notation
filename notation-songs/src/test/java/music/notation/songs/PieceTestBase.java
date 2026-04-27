@@ -149,8 +149,6 @@ public abstract class PieceTestBase {
             case RestNode r -> {}
             case PaddingNode p -> {}
             case DynamicNode d -> {}
-            case SlurStart s -> {}
-            case SlurEnd s -> {}
             case SubPhrase sp -> checkMidiRange(trackName, sp.phrase());
             case TempoChangeNode t -> {}
             case TempoTransitionStartNode t -> {}

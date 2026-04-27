@@ -59,8 +59,8 @@ public final class DefaultBlueLotus implements PieceContentProvider<BlueLotus> {
                                            //
                 .bar().l(_6,HALF).r(QUARTER).r(QUARTER)              // 挡 →mid-pickup
                 .bar().l(_5,EIGHTH).l(_6,EIGHTH).n(_1,EIGHTH).n(_2,EIGHTH)    // 你对自由的向往
-                      .n(_3,EIGHTH).n(_5,QUARTER).n(_2,EIGHTH).slurStart()
-                .bar().n(_2,HALF).slurEnd().r(HALF)              //  →pickup
+                      .n(_3,EIGHTH).n(_5,QUARTER).n(_2,EIGHTH)
+                .bar().n(_2,HALF).r(HALF)              //  →pickup
                 .build(attacca());
 
         // -- Verse 2 (4 bars): 天马行空的生涯 你的心了无牵挂 --
@@ -69,19 +69,19 @@ public final class DefaultBlueLotus implements PieceContentProvider<BlueLotus> {
                       .n(_2,EIGHTH).n(_2,EIGHTH).n(_3,EIGHTH).n(_2,EIGHTH)
                 .bar().n(_1,HALF).r(HALF)                             // 涯 →mid-pickup
                 .bar().r(EIGHTH).n(_2,EIGHTH).n(_2,EIGHTH).n(_2,EIGHTH)                    // 你的心了
-                      .l(_5,EIGHTH).l(_6,EIGHTH).n(_1,EIGHTH).l(_6, EIGHTH).slurStart()
-                .bar().l(_6,QUARTER).slurEnd().r(QUARTER).r(HALF)              // 无牵挂 →pickup
+                      .l(_5,EIGHTH).l(_6,EIGHTH).n(_1,EIGHTH).l(_6, EIGHTH)
+                .bar().l(_6,QUARTER).r(QUARTER).r(HALF)              // 无牵挂 →pickup
                 .build(breath());
 
         // -- Chorus 1 (4 bars): 穿过幽暗的岁月 也曾感到彷徨 --
         var chorusLine1 = P
                 .bar().f()
                       .r(EIGHTH).n(_4,QUARTER).n(_4,EIGHTH)                // 穿过幽暗
-                      .n(_3,EIGHTH).n(_2,EIGHTH).n(_1,EIGHTH).n(_3,SIXTEENTH).slurStart().n(_2,SIXTEENTH).slurEnd()                      //   的岁月
+                      .n(_3,EIGHTH).n(_2,EIGHTH).n(_1,EIGHTH).n(_3,SIXTEENTH).n(_2,SIXTEENTH)                      //   的岁月
                 .bar().n(_2,HALF).r(HALF)              // →mid-pickup
                 .bar().r(EIGHTH).n(_4,QUARTER).n(_6,EIGHTH)                    // 也曾感到
-                      .n(_5,EIGHTH).n(_4,EIGHTH).n(_3,EIGHTH).n(_2,EIGHTH).slurStart()
-                .bar().n(_2,QUARTER).slurEnd().r(QUARTER).r(HALF)              // 彷徨 →pickup
+                      .n(_5,EIGHTH).n(_4,EIGHTH).n(_3,EIGHTH).n(_2,EIGHTH)
+                .bar().n(_2,QUARTER).r(QUARTER).r(HALF)              // 彷徨 →pickup
                 .build(attacca());
 
         // -- Chorus 2 (4 bars): 当你低头的瞬间 才发觉脚下的路 --
@@ -90,18 +90,18 @@ public final class DefaultBlueLotus implements PieceContentProvider<BlueLotus> {
                       .n(_3,EIGHTH).n(_2,EIGHTH)                      //   的瞬间
                 .bar().n(_1,HALF).r(HALF)              // →mid-pickup
                 .bar().r(EIGHTH).n(_2,EIGHTH).n(_2,EIGHTH).n(_2,EIGHTH)                    // 才发觉脚下
-                      .l(_5,EIGHTH).l(_6,EIGHTH).n(_1,EIGHTH).l(_6,EIGHTH).slurStart()
-                .bar().l(_6,HALF).slurEnd().r(HALF)              // 的路 →pickup
+                      .l(_5,EIGHTH).l(_6,EIGHTH).n(_1,EIGHTH).l(_6,EIGHTH)
+                .bar().l(_6,HALF).r(HALF)              // 的路 →pickup
                 .build(breath());
 
         // -- Chorus 3 (4 bars): 心中那自由的世界 如此的清澈高远 --
         var chorusLine3 = P
                 .bar().f().r(EIGHTH).n(_5,EIGHTH).n(_5,EIGHTH).n(_5,EIGHTH).n(_5,EIGHTH).n(_5,EIGHTH).n(_5,EIGHTH)                     // 心中那自由
-                      .n(_5,SIXTEENTH).n(_6,SIXTEENTH).slurStart()                      //   的
-                .bar().n(_6,HALF).slurEnd().r(HALF)           // 世界 如此的
+                      .n(_5,SIXTEENTH).n(_6,SIXTEENTH)                      //   的
+                .bar().n(_6,HALF).r(HALF)           // 世界 如此的
                 .bar().r(EIGHTH).n(_6,EIGHTH).n(_6,EIGHTH).n(_6,EIGHTH)                    // 清澈高远
-                      .h(_1,EIGHTH).n(_6,EIGHTH).n(_6,EIGHTH).n(_5,EIGHTH).slurStart()
-                .bar().n(_5,HALF).slurEnd().r(HALF)              // →pickup
+                      .h(_1,EIGHTH).n(_6,EIGHTH).n(_6,EIGHTH).n(_5,EIGHTH)
+                .bar().n(_5,HALF).r(HALF)              // →pickup
                 .build(attacca());
 
         // -- Chorus 4 (4 bars): 盛开着永不凋零 蓝莲花 --

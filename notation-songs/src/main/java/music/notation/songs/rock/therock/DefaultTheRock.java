@@ -39,7 +39,7 @@ public final class DefaultTheRock implements PieceContentProvider<TheRock> {
                 .bar()
                     .o6(QUARTER, D).o5(QUARTER, B.f()).r(EIGHTH).o5(EIGHTH.dot(), G).o5(EIGHTH.dot(), A).done()
                 .bar()
-                    .o5(QUARTER, B.f()).o6(QUARTER, C).slurStart().o6(SIXTEENTH, C).slurEnd().o5(QUARTER, B.f()).r(SIXTEENTH).o5(EIGHTH, A).done()
+                    .o5(QUARTER, B.f()).o6(QUARTER, C).o6(SIXTEENTH, C).o5(QUARTER, B.f()).r(SIXTEENTH).o5(EIGHTH, A).done()
                 .bar()
                     .o5(EIGHTH, G).o5(QUARTER, A).ff().r(EIGHTH).o5(EIGHTH.dot(), D).fff().o6(SIXTEENTH, D.f()).o6(SIXTEENTH, C).o5(EIGHTH.dot(), B.f()).done()
                 .bar().o5(EIGHTH, A).o5(HALF, G).r(QUARTER.dot()).done()

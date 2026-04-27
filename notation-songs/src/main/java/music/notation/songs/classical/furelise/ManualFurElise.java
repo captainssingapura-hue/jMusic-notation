@@ -110,24 +110,24 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .bar(SIXTEENTH).o4(EIGHTH,B).r().o4(E).o4(G.s()).o4(B).done()
                 .bar(SIXTEENTH).o5(EIGHTH,C).r(SIXTEENTH).o4(E).o5(E).o5(D.s()).done() //Bar 4
                 .bar(SIXTEENTH).o5(E).o5(D.s()).o5(E).o4(B).o5(D).o5(C).done()
-                .bar(SIXTEENTH).o4(EIGHTH,A).r().o4(C).o4(E).o4(A).slurStart().done()
-                .bar(SIXTEENTH).o4(EIGHTH,B).slurEnd().r().o4(E).slurStart().o5(C).o4(B).done()
-                .bar(EIGHTH).o4(A).slurEnd().pad(QUARTER).done()//.r(EIGHTH).o5(E).o5(D.s()) //Bar 8
+                .bar(SIXTEENTH).o4(EIGHTH,A).r().o4(C).o4(E).o4(A).done()
+                .bar(SIXTEENTH).o4(EIGHTH,B).r().o4(E).o5(C).o4(B).done()
+                .bar(EIGHTH).o4(A).pad(QUARTER).done()//.r(EIGHTH).o5(E).o5(D.s()) //Bar 8
                 .build(elision());
     }
 
     Phrase buildRHSectionAContinuation(){
         return OverlayBuilder.over(buildRHSectionABase(), KEY, TS, EIGHTH)
-                .at(7, SIXTEENTH, b -> b.o4(EIGHTH,A).slurEnd().r(SIXTEENTH).o4(B).o5(C).o5(D))
+                .at(7, SIXTEENTH, b -> b.o4(EIGHTH,A).r(SIXTEENTH).o4(B).o5(C).o5(D))
                 .build(attacca());
     }
 
     Phrase buildRHSectionAAnswer(){
         return newBuilder()
                 .pickup(SIXTEENTH).o4(B).o5(C).o5(D).done()
-                .bar(SIXTEENTH).o5(EIGHTH.dot(),E).o4(G).slurStart().o5(F).o5(E).done()
-                .bar(SIXTEENTH).o5(EIGHTH.dot(),D).slurEnd().o4(F).slurStart().o5(E).o5(D).done()
-                .bar(SIXTEENTH).o5(EIGHTH.dot(),C).slurEnd().o4(E).slurStart().o5(D).o5(C).done()
+                .bar(SIXTEENTH).o5(EIGHTH.dot(),E).o4(G).o5(F).o5(E).done()
+                .bar(SIXTEENTH).o5(EIGHTH.dot(),D).o4(F).o5(E).o5(D).done()
+                .bar(SIXTEENTH).o5(EIGHTH.dot(),C).o4(E).o5(D).o5(C).done()
                 .bar(SIXTEENTH).o4(EIGHTH,B).r(SIXTEENTH).o4(E).o5(E).r().done()
                 .bar(SIXTEENTH).r().o5(E).o6(E).r().r().o5(D.s()).done()
                 .bar(SIXTEENTH).o5(E).r().r().o5(D.s()).o5(E).o5(D.s()).done()
@@ -289,8 +289,8 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .bar(EIGHTH).o4(C,E,G).o3(F,A).o3(G,B).done()
                 .bar(EIGHTH).o3(G.s(),B).r().r().done()
                 .bar().r(QUARTER.dot()).done()
-                .bar(SIXTEENTH).r(QUARTER).r(SIXTEENTH).o5(D.s()).slurStart().done()
-                .bar(SIXTEENTH).o5(E).slurEnd().r().r().o5(D.s()).o5(E).r().done()
+                .bar(SIXTEENTH).r(QUARTER).r(SIXTEENTH).o5(D.s()).done()
+                .bar(SIXTEENTH).o5(E).r().r().o5(D.s()).o5(E).r().done()
                 .build(attacca());
     }
 
@@ -352,10 +352,10 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .bar(SIXTEENTH).o2(B).o2(B).o2(B).o2(B).o2(B).o2(B).done()
                 .bar(EIGHTH).o3(QUARTER,C).r().done()
                 .bar(EIGHTH).o3(E,G.s()).r().r().done()
-                .bar(EIGHTH).o2(A.lower(1)).r().o4(A.lower(1),C,E).slurStart().done()
-                .bar(EIGHTH).o4(A.lower(1),C,E).slurEnd().r().o4(A.lower(1),C,E).slurStart().done()
-                .bar(EIGHTH).o4(A.lower(1),C,E).slurEnd().r().o4(A.lower(1),C,E).slurStart().done()
-                .bar(EIGHTH).o4(A.lower(1),C,E).slurEnd().r().r().done()
+                .bar(EIGHTH).o2(A.lower(1)).r().o4(A.lower(1),C,E).done()
+                .bar(EIGHTH).o4(A.lower(1),C,E).r().o4(A.lower(1),C,E).done()
+                .bar(EIGHTH).o4(A.lower(1),C,E).r().o4(A.lower(1),C,E).done()
+                .bar(EIGHTH).o4(A.lower(1),C,E).r().r().done()
                 .bar().r(QUARTER.dot()).done()
                 .build(attacca());
     }

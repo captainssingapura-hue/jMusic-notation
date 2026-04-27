@@ -361,8 +361,6 @@ public final class MidiPlayer {
             switch (node) {
                 case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
                 case DynamicNode d -> {} // zero duration, skip
-                case SlurStart s -> {}
-                case SlurEnd s -> {}
                 case TempoChangeNode t -> {}
                 case TempoTransitionStartNode t -> {}
                 case TempoTransitionEndNode t -> {}

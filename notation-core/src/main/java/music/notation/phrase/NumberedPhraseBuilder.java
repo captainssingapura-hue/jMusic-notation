@@ -85,20 +85,6 @@ public final class NumberedPhraseBuilder {
         return result;
     }
 
-    // ── Slur ──
-
-    /** Open a slur at this point (typically the end of a bar, before a tie/legato across the bar line). */
-    public NumberedPhraseBuilder slurStart() { current.add(new SlurStart()); return this; }
-
-    /** Close a slur at this point (typically after the first note(s) of the next bar). */
-    public NumberedPhraseBuilder slurEnd()   { current.add(new SlurEnd());   return this; }
-
-    /**
-     * Convenience: open a slur at the end of the current bar.
-     * The next bar should begin with the tied/slurred note(s) followed by {@code slurEnd()}.
-     */
-    public NumberedPhraseBuilder slur() { return slurStart(); }
-
     // ── Current octave ──
 
     public NumberedPhraseBuilder n(Deg d)                { return note(d, 0, defaultDur); }
