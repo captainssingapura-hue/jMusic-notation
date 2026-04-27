@@ -59,7 +59,22 @@ import java.util.TreeMap;
  * </ul>
  *
  * <p>Formally: {@code fromMidi(toMidi(p)).equals(p)} holds for any valid
- * {@code p} whose {@link Articulations} is empty.</p>
+ * {@code p} whose {@link Articulations} is empty <em>and</em> whose
+ * {@link PitchedNote#tiedToNext()} flags are all false. Tied chains
+ * coalesce to a single sounding note on write (see <i>Tie coalescing</i>
+ * below); the per-note tie flag itself is not recoverable from MIDI
+ * bytes alone, so it clears across a write/read round-trip.</p>
+ *
+ * <h2>Tie coalescing on write</h2>
+ *
+ * <p>A {@link PitchedNote} flagged with {@code tiedToNext == true} is
+ * fused with its successor on the same track at MIDI emission time:
+ * one NOTE_ON at the chain's start, one NOTE_OFF at the chain's end.
+ * Coalescing requires the next note to be a same-pitch, immediately-
+ * following PitchedNote (gapless). Chains of any length collapse into
+ * a single sustained note; broken ties (different pitch, gap, or end of
+ * track) are silently emitted as separate notes — the flag is preserved
+ * in the model regardless. {@link DrumNote} is never coalesced.</p>
  *
  * <h2>What is dropped</h2>
  *
@@ -71,6 +86,9 @@ import java.util.TreeMap;
  *   <li>Per-note velocity in source MIDI — every NOTE_ON the codec
  *       emits uses a fixed velocity of 80; incoming velocities are
  *       read but discarded.</li>
+ *   <li>The {@code tiedToNext} flag — not recoverable on read; MIDI has
+ *       no representation for "these two physical events are
+ *       conceptually tied," only the coalesced sounding note.</li>
  *   <li>Control-change events, pitch-bend, channel pressure, polyphonic
  *       aftertouch, and system messages — silently dropped on read.</li>
  * </ul>
@@ -137,13 +155,7 @@ public final class MidiCodec {
                     }
                 }
 
-                for (ConcreteNote n : t.notes()) {
-                    int pitch = switch (n) {
-                        case PitchedNote pn -> pn.midi();
-                        case DrumNote dn -> dn.piece();
-                    };
-                    addNotePair(mt, n.tickMs(), n.durationMs(), pitch, channel, tempoMap);
-                }
+                emitNotes(mt, t.notes(), channel, tempoMap);
             }
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -227,6 +239,69 @@ public final class MidiCodec {
         ShortMessage off = new ShortMessage();
         off.setMessage(ShortMessage.NOTE_OFF, channel, pitch, 0);
         track.add(new MidiEvent(off, offTick));
+    }
+
+    /**
+     * Emit a track's notes with tie coalescing. A {@link PitchedNote} with
+     * {@code tiedToNext == true} is fused into its successor on the same
+     * track at MIDI emission time: only one NOTE_ON at the chain's start
+     * and one NOTE_OFF at the chain's end are written, producing a single
+     * sustained sounding note instead of separate re-articulated notes.
+     *
+     * <p>Coalescing requires the next note to be a same-pitch, same-track,
+     * immediately-following {@link PitchedNote} (gapless: its onset tick
+     * equals the current note's off-tick). If the chain breaks (different
+     * pitch, gap, drum note, end of track), the tie flag is silently
+     * ignored for that boundary and the next note is emitted independently.
+     * Chains of three or more PitchedNotes are coalesced into a single
+     * NOTE_ON / NOTE_OFF spanning the whole chain.</p>
+     *
+     * <p>{@link DrumNote} doesn't implement {@link Tieable} and is always
+     * emitted as a single NOTE_ON / NOTE_OFF pair.</p>
+     */
+    private static void emitNotes(javax.sound.midi.Track track, List<ConcreteNote> notes,
+                                  int channel, TempoMap tempoMap)
+            throws InvalidMidiDataException {
+        int i = 0;
+        while (i < notes.size()) {
+            ConcreteNote head = notes.get(i);
+            int pitch = pitchOf(head);
+            long startTickMs = head.tickMs();
+            long endTickMs = head.offTickMs();
+
+            // Extend chain while head is tied and the next note is a
+            // same-pitch, immediately-following PitchedNote.
+            int j = i;
+            while (j < notes.size() - 1 && isTiedForward(notes.get(j))) {
+                ConcreteNote next = notes.get(j + 1);
+                if (next instanceof PitchedNote nextPn
+                        && nextPn.midi() == pitch
+                        && nextPn.tickMs() == endTickMs) {
+                    endTickMs = nextPn.offTickMs();
+                    j++;
+                } else {
+                    // Chain broken: tie flag set but successor doesn't match.
+                    // Silently emit independently — the flag survives in the
+                    // model but the codec can't honour an inconsistent tie.
+                    break;
+                }
+            }
+
+            addNotePair(track, startTickMs, endTickMs - startTickMs,
+                    pitch, channel, tempoMap);
+            i = j + 1;
+        }
+    }
+
+    private static int pitchOf(ConcreteNote n) {
+        return switch (n) {
+            case PitchedNote pn -> pn.midi();
+            case DrumNote dn -> dn.piece();
+        };
+    }
+
+    private static boolean isTiedForward(ConcreteNote n) {
+        return n instanceof PitchedNote pn && pn.tiedToNext();
     }
 
     // ═══════════════════════════════════════════════════════════════════
