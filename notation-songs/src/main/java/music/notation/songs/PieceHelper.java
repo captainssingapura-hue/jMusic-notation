@@ -4,13 +4,16 @@ import music.notation.chord.Chord;
 import music.notation.duration.BaseValue;
 import music.notation.duration.Duration;
 import music.notation.event.ChordEvent;
+import music.notation.event.Instrument;
 import music.notation.event.Ornament;
 import music.notation.event.PercussionSound;
 import music.notation.phrase.*;
 import music.notation.pitch.Accidental;
 import music.notation.pitch.NoteName;
 import music.notation.pitch.Pitch;
+import music.notation.structure.MelodicTrack;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static music.notation.phrase.PhraseConnection.*;
@@ -67,4 +70,32 @@ public final class PieceHelper {
     public static PhraseMarking attacca() { return new PhraseMarking(ATTACCA, true); }
     public static PhraseMarking elision() { return new PhraseMarking(ELISION, true); }
     public static PhraseMarking end()     { return new PhraseMarking(CAESURA, true); }
+
+    /**
+     * Phase 4c.2 migration helper: flatten a list of melodic phrases
+     * into a single {@link MelodicTrack} by extracting each phrase's
+     * bars (resolving {@link LayeredPhrase} where present) and
+     * concatenating them.
+     *
+     * <p><b>Lossy</b>: phrase markings (BREATH/CAESURA/ATTACCA/ELISION)
+     * and voice overlays are dropped — the bar-list shape on
+     * {@code MelodicTrack} doesn't carry them. Pickup bars and trailing
+     * padding survive verbatim because they're encoded inside the
+     * {@link Bar}s themselves.</p>
+     */
+    public static MelodicTrack flattenMelodic(String name, Instrument inst,
+                                              List<? extends Phrase> phrases) {
+        var bars = new ArrayList<Bar>();
+        for (Phrase phrase : phrases) {
+            MelodicPhrase mp = switch (phrase) {
+                case MelodicPhrase melodic   -> melodic;
+                case LayeredPhrase layered   -> layered.resolve();
+                default -> throw new IllegalArgumentException(
+                        "flattenMelodic: unsupported phrase type "
+                                + phrase.getClass().getSimpleName());
+            };
+            bars.addAll(mp.toMelodicTrack(name, inst).bars());
+        }
+        return new MelodicTrack(name, inst, bars, List.of());
+    }
 }
