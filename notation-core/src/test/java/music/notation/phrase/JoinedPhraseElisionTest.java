@@ -72,63 +72,81 @@ class JoinedPhraseElisionTest {
 
     @Test
     void elided_stage1_fitsExactly() {
-        // last bar: 48sf audible + 16sf pad. pickup: 16sf pad + 48sf audible.
-        // Wait — pickup audible 48sf > trail pad 16sf; would throw. Use smaller pickup.
-        // last: 56sf audible + 8sf pad. pickup: 56sf pad + 8sf audible.
-        // firstAudible64 = 8 = trailPad64 = 8 → exact fit, residualPad = 0.
+        // bar=64, trail=16, lead=48. audibleLast=48, audibleFirst=16.
+        // residual = trail - audibleFirst = 0.
         var lastBar  = Bar.of(BAR64,
-                PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(56)),
-                pad(8));
-        var pickupBr = Bar.of(BAR64, pad(56), eighth(NoteName.D, 4));
+                PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(48)),
+                pad(16));
+        var pickupBr = Bar.of(BAR64, pad(48),
+                PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(16)));
 
         var a = BarPhrase.of(lastBar);
         var b = BarPhrase.of(pickupBr, fullBar(NoteName.E, 4));
         var joined = BarPhrase.join(ConnectingMode.ELIDED, a, b);
 
         List<Bar> bars = joined.bars();
-        // Pickup absorbed → bar count = 1 (merged) + 1 (E bar) = 2 (was 3).
         assertEquals(2, bars.size(), "pickup bar consumed");
         Bar merged = bars.get(0);
         assertEquals(BAR64, merged.expectedSixtyFourths());
-        // Merged bar: audible-of-last (1 PitchNode) + audible-of-pickup (1 eighth).
+        // Layout: [audible_last(48)] [audible_first(16)] — no padding.
         assertEquals(2, merged.nodes().size());
         assertTrue(merged.nodes().get(0) instanceof PitchNode);
         assertTrue(merged.nodes().get(1) instanceof PitchNode);
-        // Second bar is unchanged E bar.
         assertSame(b.bars().get(1), bars.get(1));
     }
 
     @Test
     void elided_stage1_fitsWithLeftoverPad() {
-        // last: 48sf audible + 16sf pad. pickup: 56sf pad + 8sf audible.
-        // firstAudible64 = 8, trailPad64 = 16, residualPad = 8.
-        var lastBar  = Bar.of(BAR64,
-                PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(48)),
-                pad(16));
-        var pickupBr = Bar.of(BAR64, pad(56), eighth(NoteName.D, 4));
+        // bar=64, trail=44, lead=48. audibleLast=20, audibleFirst=16.
+        // residual = trail - audibleFirst = 28.
+        var lastBar = Bar.of(BAR64,
+                PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(20)),
+                pad(44));
+        var pickupBr = Bar.of(BAR64, pad(48),
+                PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(16)));
 
-        var a = BarPhrase.of(lastBar);
-        var b = BarPhrase.of(pickupBr);
-        var joined = BarPhrase.join(ConnectingMode.ELIDED, a, b);
+        var joined = BarPhrase.join(ConnectingMode.ELIDED,
+                BarPhrase.of(lastBar), BarPhrase.of(pickupBr));
 
         List<Bar> bars = joined.bars();
-        assertEquals(1, bars.size(), "pickup absorbed; output is one merged bar");
+        assertEquals(1, bars.size());
         Bar merged = bars.get(0);
-        assertEquals(BAR64, merged.expectedSixtyFourths());
-        // Nodes: audible of last (1) + audible of pickup (1) + residual pad (1).
+        // Layout: [audible_last(20)] [audible_first(16)] [residual_pad(28)] = 3 nodes.
         assertEquals(3, merged.nodes().size());
         assertTrue(merged.nodes().get(0) instanceof PitchNode);
         assertTrue(merged.nodes().get(1) instanceof PitchNode);
         assertTrue(merged.nodes().get(2) instanceof PaddingNode);
-        assertEquals(8, ((PaddingNode) merged.nodes().get(2)).duration().sixtyFourths());
+        assertEquals(28, ((PaddingNode) merged.nodes().get(2)).duration().sixtyFourths());
+    }
+
+    @Test
+    void elided_stage1_silentOnlyPickup_dropsBarWithoutMerge() {
+        // bar=24 (3/8), trail=12, lead=24, audibleFirst=0.
+        // FurElise LH alignment-pickup pattern: silent-only pickup.
+        int bar38 = 24;
+        var lastBar = Bar.of(bar38,
+                PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(12)),
+                pad(12));
+        var silentPickup = Bar.of(bar38, pad(bar38));
+
+        var a = BarPhrase.of(lastBar);
+        var b = BarPhrase.of(silentPickup, Bar.of(bar38,
+                PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(24))));
+        var joined = BarPhrase.join(ConnectingMode.ELIDED, a, b);
+
+        List<Bar> bars = joined.bars();
+        assertEquals(2, bars.size(), "silent pickup dropped, last unchanged");
+        assertSame(lastBar, bars.get(0));
     }
 
     @Test
     void elided_stage1_doesNotFit_throws() {
-        // last: 48sf audible + 16sf pad. pickup: 32sf pad + 32sf audible.
-        // firstAudible64 = 32 > trailPad64 = 16 → IllegalStateException.
-        var lastBar = barWithTrailingPad(16, NoteName.C, 4);
-        var pickupBr = pickupBar(32, NoteName.D, 4);
+        // bar=64, trail=8, lead=32. audibleFirst=32 > trailPad=8 → throw.
+        var lastBar = Bar.of(BAR64,
+                PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(56)),
+                pad(8));
+        var pickupBr = Bar.of(BAR64, pad(32),
+                PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(32)));
         var joined = BarPhrase.join(ConnectingMode.ELIDED,
                 BarPhrase.of(lastBar), BarPhrase.of(pickupBr));
 
@@ -162,8 +180,8 @@ class JoinedPhraseElisionTest {
     void nestedJoin_innerResolvesFirst() {
         // join(ELIDED, A, join(ATTACCA, B, C))
         // Inner ATTACCA: B||C. Outer ELIDED applies absorption at A's last vs B's first.
-        var lastBarOfA = barWithTrailingPad(8, NoteName.C, 4);
-        var pickupB = pickupBar(56, NoteName.D, 4);
+        var lastBarOfA = barWithTrailingPad(16, NoteName.C, 4);
+        var pickupB = pickupBar(48, NoteName.D, 4);
         var fullC = fullBar(NoteName.E, 4);
 
         var a = BarPhrase.of(lastBarOfA);
