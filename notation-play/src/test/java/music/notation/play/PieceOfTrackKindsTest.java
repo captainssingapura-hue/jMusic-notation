@@ -138,6 +138,6 @@ class PieceOfTrackKindsTest {
         assertEquals("Lead",  p.tracks().get(0).name());
         assertEquals("Bass",  p.tracks().get(1).name());
         assertEquals("Drums", p.tracks().get(2).name());
-        assertEquals(Instrument.DRUM_KIT, p.tracks().get(2).defaultInstrument());
+        assertTrue(p.tracks().get(2) instanceof music.notation.structure.DrumTrack);
     }
 }

@@ -26,7 +26,7 @@ public record MelodicTrack(
         Instrument defaultInstrument,
         BarPhrase phrase,
         List<MelodicTrack> auxTracks
-) {
+) implements Track {
     public MelodicTrack {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("MelodicTrack name must be non-blank");

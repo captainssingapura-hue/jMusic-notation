@@ -9,6 +9,8 @@ import music.notation.performance.TrackId;
 import music.notation.performance.Volume;
 import music.notation.performance.VolumeControl;
 import music.notation.phrase.*;
+import music.notation.structure.DrumTrack;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
 
@@ -200,7 +202,7 @@ public final class MidiPlayer {
     public void start(Piece piece) throws Exception {
         var defaults = new ArrayList<List<Instrument>>();
         for (Track track : piece.tracks()) {
-            defaults.add(List.of(track.defaultInstrument()));
+            defaults.add(List.of(defaultInstrumentOf(track)));
         }
         start(piece, defaults);
     }
@@ -325,7 +327,7 @@ public final class MidiPlayer {
             throws InvalidMidiDataException, IOException {
         var defaults = new ArrayList<List<Instrument>>();
         for (Track track : piece.tracks()) {
-            defaults.add(List.of(track.defaultInstrument()));
+            defaults.add(List.of(defaultInstrumentOf(track)));
         }
         exportMidi(piece, defaults, file);
     }
@@ -352,13 +354,17 @@ public final class MidiPlayer {
      * is encountered. The global offset is the minimum across all tracks.
      * If a track has no leading padding, the offset is 0.</p>
      */
+    /** Default instrument inferred from a sealed Track variant. */
+    private static Instrument defaultInstrumentOf(Track track) {
+        return switch (track) {
+            case MelodicTrack mt -> mt.defaultInstrument();
+            case DrumTrack dt -> Instrument.DRUM_KIT;
+        };
+    }
+
     public static long computeLeadingPaddingTicks(Piece piece) {
         long globalMin = Long.MAX_VALUE;
         for (Track track : piece.tracks()) {
-            // Control tracks carry only tempo markers inside VoidPhrase-shaped
-            // content; their "leading padding" would be the entire piece and
-            // would clobber the audible minimum. Skip them.
-            if (piece.isControlTrack(track.name())) continue;
             globalMin = Math.min(globalMin, leadingPaddingForTrack(track));
             for (Track auxTrack : track.auxTracks()) {
                 globalMin = Math.min(globalMin, leadingPaddingForTrack(auxTrack));
@@ -367,50 +373,26 @@ public final class MidiPlayer {
         return globalMin == Long.MAX_VALUE ? 0 : globalMin;
     }
 
+    /**
+     * Sum the leading {@link PaddingNode}/zero-duration-marker chain
+     * across the track's bars until an audible (or other duration-taking)
+     * node appears.
+     */
     private static long leadingPaddingForTrack(Track track) {
         long padding = 0;
-        for (Phrase phrase : track.phrases()) {
-            long[] result = leadingPaddingForPhrase(phrase);
-            padding += result[0];
-            if (result[1] == 0) {
-                // Hit a non-padding node — done
-                return padding;
+        for (var bar : track.bars()) {
+            for (PhraseNode node : bar.nodes()) {
+                switch (node) {
+                    case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
+                    case DynamicNode d -> {}
+                    case TempoChangeNode t -> {}
+                    case TempoTransitionStartNode t -> {}
+                    case TempoTransitionEndNode t -> {}
+                    default -> { return padding; } // hit audible / RestNode
+                }
             }
-            // result[1] == 1 means entire phrase was padding, continue
         }
         return padding;
-    }
-
-    /**
-     * Returns [paddingTicks, allPadding] where allPadding is 1 if the
-     * entire phrase consisted of only padding (and zero-duration markers).
-     */
-    private static long[] leadingPaddingForPhrase(Phrase phrase) {
-        return switch (phrase) {
-            case MelodicPhrase mp -> leadingPaddingForNodes(mp.nodes());
-            case DrumPhrase dp -> leadingPaddingForNodes(dp.nodes());
-            case ChordPhrase cp -> new long[]{0, cp.chords().isEmpty() ? 1 : 0};
-            case RestPhrase rp -> new long[]{0, 0}; // rest is real content
-            case VoidPhrase vp -> new long[]{0, 0}; // void is real (silent) content
-            case LyricPhrase lp -> new long[]{0, 0}; // lyrics are real content
-            case ShiftedPhrase sp -> leadingPaddingForPhrase(sp.source());
-            case LayeredPhrase lp -> leadingPaddingForPhrase(lp.resolve());
-        };
-    }
-
-    private static long[] leadingPaddingForNodes(List<PhraseNode> nodes) {
-        long padding = 0;
-        for (PhraseNode node : nodes) {
-            switch (node) {
-                case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
-                case DynamicNode d -> {} // zero duration, skip
-                case TempoChangeNode t -> {}
-                case TempoTransitionStartNode t -> {}
-                case TempoTransitionEndNode t -> {}
-                default -> { return new long[]{padding, 0}; } // NoteNode, RestNode, etc.
-            }
-        }
-        return new long[]{padding, 1}; // all padding
     }
 
 }

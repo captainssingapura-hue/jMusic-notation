@@ -19,7 +19,7 @@ public record DrumTrack(
         String name,
         BarPhrase phrase,
         List<DrumTrack> auxTracks
-) {
+) implements Track {
     public DrumTrack {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("DrumTrack name must be non-blank");

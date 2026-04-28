@@ -15,8 +15,6 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import music.notation.event.Instrument;
-import music.notation.phrase.Phrase;
-import music.notation.phrase.ShiftedPhrase;
 import music.notation.pitch.Accidental;
 import music.notation.pitch.NoteName;
 import music.notation.play.MidiPlayer;
@@ -453,31 +451,20 @@ public class NotationApp extends Application {
     }
 
     /**
-     * Build a new Piece with all melodic phrases wrapped in {@link ShiftedPhrase}.
-     * Drum tracks are left unchanged.
+     * Phase 4d transitional: transposition is currently a no-op. The
+     * legacy {@code ShiftedPhrase} wrapper went away with the legacy
+     * phrase family; transposition will be reimplemented as a Bar-level
+     * pitch transform once the bar abstract-note shape stabilises.
      */
     private static Piece transposePiece(Piece source, KeySignature sourceKey, KeySignature targetKey) {
-        List<Track> transposedTracks = new ArrayList<>();
-        for (Track track : source.tracks()) {
-            transposedTracks.add(transposeTrack(track, sourceKey, targetKey));
-        }
-        return new Piece(source.title(), source.composer(), targetKey,
-                source.timeSig(), source.tempo(), transposedTracks);
+        return source;
     }
 
-    private static Track transposeTrack(Track track, KeySignature sourceKey, KeySignature targetKey) {
-        if (track.defaultInstrument() == Instrument.DRUM_KIT) {
-            return track; // drums are not pitched
-        }
-        var factory = new ShiftedPhrase.Factory(sourceKey, targetKey);
-        List<Phrase> shifted = track.phrases().stream()
-                .map(factory::apply)
-                .map(p -> (Phrase) p)
-                .toList();
-        List<Track> auxShifted = track.auxTracks().stream()
-                .map(aux -> transposeTrack(aux, sourceKey, targetKey))
-                .toList();
-        return new Track(track.name(), track.defaultInstrument(), shifted, auxShifted);
+    private static Instrument defaultInstrumentOf(Track track) {
+        return switch (track) {
+            case MelodicTrack mt -> mt.defaultInstrument();
+            case DrumTrack dt -> Instrument.DRUM_KIT;
+        };
     }
 
     // ── Key label helpers ────────────────────────────────────────────
@@ -575,8 +562,8 @@ public class NotationApp extends Application {
         for (int i = 0; i < tracks.size(); i++) {
             Track track = tracks.get(i);
             int trackIndex = i;
-            boolean isAudio = track.phrases().stream()
-                    .noneMatch(p -> p instanceof music.notation.phrase.LyricPhrase);
+            // Lyrics tracks no longer exist post-4d; every track is audio.
+            boolean isAudio = true;
 
             // Per-track container: label + instrument rows + add button
             VBox trackBox = new VBox(4);
@@ -607,7 +594,7 @@ public class NotationApp extends Application {
             }
 
             Button addBtn = smallButton("+");
-            addBtn.setOnAction(e -> addInstrumentSlot(trackIndex, trackBox, track.defaultInstrument()));
+            addBtn.setOnAction(e -> addInstrumentSlot(trackIndex, trackBox, defaultInstrumentOf(track)));
 
             headerRow.getChildren().add(addBtn);
             trackBox.getChildren().add(headerRow);
@@ -619,7 +606,7 @@ public class NotationApp extends Application {
             trackVolumeSliders.add(sliders);
 
             // Start with one slot showing the default instrument
-            addInstrumentRow(trackIndex, trackBox, combos, sliders, track.defaultInstrument(), false);
+            addInstrumentRow(trackIndex, trackBox, combos, sliders, defaultInstrumentOf(track), false);
 
             // Separator
             var sep = new Separator();
@@ -804,7 +791,7 @@ public class NotationApp extends Application {
                 }
             }
             if (instruments.isEmpty()) {
-                instruments.add(currentPiece.tracks().get(t).defaultInstrument());
+                instruments.add(defaultInstrumentOf(currentPiece.tracks().get(t)));
             }
             assignments.add(instruments);
         }
