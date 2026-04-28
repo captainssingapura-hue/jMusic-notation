@@ -92,7 +92,7 @@ public final class PieceHelper {
         for (Phrase phrase : phrases) {
             bars.addAll(toLeafBars(phrase, name, inst));
         }
-        return new MelodicTrack(name, inst, bars, List.of());
+        return new MelodicTrack(name, inst, BarPhrase.of(bars), List.of());
     }
 
     /**
@@ -111,7 +111,7 @@ public final class PieceHelper {
     public static MelodicTrack joinMelodicPhrases(String name, Instrument inst,
                                                   List<? extends Phrase> phrases) {
         if (phrases.isEmpty()) {
-            return new MelodicTrack(name, inst, List.of(), List.of());
+            return new MelodicTrack(name, inst, BarPhrase.of(), List.of());
         }
 
         // Left-fold pairwise: acc starts as LeafPhrase(phrase[0].bars()),
@@ -122,7 +122,9 @@ public final class PieceHelper {
             BarPhrase next = BarPhrase.of(toLeafBars(phrases.get(i), name, inst));
             acc = BarPhrase.join(mode, acc, next);
         }
-        return new MelodicTrack(name, inst, acc.bars(), List.of());
+        // Store the BarPhrase TREE directly — no eager .bars() flatten.
+        // Track.bars() resolves it lazily on each call.
+        return new MelodicTrack(name, inst, acc, List.of());
     }
 
     /** Extract bars from any supported phrase type. */

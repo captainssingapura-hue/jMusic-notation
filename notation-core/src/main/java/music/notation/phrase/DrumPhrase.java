@@ -42,6 +42,6 @@ public record DrumPhrase(List<PhraseNode> nodes, PhraseMarking marking) implemen
             total += Bar.nodeSixtyFourths(n);
         }
         Bar bar = new Bar(total, nodes, List.of());
-        return new DrumTrack(name, List.of(bar), List.of());
+        return new DrumTrack(name, BarPhrase.of(bar), List.of());
     }
 }

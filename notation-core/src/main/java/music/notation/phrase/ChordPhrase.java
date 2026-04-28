@@ -41,6 +41,6 @@ public record ChordPhrase(List<ChordEvent> chords, PhraseMarking marking) implem
             total += chord.duration().sixtyFourths();
         }
         Bar bar = new Bar(total, nodes, List.of());
-        return new MelodicTrack(name, instrument, List.of(bar), List.of());
+        return new MelodicTrack(name, instrument, BarPhrase.of(bar), List.of());
     }
 }

@@ -3,6 +3,7 @@ package music.notation.structure;
 import music.notation.duration.Duration;
 import music.notation.event.Instrument;
 import music.notation.phrase.Bar;
+import music.notation.phrase.BarPhrase;
 import music.notation.phrase.PitchNode;
 import music.notation.phrase.RestNode;
 import music.notation.pitch.NoteName;
@@ -46,7 +47,7 @@ class MelodicTrackTest {
         var aux = MelodicTrack.of("Harmony", Instrument.STRING_ENSEMBLE_1, oneNoteBar());
         var main = new MelodicTrack(
                 "Lead", Instrument.ACOUSTIC_GRAND_PIANO,
-                List.of(oneNoteBar()), List.of(aux));
+                BarPhrase.of(oneNoteBar()), List.of(aux));
         assertEquals(1, main.auxTracks().size());
         assertEquals("Harmony", main.auxTracks().get(0).name());
     }
@@ -98,7 +99,7 @@ class MelodicTrackTest {
     void drumTrack_acceptsAuxTracks() {
         var bar = Bar.of(16, new RestNode(Duration.of(QUARTER)));
         var aux = DrumTrack.of("DrumsAux", bar);
-        var main = new DrumTrack("Drums", List.of(bar), List.of(aux));
+        var main = new DrumTrack("Drums", BarPhrase.of(bar), List.of(aux));
         assertEquals(1, main.auxTracks().size());
         assertEquals("DrumsAux", main.auxTracks().get(0).name());
     }

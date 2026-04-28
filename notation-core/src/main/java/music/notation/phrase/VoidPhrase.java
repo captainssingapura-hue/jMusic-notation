@@ -62,12 +62,12 @@ public record VoidPhrase(int bars, int barSixtyFourths, PhraseMarking marking) i
      * phrase marking is dropped.
      */
     public MelodicTrack toMelodicTrack(String name, Instrument instrument) {
-        return new MelodicTrack(name, instrument, buildBars(), List.of());
+        return new MelodicTrack(name, instrument, BarPhrase.of(buildBars()), List.of());
     }
 
     /** Phase 4b adapter: same shape as {@link #toMelodicTrack} but on a {@link DrumTrack}. */
     public DrumTrack toDrumTrack(String name) {
-        return new DrumTrack(name, buildBars(), List.of());
+        return new DrumTrack(name, BarPhrase.of(buildBars()), List.of());
     }
 
     private List<Bar> buildBars() {

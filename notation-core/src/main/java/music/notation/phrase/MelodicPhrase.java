@@ -71,7 +71,7 @@ public record MelodicPhrase(
             }
             outBars = List.of(new Bar(total, nodes, List.of()));
         }
-        return new MelodicTrack(name, instrument, outBars, List.of());
+        return new MelodicTrack(name, instrument, BarPhrase.of(outBars), List.of());
     }
 
     private static void validateVoices(List<Bar> bars, List<VoiceOverlay> voices) {

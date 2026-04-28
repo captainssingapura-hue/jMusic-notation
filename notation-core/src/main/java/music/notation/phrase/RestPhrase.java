@@ -16,12 +16,12 @@ public record RestPhrase(Duration duration, PhraseMarking marking) implements Ph
      */
     public MelodicTrack toMelodicTrack(String name, Instrument instrument) {
         Bar bar = new Bar(duration.sixtyFourths(), List.of(new RestNode(duration)), List.of());
-        return new MelodicTrack(name, instrument, List.of(bar), List.of());
+        return new MelodicTrack(name, instrument, BarPhrase.of(bar), List.of());
     }
 
     /** Phase 4b adapter: same shape as {@link #toMelodicTrack} but on a {@link DrumTrack}. */
     public DrumTrack toDrumTrack(String name) {
         Bar bar = new Bar(duration.sixtyFourths(), List.of(new RestNode(duration)), List.of());
-        return new DrumTrack(name, List.of(bar), List.of());
+        return new DrumTrack(name, BarPhrase.of(bar), List.of());
     }
 }
