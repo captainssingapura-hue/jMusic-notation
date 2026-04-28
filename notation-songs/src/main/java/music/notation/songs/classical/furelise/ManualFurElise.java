@@ -1,6 +1,5 @@
 package music.notation.songs.classical.furelise;
 
-import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -31,33 +30,22 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
     public Piece create() {
         final var id = new FurElise();
 
-        final var trackDecls = List.<TrackDecl>of(
-                new TrackDecl.MusicTrackDecl("Right Hand", ACOUSTIC_GRAND_PIANO),
-                new TrackDecl.MusicTrackDecl("Left Hand",  ACOUSTIC_GRAND_PIANO)
-        );
+        // Phase 4c.2 migration: flatten the rondo phrase list per hand
+        // into a single bar-list MelodicTrack. Phrase markings
+        // (elision/attacca/end) are dropped; the resulting playback
+        // loses inter-phrase pickup overlap but bars and pickup-bar
+        // padding survive. LayeredPhrase overrides resolve via the
+        // helper.
+        final var rhTrack = flattenMelodic("Right Hand", ACOUSTIC_GRAND_PIANO,
+                rightHandPhrases());
+        final var lhTrack = flattenMelodic("Left Hand",  ACOUSTIC_GRAND_PIANO,
+                leftHandPhrases());
 
-        final var rhPhrases = rightHandPhrases();
-        final var lhPhrases = leftHandPhrases();
-
-        int total = 0;
-        for (Phrase p : rhPhrases) total += Bar.phraseSixtyFourths(p);
-        final Duration SONG_DURATION = Duration.ofSixtyFourths(total);
-
-        // Five-part rondo A-B-A-C-A + coda rolled into a single section:
-        // the phrase-level PhraseMarking on each boundary still drives
-        // elision/attacca; sectioning is just about structural grouping.
-        final var song = Section.named("Rondo")
-                .duration(SONG_DURATION)
-                .timeSignature(TS)
-                .track("Right Hand", rhPhrases)
-                .track("Left Hand",  lhPhrases)
-                .build();
-
-        return Piece.ofSections(id.title(), id.composer(),
+        return Piece.ofTrackKinds(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(76, QUARTER),
-                trackDecls,
-                List.of(song));
+                List.of(rhTrack, lhTrack),
+                List.of());
     }
 
     // ── Track assembly (ABACA + Coda) ──
