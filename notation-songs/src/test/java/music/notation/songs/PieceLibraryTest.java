@@ -10,11 +10,12 @@ class PieceLibraryTest {
 
     @Test
     void libraryContainsExpectedPieces() {
+        // Phase 4c.3: only the four manually-authored survivors remain.
         final List<String> titles = PieceLibrary.titles();
-        assertTrue(titles.size() >= 7, "Should have at least 7 pieces, got " + titles.size());
-        assertTrue(titles.contains("Blue Lotus (蓝莲花)"));
-        assertTrue(titles.contains("Pachelbel's Canon"));
-        assertTrue(titles.contains("Two Tigers (两只老虎)"));
+        assertEquals(4, titles.size(),
+                "Expected exactly 4 pieces post-4c.3, got " + titles.size() + ": " + titles);
+        assertTrue(titles.contains("Für Elise (WoO 59)"));
+        assertTrue(titles.contains("The Internationale"));
     }
 
     @Test

@@ -4,12 +4,10 @@ import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
 import music.notation.performance.PerformanceJson;
 import music.notation.play.MidiPlayer;
+import music.notation.songs.anthem.internationale.ManualInternationale;
 import music.notation.songs.classical.bachinvention.ManualBachInvention13;
 import music.notation.songs.classical.furelise.ManualFurElise;
-import music.notation.songs.classical.pachelbelcanon.DefaultPachelbelCanon;
-import music.notation.songs.classical.traumerei.DefaultTraumerei;
-import music.notation.songs.game.contra.DefaultContraBase;
-import music.notation.songs.rock.novemberstorm.DefaultNovemberStorm;
+import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
 import music.notation.structure.Piece;
 import music.notation.structure.PieceContentProvider;
 import org.junit.jupiter.api.DynamicTest;
@@ -36,12 +34,10 @@ class ExistingSongsJsonParityTest {
         record Case(String name, PieceContentProvider<?> provider) {}
 
         var cases = List.of(
-                new Case("PachelbelCanon",   new DefaultPachelbelCanon()),
-                new Case("ContraBase",       new DefaultContraBase()),
-                new Case("Traumerei",        new DefaultTraumerei()),
+                new Case("Internationale",   new ManualInternationale()),
                 new Case("BachInvention13",  new ManualBachInvention13()),
                 new Case("FurElise",         new ManualFurElise()),
-                new Case("NovemberStorm",    new DefaultNovemberStorm())
+                new Case("TianHeiHei",       new PianoTianHeiHei())
         );
 
         return cases.stream().map(c ->

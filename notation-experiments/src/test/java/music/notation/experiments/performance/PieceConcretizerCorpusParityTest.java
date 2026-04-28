@@ -8,11 +8,10 @@ import music.notation.performance.PitchedNote;
 import music.notation.performance.Track;
 import music.notation.play.MidiPlayer;
 import music.notation.play.PieceConcretizer;
-import music.notation.songs.classical.odetojoy.DefaultOdeToJoy;
-import music.notation.songs.classical.pachelbelcanon.DefaultPachelbelCanon;
-import music.notation.songs.nursery.antsmarching.DefaultAntsGoMarching;
-import music.notation.songs.nursery.marylamb.DefaultMaryHadALittleLamb;
-import music.notation.songs.nursery.twinklestar.DefaultTwinkleStar;
+import music.notation.songs.anthem.internationale.ManualInternationale;
+import music.notation.songs.classical.bachinvention.ManualBachInvention13;
+import music.notation.songs.classical.furelise.ManualFurElise;
+import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
 import music.notation.structure.Piece;
 import music.notation.structure.PieceContentProvider;
 import org.junit.jupiter.api.DynamicTest;
@@ -51,11 +50,10 @@ class PieceConcretizerCorpusParityTest {
         record Case(String name, PieceContentProvider<?> provider) {}
 
         var cases = List.of(
-                new Case("TwinkleStar",     new DefaultTwinkleStar()),
-                new Case("MaryLamb",        new DefaultMaryHadALittleLamb()),
-                new Case("AntsGoMarching",  new DefaultAntsGoMarching()),
-                new Case("OdeToJoy",        new DefaultOdeToJoy()),
-                new Case("PachelbelCanon",  new DefaultPachelbelCanon())
+                new Case("Internationale",   new ManualInternationale()),
+                new Case("BachInvention13",  new ManualBachInvention13()),
+                new Case("FurElise",         new ManualFurElise()),
+                new Case("TianHeiHei",       new PianoTianHeiHei())
         );
 
         return cases.stream().map(c ->

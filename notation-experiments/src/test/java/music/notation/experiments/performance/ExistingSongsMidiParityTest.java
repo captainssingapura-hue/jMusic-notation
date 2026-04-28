@@ -3,12 +3,10 @@ package music.notation.experiments.performance;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
 import music.notation.play.MidiPlayer;
+import music.notation.songs.anthem.internationale.ManualInternationale;
 import music.notation.songs.classical.bachinvention.ManualBachInvention13;
 import music.notation.songs.classical.furelise.ManualFurElise;
-import music.notation.songs.classical.pachelbelcanon.DefaultPachelbelCanon;
-import music.notation.songs.classical.traumerei.DefaultTraumerei;
-import music.notation.songs.game.contra.DefaultContraBase;
-import music.notation.songs.rock.novemberstorm.DefaultNovemberStorm;
+import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
 import music.notation.structure.Piece;
 import music.notation.structure.PieceContentProvider;
 import org.junit.jupiter.api.DynamicTest;
@@ -43,14 +41,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * stable. A passing assertion means the codec is lossless for what the
  * model represents.</p>
  *
- * <p>Songs chosen to exercise the corners of MIDI:</p>
+ * <p>Songs chosen to exercise the corners of MIDI (post Phase 4c.3
+ * the corpus shrinks to the four manually-authored survivors):</p>
  * <ul>
- *   <li><b>PachelbelCanon</b> — 4 voices, dense arpeggios.</li>
- *   <li><b>ContraBase</b> — 3 pitched tracks.</li>
- *   <li><b>Traumerei</b> — expressive Schumann piano.</li>
+ *   <li><b>Internationale</b> — march, multiple horn voices + chord ensemble.</li>
  *   <li><b>BachInvention13</b> — 2-voice counterpoint.</li>
  *   <li><b>FurElise</b> — rondo, dense 16ths.</li>
- *   <li><b>NovemberStorm</b> — rock arrangement with drums (channel 10).</li>
+ *   <li><b>TianHeiHei</b> — folk arrangement with arpeggio harmony.</li>
  * </ul>
  */
 class ExistingSongsMidiParityTest {
@@ -60,12 +57,10 @@ class ExistingSongsMidiParityTest {
         record Case(String name, PieceContentProvider<?> provider) {}
 
         var cases = List.of(
-                new Case("PachelbelCanon",   new DefaultPachelbelCanon()),
-                new Case("ContraBase",       new DefaultContraBase()),
-                new Case("Traumerei",        new DefaultTraumerei()),
+                new Case("Internationale",   new ManualInternationale()),
                 new Case("BachInvention13",  new ManualBachInvention13()),
                 new Case("FurElise",         new ManualFurElise()),
-                new Case("NovemberStorm",    new DefaultNovemberStorm())
+                new Case("TianHeiHei",       new PianoTianHeiHei())
         );
 
         return cases.stream().map(c ->
