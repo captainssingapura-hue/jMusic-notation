@@ -35,7 +35,7 @@ import java.util.TreeMap;
  * <p>Phase 4d cutover: consumes {@link music.notation.structure.Track}
  * via the sealed interface, reading {@code track.bars()} directly. Any
  * elision merging has already happened inside the
- * {@link music.notation.phrase.BarPhrase} tree by the time bars surface
+ * {@link music.notation.phrase.Phrase} tree by the time bars surface
  * here — this walker has no boundary-gap or tick-rewind logic.</p>
  *
  * <p>Doctrinal: dynamics, slur extension, and ornament rendering are

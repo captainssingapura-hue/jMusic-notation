@@ -22,7 +22,7 @@ public final class ManualInternationale implements PieceContentProvider<Internat
         final var id = new Internationale();
 
         // Phase 4c.2 migration: flatten each phrase into a MelodicTrack
-        // via the bar-list shape. Phrase markings and voice overlays
+        // via the bar-list shape. AuthorPhrase markings and voice overlays
         // (`.aux(...)`) are dropped — see PieceHelper.flattenMelodic.
         final var melodyTrack  = flattenMelodic("Melody",  FRENCH_HORN,
                 List.of(melodyPhrase()));

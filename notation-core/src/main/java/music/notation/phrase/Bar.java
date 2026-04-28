@@ -55,7 +55,7 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes, List<AuxBar>
     }
 
     /** Total duration of a phrase in 64th-note units. */
-    public static int phraseSixtyFourths(Phrase phrase) {
+    public static int phraseSixtyFourths(AuthorPhrase phrase) {
         return switch (phrase) {
             case MelodicPhrase mp -> mp.nodes().stream().mapToInt(Bar::nodeSixtyFourths).sum();
             case ChordPhrase cp -> cp.chords().stream().mapToInt(c -> c.duration().sixtyFourths()).sum();

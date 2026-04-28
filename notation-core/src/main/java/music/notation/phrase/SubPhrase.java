@@ -1,4 +1,4 @@
 package music.notation.phrase;
 
-public record SubPhrase(Phrase phrase) implements PhraseNode {
+public record SubPhrase(AuthorPhrase phrase) implements PhraseNode {
 }

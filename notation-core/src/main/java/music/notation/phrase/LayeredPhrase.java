@@ -12,11 +12,11 @@ import java.util.*;
  * or a {@link ShiftedPhrase}. Resolution walks the chain bottom-up.</p>
  */
 public record LayeredPhrase(
-        Phrase base,
+        AuthorPhrase base,
         SortedMap<Integer, Bar> overrides,
         TimeSignature timeSignature,
         PhraseMarking marking
-) implements Phrase {
+) implements AuthorPhrase {
 
     public LayeredPhrase {
         Objects.requireNonNull(base, "base must not be null");
@@ -52,7 +52,7 @@ public record LayeredPhrase(
     /**
      * Extract the bar list from a phrase, recursively resolving layers.
      */
-    static List<Bar> extractBars(Phrase phrase) {
+    static List<Bar> extractBars(AuthorPhrase phrase) {
         return switch (phrase) {
             case MelodicPhrase mp -> {
                 if (mp.bars().isEmpty()) {

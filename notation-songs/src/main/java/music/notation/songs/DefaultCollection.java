@@ -16,7 +16,7 @@ import java.util.List;
  * The built-in song collection shipped with the application.
  *
  * <p>Phase 4c.3 trimmed this to the four manually-authored songs that
- * survive the Phrase cutover. The other 24 song providers have been
+ * survive the AuthorPhrase cutover. The other 24 song providers have been
  * deleted and will be regenerated later (out of scope for Phase 4).</p>
  */
 public final class DefaultCollection implements Collection {

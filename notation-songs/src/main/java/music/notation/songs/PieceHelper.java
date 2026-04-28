@@ -87,12 +87,12 @@ public final class PieceHelper {
      * carry {@code ELISION} markings that should overlap pickups.</p>
      */
     public static MelodicTrack flattenMelodic(String name, Instrument inst,
-                                              List<? extends Phrase> phrases) {
+                                              List<? extends AuthorPhrase> phrases) {
         var bars = new ArrayList<Bar>();
-        for (Phrase phrase : phrases) {
+        for (AuthorPhrase phrase : phrases) {
             bars.addAll(toLeafBars(phrase, name, inst));
         }
-        return new MelodicTrack(name, inst, BarPhrase.of(bars), List.of());
+        return new MelodicTrack(name, inst, Phrase.of(bars), List.of());
     }
 
     /**
@@ -109,26 +109,26 @@ public final class PieceHelper {
      * timing.</p>
      */
     public static MelodicTrack joinMelodicPhrases(String name, Instrument inst,
-                                                  List<? extends Phrase> phrases) {
+                                                  List<? extends AuthorPhrase> phrases) {
         if (phrases.isEmpty()) {
-            return new MelodicTrack(name, inst, BarPhrase.of(), List.of());
+            return new MelodicTrack(name, inst, Phrase.of(), List.of());
         }
 
         // Left-fold pairwise: acc starts as LeafPhrase(phrase[0].bars()),
         // then for each subsequent phrase X join(modeBetween, acc, X).
-        BarPhrase acc = BarPhrase.of(toLeafBars(phrases.get(0), name, inst));
+        Phrase acc = Phrase.of(toLeafBars(phrases.get(0), name, inst));
         for (int i = 1; i < phrases.size(); i++) {
             ConnectingMode mode = modeAfter(phrases.get(i - 1));
-            BarPhrase next = BarPhrase.of(toLeafBars(phrases.get(i), name, inst));
-            acc = BarPhrase.join(mode, acc, next);
+            Phrase next = Phrase.of(toLeafBars(phrases.get(i), name, inst));
+            acc = Phrase.join(mode, acc, next);
         }
-        // Store the BarPhrase TREE directly — no eager .bars() flatten.
+        // Store the Phrase TREE directly — no eager .bars() flatten.
         // Track.bars() resolves it lazily on each call.
         return new MelodicTrack(name, inst, acc, List.of());
     }
 
     /** Extract bars from any supported phrase type. */
-    private static List<Bar> toLeafBars(Phrase phrase, String name, Instrument inst) {
+    private static List<Bar> toLeafBars(AuthorPhrase phrase, String name, Instrument inst) {
         MelodicPhrase mp = switch (phrase) {
             case MelodicPhrase melodic   -> melodic;
             case LayeredPhrase layered   -> layered.resolve();
@@ -140,7 +140,7 @@ public final class PieceHelper {
     }
 
     /** Connecting mode between {@code phrase} and the next based on its marking. */
-    private static ConnectingMode modeAfter(Phrase phrase) {
+    private static ConnectingMode modeAfter(AuthorPhrase phrase) {
         PhraseMarking marking = switch (phrase) {
             case MelodicPhrase mp -> mp.marking();
             case LayeredPhrase lp -> lp.marking();

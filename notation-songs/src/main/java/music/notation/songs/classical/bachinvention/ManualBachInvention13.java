@@ -30,7 +30,7 @@ public final class ManualBachInvention13 implements PieceContentProvider<BachInv
         final var id = new BachInvention13();
 
         // Phase 4c.2 migration: collapse three sections into one flat
-        // bar-list per hand. Phrase markings (attacca) are dropped
+        // bar-list per hand. AuthorPhrase markings (attacca) are dropped
         // — sections were just structural grouping, no inter-section
         // overlap to lose.
         final var rhTrack = flattenMelodic("Right Hand", ACOUSTIC_GRAND_PIANO,

@@ -8,8 +8,8 @@ import java.util.List;
  *
  * <p>Phase 4d cutover: tracks are sealed {@link Track} instances
  * ({@link MelodicTrack} or {@link DrumTrack}) carrying
- * {@link music.notation.phrase.BarPhrase} trees that resolve to bar
- * lists on demand. The previous {@link music.notation.phrase.Phrase}
+ * {@link music.notation.phrase.Phrase} trees that resolve to bar
+ * lists on demand. The previous {@link music.notation.phrase.AuthorPhrase}
  * sequence and section/control-track machinery have been removed.</p>
  */
 public record Piece(

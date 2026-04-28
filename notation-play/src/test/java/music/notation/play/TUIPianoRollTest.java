@@ -3,7 +3,7 @@ package music.notation.play;
 import music.notation.duration.Duration;
 import music.notation.event.Instrument;
 import music.notation.phrase.Bar;
-import music.notation.phrase.BarPhrase;
+import music.notation.phrase.Phrase;
 import music.notation.phrase.ConnectingMode;
 import music.notation.phrase.PaddingNode;
 import music.notation.phrase.PitchNode;
@@ -69,9 +69,9 @@ class TUIPianoRollTest {
         // bar 3: 64sf audible E4.
         Bar nextBar = Bar.of(64, PitchNode.of(p(NoteName.E, 4), Duration.ofSixtyFourths(64)));
 
-        var phrase = BarPhrase.join(ConnectingMode.ELIDED,
-                BarPhrase.of(lastBar),
-                BarPhrase.of(pickupBar, nextBar));
+        var phrase = Phrase.join(ConnectingMode.ELIDED,
+                Phrase.of(lastBar),
+                Phrase.of(pickupBar, nextBar));
 
         var track = new MelodicTrack("M", Instrument.ACOUSTIC_GRAND_PIANO, phrase, List.of());
         var piece = new Piece("T", "x", C_MAJOR, TS_4_4, TEMPO_120,

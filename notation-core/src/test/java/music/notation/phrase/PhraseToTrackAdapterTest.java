@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Phase 4b: locks the adapter contracts that convert the old
- * {@link Phrase} subtypes to the new {@link MelodicTrack} /
+ * {@link AuthorPhrase} subtypes to the new {@link MelodicTrack} /
  * {@link DrumTrack} shapes.
  *
  * <p>The adapters are <b>lossy by design</b>: voices, phrase markings,

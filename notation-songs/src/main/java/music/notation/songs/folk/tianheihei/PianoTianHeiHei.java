@@ -29,7 +29,7 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
         final var id = new TianHeiHei();
 
         // Phase 4c.2 migration: flatten phrases per track via the
-        // bar-list shape on MelodicTrack. Phrase markings (elision /
+        // bar-list shape on MelodicTrack. AuthorPhrase markings (elision /
         // attacca / end) and `.aux(...)` voice overlays are dropped
         // — see PieceHelper.flattenMelodic.
         final var pianoTrack   = joinMelodicPhrases("Piano",   ACOUSTIC_GRAND_PIANO,
@@ -44,12 +44,12 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
                 List.of());
     }
 
-    private List<Phrase> melodyPhrases() {
+    private List<AuthorPhrase> melodyPhrases() {
         final var mainMelody1 = buildMelodyMain1();
         final var tianHei1 = buildMelodyTianHeiHei1();
         final var chorus1 = buildMelodyMain2();
         final var ending = buildEnding();
-        return List.<Phrase>of(
+        return List.<AuthorPhrase>of(
                 buildMelodyPre(),
                 mainMelody1, tianHei1, mainMelody1, tianHei1,
                 chorus1, buildBridge(), chorus1,
@@ -125,7 +125,7 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
                 .build(elision());
     }
 
-    Phrase overrideMelodyMain2(){
+    AuthorPhrase overrideMelodyMain2(){
         return OverlayBuilder.over(buildMelodyMain2(), KEY, TS, QUARTER)
                 .at(8, b -> b.o5(EIGHTH,A).o5(G).o5(QUARTER.dot(),A).pad(QUARTER))
                 .build(elision());
@@ -157,12 +157,12 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
     //  arrangement; use the BPM slider for nocturne tempo (~88 BPM).
     // ══════════════════════════════════════════════════════════════════════════
 
-    private List<Phrase> harmonyPhrases() {
+    private List<AuthorPhrase> harmonyPhrases() {
         final var harmMain1 = buildHarmonyMain1();
         final var harmTianHei = buildHarmonyTianHei();
         final var harmChorus = buildHarmonyChorus();
         final var harmEnding = buildHarmonyEnding();
-        return List.<Phrase>of(
+        return List.<AuthorPhrase>of(
                 buildHarmonyPre(),
                 harmMain1, harmTianHei, harmMain1, harmTianHei,
                 harmChorus, buildHarmonyBridge(), harmChorus,
@@ -240,7 +240,7 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
     }
 
     /** Override bar 8 of Chorus for the second iteration — alt ending leading into buildEnding. */
-    Phrase overrideHarmonyChorus() {
+    AuthorPhrase overrideHarmonyChorus() {
         return OverlayBuilder.over(buildHarmonyChorus(), KEY, TS, QUARTER)
                 .at(8, EIGHTH, bar -> bar.o2(G).o3(D).o3(QUARTER.dot(), B).pad(QUARTER.dot()))                // 40 + pad 24
                 .build(elision());

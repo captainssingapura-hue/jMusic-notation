@@ -58,9 +58,9 @@ class JoinedPhraseElisionTest {
 
     @Test
     void attacca_isPureFlatMap_noTrim() {
-        var a = BarPhrase.of(fullBar(NoteName.C, 4));
-        var b = BarPhrase.of(fullBar(NoteName.D, 4));
-        var joined = BarPhrase.join(ConnectingMode.ATTACCA, a, b);
+        var a = Phrase.of(fullBar(NoteName.C, 4));
+        var b = Phrase.of(fullBar(NoteName.D, 4));
+        var joined = Phrase.join(ConnectingMode.ATTACCA, a, b);
 
         List<Bar> bars = joined.bars();
         assertEquals(2, bars.size());
@@ -80,9 +80,9 @@ class JoinedPhraseElisionTest {
         var pickupBr = Bar.of(BAR64, pad(48),
                 PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(16)));
 
-        var a = BarPhrase.of(lastBar);
-        var b = BarPhrase.of(pickupBr, fullBar(NoteName.E, 4));
-        var joined = BarPhrase.join(ConnectingMode.ELIDED, a, b);
+        var a = Phrase.of(lastBar);
+        var b = Phrase.of(pickupBr, fullBar(NoteName.E, 4));
+        var joined = Phrase.join(ConnectingMode.ELIDED, a, b);
 
         List<Bar> bars = joined.bars();
         assertEquals(2, bars.size(), "pickup bar consumed");
@@ -104,8 +104,8 @@ class JoinedPhraseElisionTest {
         var pickupBr = Bar.of(BAR64, pad(48),
                 PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(16)));
 
-        var joined = BarPhrase.join(ConnectingMode.ELIDED,
-                BarPhrase.of(lastBar), BarPhrase.of(pickupBr));
+        var joined = Phrase.join(ConnectingMode.ELIDED,
+                Phrase.of(lastBar), Phrase.of(pickupBr));
 
         List<Bar> bars = joined.bars();
         assertEquals(1, bars.size());
@@ -128,10 +128,10 @@ class JoinedPhraseElisionTest {
                 pad(12));
         var silentPickup = Bar.of(bar38, pad(bar38));
 
-        var a = BarPhrase.of(lastBar);
-        var b = BarPhrase.of(silentPickup, Bar.of(bar38,
+        var a = Phrase.of(lastBar);
+        var b = Phrase.of(silentPickup, Bar.of(bar38,
                 PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(24))));
-        var joined = BarPhrase.join(ConnectingMode.ELIDED, a, b);
+        var joined = Phrase.join(ConnectingMode.ELIDED, a, b);
 
         List<Bar> bars = joined.bars();
         assertEquals(2, bars.size(), "silent pickup dropped, last unchanged");
@@ -147,8 +147,8 @@ class JoinedPhraseElisionTest {
                 pad(8));
         var pickupBr = Bar.of(BAR64, pad(8),
                 PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(56)));
-        var joined = BarPhrase.join(ConnectingMode.ELIDED,
-                BarPhrase.of(lastBar), BarPhrase.of(pickupBr));
+        var joined = Phrase.join(ConnectingMode.ELIDED,
+                Phrase.of(lastBar), Phrase.of(pickupBr));
 
         List<Bar> bars = joined.bars();
         assertEquals(2, bars.size(), "no merge — both bars survive");
@@ -164,9 +164,9 @@ class JoinedPhraseElisionTest {
         // But there's an interstitial whole-silence bar AT the end of A and at the START of B.
         Bar silenceBar = Bar.of(BAR64, pad(BAR64));
 
-        var a = BarPhrase.of(fullBar(NoteName.C, 4), silenceBar);
-        var b = BarPhrase.of(silenceBar, fullBar(NoteName.D, 4));
-        var joined = BarPhrase.join(ConnectingMode.ELIDED, a, b);
+        var a = Phrase.of(fullBar(NoteName.C, 4), silenceBar);
+        var b = Phrase.of(silenceBar, fullBar(NoteName.D, 4));
+        var joined = Phrase.join(ConnectingMode.ELIDED, a, b);
 
         List<Bar> bars = joined.bars();
         // Stage 1 absorption: last (silenceBar) trailPad = 64; first (silenceBar) leadPad = 64;
@@ -185,11 +185,11 @@ class JoinedPhraseElisionTest {
         var pickupB = pickupBar(48, NoteName.D, 4);
         var fullC = fullBar(NoteName.E, 4);
 
-        var a = BarPhrase.of(lastBarOfA);
-        var b = BarPhrase.of(pickupB);
-        var c = BarPhrase.of(fullC);
-        var inner = BarPhrase.join(ConnectingMode.ATTACCA, b, c);
-        var outer = BarPhrase.join(ConnectingMode.ELIDED, a, inner);
+        var a = Phrase.of(lastBarOfA);
+        var b = Phrase.of(pickupB);
+        var c = Phrase.of(fullC);
+        var inner = Phrase.join(ConnectingMode.ATTACCA, b, c);
+        var outer = Phrase.join(ConnectingMode.ELIDED, a, inner);
 
         List<Bar> bars = outer.bars();
         // pickup of B absorbed into A's last → 2 bars total.
@@ -204,8 +204,8 @@ class JoinedPhraseElisionTest {
     void attaccaPreservesBarIdentity() {
         Bar b1 = fullBar(NoteName.C, 4);
         Bar b2 = fullBar(NoteName.D, 4);
-        var joined = BarPhrase.join(ConnectingMode.ATTACCA,
-                BarPhrase.of(b1), BarPhrase.of(b2));
+        var joined = Phrase.join(ConnectingMode.ATTACCA,
+                Phrase.of(b1), Phrase.of(b2));
 
         List<Bar> bars = joined.bars();
         assertSame(b1, bars.get(0));

@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Composite {@link BarPhrase} — joins multiple child phrases with a
+ * Composite {@link Phrase} — joins multiple child phrases with a
  * {@link ConnectingMode}. {@link #bars()} materialises the configured
  * stitch into a flat bar list.
  *
@@ -53,8 +53,8 @@ import java.util.Objects;
  * profiling shows this hot, add a cache; for the current corpus a
  * recursive recompute is fine.</p>
  */
-public record JoinedPhrase(String name, List<BarPhrase> children, ConnectingMode mode)
-        implements BarPhrase {
+public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mode)
+        implements Phrase {
 
     public JoinedPhrase {
         Objects.requireNonNull(name, "name must not be null (use \"\" for anonymous)");

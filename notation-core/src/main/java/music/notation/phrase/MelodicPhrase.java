@@ -25,7 +25,7 @@ public record MelodicPhrase(
         List<Bar> bars,
         PhraseMarking marking,
         List<VoiceOverlay> voices
-) implements Phrase {
+) implements AuthorPhrase {
 
     public MelodicPhrase {
         if (nodes.isEmpty()) {
@@ -71,7 +71,7 @@ public record MelodicPhrase(
             }
             outBars = List.of(new Bar(total, nodes, List.of()));
         }
-        return new MelodicTrack(name, instrument, BarPhrase.of(outBars), List.of());
+        return new MelodicTrack(name, instrument, Phrase.of(outBars), List.of());
     }
 
     private static void validateVoices(List<Bar> bars, List<VoiceOverlay> voices) {

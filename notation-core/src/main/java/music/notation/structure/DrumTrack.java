@@ -1,12 +1,12 @@
 package music.notation.structure;
 
 import music.notation.phrase.Bar;
-import music.notation.phrase.BarPhrase;
+import music.notation.phrase.Phrase;
 
 import java.util.List;
 
 /**
- * A named percussion track holding a {@link BarPhrase} tree. Like
+ * A named percussion track holding a {@link Phrase} tree. Like
  * {@link MelodicTrack}, the underlying storage is a phrase tree
  * preserving authored elision boundaries; {@link #bars()} is a lazy
  * accessor that resolves the tree on each call.
@@ -17,7 +17,7 @@ import java.util.List;
  */
 public record DrumTrack(
         String name,
-        BarPhrase phrase,
+        Phrase phrase,
         List<DrumTrack> auxTracks
 ) implements Track {
     public DrumTrack {
@@ -37,13 +37,13 @@ public record DrumTrack(
 
     // ── Backwards-compat factories ──────────────────────────────────
 
-    /** Wrap a bar list as an anonymous {@link BarPhrase} on the track. */
+    /** Wrap a bar list as an anonymous {@link Phrase} on the track. */
     public static DrumTrack of(String name, List<Bar> bars) {
-        return new DrumTrack(name, BarPhrase.of(bars), List.of());
+        return new DrumTrack(name, Phrase.of(bars), List.of());
     }
 
-    /** Wrap bar varargs as an anonymous {@link BarPhrase} on the track. */
+    /** Wrap bar varargs as an anonymous {@link Phrase} on the track. */
     public static DrumTrack of(String name, Bar... bars) {
-        return new DrumTrack(name, BarPhrase.of(bars), List.of());
+        return new DrumTrack(name, Phrase.of(bars), List.of());
     }
 }

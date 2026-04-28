@@ -7,7 +7,7 @@ import music.notation.structure.MelodicTrack;
 
 import java.util.List;
 
-public record RestPhrase(Duration duration, PhraseMarking marking) implements Phrase {
+public record RestPhrase(Duration duration, PhraseMarking marking) implements AuthorPhrase {
 
     /**
      * Phase 4b adapter: a rest phrase becomes a single Bar containing
@@ -16,12 +16,12 @@ public record RestPhrase(Duration duration, PhraseMarking marking) implements Ph
      */
     public MelodicTrack toMelodicTrack(String name, Instrument instrument) {
         Bar bar = new Bar(duration.sixtyFourths(), List.of(new RestNode(duration)), List.of());
-        return new MelodicTrack(name, instrument, BarPhrase.of(bar), List.of());
+        return new MelodicTrack(name, instrument, Phrase.of(bar), List.of());
     }
 
     /** Phase 4b adapter: same shape as {@link #toMelodicTrack} but on a {@link DrumTrack}. */
     public DrumTrack toDrumTrack(String name) {
         Bar bar = new Bar(duration.sixtyFourths(), List.of(new RestNode(duration)), List.of());
-        return new DrumTrack(name, BarPhrase.of(bar), List.of());
+        return new DrumTrack(name, Phrase.of(bar), List.of());
     }
 }

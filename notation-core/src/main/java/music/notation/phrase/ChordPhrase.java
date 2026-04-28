@@ -7,7 +7,7 @@ import music.notation.structure.MelodicTrack;
 import java.util.ArrayList;
 import java.util.List;
 
-public record ChordPhrase(List<ChordEvent> chords, PhraseMarking marking) implements Phrase {
+public record ChordPhrase(List<ChordEvent> chords, PhraseMarking marking) implements AuthorPhrase {
     public ChordPhrase {
         if (chords.isEmpty()) {
             throw new IllegalArgumentException("ChordPhrase must contain at least one chord");
@@ -41,6 +41,6 @@ public record ChordPhrase(List<ChordEvent> chords, PhraseMarking marking) implem
             total += chord.duration().sixtyFourths();
         }
         Bar bar = new Bar(total, nodes, List.of());
-        return new MelodicTrack(name, instrument, BarPhrase.of(bar), List.of());
+        return new MelodicTrack(name, instrument, Phrase.of(bar), List.of());
     }
 }

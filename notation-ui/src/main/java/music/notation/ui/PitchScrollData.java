@@ -24,7 +24,7 @@ import java.util.List;
  * <p>Phase 4d cutover: walks the sealed {@link Track}'s bar list directly
  * — the same value object the {@link music.notation.play.PieceConcretizer}
  * consumes for audio. UI and audio agree on note positions by construction:
- * they read identical bars from the same {@link music.notation.phrase.BarPhrase}
+ * they read identical bars from the same {@link music.notation.phrase.Phrase}
  * tree resolution.</p>
  */
 record PitchScrollData(

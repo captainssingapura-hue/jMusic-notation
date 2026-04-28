@@ -20,7 +20,7 @@ import java.util.Optional;
  * construction). There is no sub-bar alignment, no gap arithmetic, and no
  * rest-padding synthesis — silence is simply the absence of an override.</p>
  *
- * <p>Overlays are not themselves {@link Phrase}s — they can only appear
+ * <p>Overlays are not themselves {@link AuthorPhrase}s — they can only appear
  * attached to a {@link MelodicPhrase}. For an independent parallel voice with
  * its own life-cycle (different instrument, different dynamics, different
  * length), use a separate {@link music.notation.structure.Track}.</p>
