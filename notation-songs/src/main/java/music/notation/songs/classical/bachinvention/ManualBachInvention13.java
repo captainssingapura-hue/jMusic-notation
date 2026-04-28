@@ -1,6 +1,5 @@
 package music.notation.songs.classical.bachinvention;
 
-import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -30,37 +29,20 @@ public final class ManualBachInvention13 implements PieceContentProvider<BachInv
     public Piece create() {
         final var id = new BachInvention13();
 
-        final var trackDecls = List.<TrackDecl>of(
-                new TrackDecl.MusicTrackDecl("Right Hand", ACOUSTIC_GRAND_PIANO),
-                new TrackDecl.MusicTrackDecl("Left Hand",  ACOUSTIC_GRAND_PIANO)
-        );
+        // Phase 4c.2 migration: collapse three sections into one flat
+        // bar-list per hand. Phrase markings (attacca) are dropped
+        // — sections were just structural grouping, no inter-section
+        // overlap to lose.
+        final var rhTrack = flattenMelodic("Right Hand", ACOUSTIC_GRAND_PIANO,
+                List.of(buildRhSection1(), buildRhSection2(), buildRhSection3()));
+        final var lhTrack = flattenMelodic("Left Hand",  ACOUSTIC_GRAND_PIANO,
+                List.of(buildLhSection1(), buildLhSection2(), buildLhSection3()));
 
-        final var s1 = Section.named("Section 1")
-                .duration(Duration.ofSixtyFourths(6 * 64))
-                .timeSignature(TS)
-                .track("Right Hand", buildRhSection1())
-                .track("Left Hand",  buildLhSection1())
-                .build();
-
-        final var s2 = Section.named("Section 2")
-                .duration(Duration.ofSixtyFourths(7 * 64))
-                .timeSignature(TS)
-                .track("Right Hand", buildRhSection2())
-                .track("Left Hand",  buildLhSection2())
-                .build();
-
-        final var s3 = Section.named("Section 3")
-                .duration(Duration.ofSixtyFourths(12 * 64))
-                .timeSignature(TS)
-                .track("Right Hand", buildRhSection3())
-                .track("Left Hand",  buildLhSection3())
-                .build();
-
-        return Piece.ofSections(id.title(), id.composer(),
+        return Piece.ofTrackKinds(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(72, QUARTER),
-                trackDecls,
-                List.of(s1, s2, s3));
+                List.of(rhTrack, lhTrack),
+                List.of());
     }
 
     // ── Right Hand ──
