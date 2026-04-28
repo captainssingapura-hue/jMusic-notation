@@ -80,27 +80,6 @@ class PhraseToTrackAdapterTest {
                 () -> phrase.toMelodicTrack("Bad", Instrument.DRUM_KIT));
     }
 
-    // ── DrumPhrase → DrumTrack ──────────────────────────────────────
-
-    @Test
-    void drumPhrase_toDrumTrack_collapsesNodesIntoSingleBar() {
-        var phrase = new DrumPhrase(List.of(
-                new PercussionNote(PercussionSound.BASS_DRUM, Duration.of(QUARTER)),
-                new PercussionNote(PercussionSound.ACOUSTIC_SNARE, Duration.of(QUARTER)),
-                new PercussionNote(PercussionSound.BASS_DRUM, Duration.of(QUARTER)),
-                new PercussionNote(PercussionSound.ACOUSTIC_SNARE, Duration.of(QUARTER))
-        ), ATTACCA);
-
-        var track = phrase.toDrumTrack("Drums");
-
-        assertEquals("Drums", track.name());
-        assertEquals(1, track.bars().size());
-        Bar bar = track.bars().get(0);
-        assertEquals(64, bar.expectedSixtyFourths(), "four quarters = 64/64");
-        assertEquals(4, bar.nodes().size());
-        assertTrue(bar.nodes().get(0) instanceof PercussionNote);
-    }
-
     // ── ChordPhrase → MelodicTrack ──────────────────────────────────
 
     @Test
@@ -172,32 +151,4 @@ class PhraseToTrackAdapterTest {
                 () -> phrase.toMelodicTrack("Bad", Instrument.DRUM_KIT));
     }
 
-    // ── VoidPhrase → MelodicTrack / DrumTrack ───────────────────────
-
-    @Test
-    void voidPhrase_toMelodicTrack_emitsNEmptyBars() {
-        var phrase = VoidPhrase.ofBars(TS_4_4, 3);
-        var track = phrase.toMelodicTrack("Silence", Instrument.ACOUSTIC_GRAND_PIANO);
-
-        assertEquals(3, track.bars().size());
-        for (Bar bar : track.bars()) {
-            assertEquals(64, bar.expectedSixtyFourths());
-            assertEquals(1, bar.nodes().size());
-            assertTrue(bar.nodes().get(0) instanceof RestNode);
-        }
-    }
-
-    @Test
-    void voidPhrase_toDrumTrack_emitsNEmptyBars() {
-        var phrase = VoidPhrase.ofBars(TS_4_4, 2);
-        var track = phrase.toDrumTrack("DrumSilence");
-        assertEquals(2, track.bars().size());
-    }
-
-    @Test
-    void voidPhrase_zeroBars_emitsEmptyTrack() {
-        var phrase = VoidPhrase.ofBars(TS_4_4, 0);
-        var track = phrase.toMelodicTrack("Empty", Instrument.ACOUSTIC_GRAND_PIANO);
-        assertTrue(track.bars().isEmpty());
-    }
 }

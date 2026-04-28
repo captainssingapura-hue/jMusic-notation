@@ -61,7 +61,6 @@ public record LayeredPhrase(
                 yield mp.bars();
             }
             case LayeredPhrase lp -> lp.resolve().bars();
-            case ShiftedPhrase sp -> extractBars(sp.source());
             default -> throw new IllegalStateException(
                     "Cannot extract bars from " + phrase.getClass().getSimpleName());
         };

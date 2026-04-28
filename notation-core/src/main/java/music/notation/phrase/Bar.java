@@ -58,13 +58,9 @@ public record Bar(int expectedSixtyFourths, List<PhraseNode> nodes, List<AuxBar>
     public static int phraseSixtyFourths(Phrase phrase) {
         return switch (phrase) {
             case MelodicPhrase mp -> mp.nodes().stream().mapToInt(Bar::nodeSixtyFourths).sum();
-            case DrumPhrase dp -> dp.nodes().stream().mapToInt(Bar::nodeSixtyFourths).sum();
             case ChordPhrase cp -> cp.chords().stream().mapToInt(c -> c.duration().sixtyFourths()).sum();
             case RestPhrase rp -> rp.duration().sixtyFourths();
-            case VoidPhrase vp -> vp.totalSixtyFourths();
-            case ShiftedPhrase sp -> phraseSixtyFourths(sp.source());
             case LayeredPhrase lp -> phraseSixtyFourths(lp.base());
-            case LyricPhrase lp -> lp.syllables().stream().mapToInt(e -> e.duration().sixtyFourths()).sum();
         };
     }
 }
