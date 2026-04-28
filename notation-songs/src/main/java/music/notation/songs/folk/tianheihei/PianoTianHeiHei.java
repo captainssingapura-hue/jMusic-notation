@@ -28,30 +28,20 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
     public Piece create() {
         final var id = new TianHeiHei();
 
-        final var trackDecls = List.<TrackDecl>of(
-                new TrackDecl.MusicTrackDecl("Piano",   ACOUSTIC_GRAND_PIANO),
-                new TrackDecl.MusicTrackDecl("Harmony", ACOUSTIC_GRAND_PIANO)
-        );
+        // Phase 4c.2 migration: flatten phrases per track via the
+        // bar-list shape on MelodicTrack. Phrase markings (elision /
+        // attacca / end) and `.aux(...)` voice overlays are dropped
+        // — see PieceHelper.flattenMelodic.
+        final var pianoTrack   = flattenMelodic("Piano",   ACOUSTIC_GRAND_PIANO,
+                melodyPhrases());
+        final var harmonyTrack = flattenMelodic("Harmony", ACOUSTIC_GRAND_PIANO,
+                harmonyPhrases());
 
-        final var melodyPhrases  = melodyPhrases();
-        final var harmonyPhrases = harmonyPhrases();
-
-        int total = 0;
-        for (Phrase p : melodyPhrases) total += Bar.phraseSixtyFourths(p);
-        final Duration SONG_DURATION = Duration.ofSixtyFourths(total);
-
-        final var song = Section.named("Song")
-                .duration(SONG_DURATION)
-                .timeSignature(TS)
-                .track("Piano",   melodyPhrases)
-                .track("Harmony", harmonyPhrases)
-                .build();
-
-        return Piece.ofSections(id.title(), id.composer(),
+        return Piece.ofTrackKinds(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(120, QUARTER),
-                trackDecls,
-                List.of(song));
+                List.of(pianoTrack, harmonyTrack),
+                List.of());
     }
 
     private List<Phrase> melodyPhrases() {
