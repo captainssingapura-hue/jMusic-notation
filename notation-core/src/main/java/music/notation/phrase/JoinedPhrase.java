@@ -87,30 +87,30 @@ public record JoinedPhrase(String name, List<BarPhrase> children, ConnectingMode
             return;
         }
         // Stage 1: pickup-bar absorption — collapse last+first into one
-        // merged bar. Triggers when both sides have boundary silence and
-        // the pickup audible head fits inside last's trailing pad.
-        // Layout in merged bar: [audible_last][audible_first][residual_pad].
-        // The pickup bar (first) is consumed. This favours visual
-        // tightness (no pre-gap before pickup audible) over exact
-        // reproduction of legacy PhraseInterpreter rewind timing.
+        // merged bar with pickup audible at the END of the bar so bar 2
+        // of the pickup phrase follows immediately. Layout:
+        //   [audible_last] [middle_gap] [audible_first]
+        // where middle_gap = bar - audibleLast - audibleFirst >= 0.
+        //
+        // Triggers iff trail + lead >= bar (otherwise the audible content
+        // of both sides won't fit alongside any gap). When the constraint
+        // fails, we fall through to ATTACCA-like sequential playout —
+        // no throw.
         Bar last = acc.get(acc.size() - 1);
         Bar first = next.get(0);
+        int barSize = last.expectedSixtyFourths();
         int trailPad64 = trailingPadSixtyFourths(last);
         int leadPad64  = leadingPadSixtyFourths(first);
-        int audibleFirst64 = first.expectedSixtyFourths() - leadPad64;
 
-        if (trailPad64 > 0 && leadPad64 > 0) {
-            if (audibleFirst64 > trailPad64) {
-                throw new IllegalStateException(
-                        "ELIDED join: pickup audible content (" + audibleFirst64
-                                + "/64) exceeds previous bar's trailing pad (" + trailPad64
-                                + "/64). Shrink the pickup, grow the trailing pad, or use ATTACCA.");
-            }
+        if (trailPad64 > 0 && leadPad64 > 0
+                && first.expectedSixtyFourths() == barSize
+                && trailPad64 + leadPad64 >= barSize) {
+            int audibleFirst64 = barSize - leadPad64;
             if (audibleFirst64 > 0) {
                 Bar merged = mergeAbsorption(last, first, trailPad64, leadPad64);
                 acc.set(acc.size() - 1, merged);
             }
-            // Silent-only pickup (audibleFirst64 == 0): drop pickup bar
+            // Silent-only pickup (audibleFirst64 == 0): drop the pickup bar
             // without modifying last. Harmony "alignment" pickups land here.
             next.remove(0);
         }
@@ -126,22 +126,22 @@ public record JoinedPhrase(String name, List<BarPhrase> children, ConnectingMode
     }
 
     /**
-     * Build a merged bar absorbing {@code first}'s audible head into
-     * {@code last}'s trailing pad. Layout:
+     * Build a merged bar with the pickup audible at the END of the
+     * bar so bar 2 of the pickup phrase follows immediately. Layout:
      * <pre>
-     *   [audible_last] [audible_first] [residual_pad]
+     *   [audible_last] [middle_gap] [audible_first]
      * </pre>
-     * where {@code residual_pad = trail - audible_first}.
+     * where {@code middle_gap = bar - audibleLast - audibleFirst}.
      *
-     * <p>Pickup audible plays immediately after prev audible (no
-     * pre-gap), favouring visual tightness over exact reproduction of
-     * legacy {@code PhraseInterpreter} rewind timing. The trailing
-     * residual sits at the bar end; the next bar of the next phrase
-     * follows on the next bar boundary.</p>
+     * <p>Visual win: bar 2 of the pickup phrase butts up against the
+     * pickup audible in the piano roll — no trailing residual gap
+     * inside the merged bar.</p>
      */
     private static Bar mergeAbsorption(Bar last, Bar first, int trailPad64, int leadPad64) {
+        int barSize = last.expectedSixtyFourths();
+        int audibleLast64  = barSize - trailPad64;
         int audibleFirst64 = first.expectedSixtyFourths() - leadPad64;
-        int residualPad64 = trailPad64 - audibleFirst64;
+        int middleGap64    = barSize - audibleLast64 - audibleFirst64;
 
         List<PhraseNode> lastAudible = stripTrailingPad(last.nodes(), trailPad64);
         List<PhraseNode> firstAudible = stripLeadingPad(first.nodes(), leadPad64);
@@ -149,11 +149,12 @@ public record JoinedPhrase(String name, List<BarPhrase> children, ConnectingMode
         var merged = new ArrayList<PhraseNode>(
                 lastAudible.size() + firstAudible.size() + 1);
         merged.addAll(lastAudible);
-        merged.addAll(firstAudible);
-        if (residualPad64 > 0) {
-            merged.add(new PaddingNode(music.notation.duration.Duration.ofSixtyFourths(residualPad64)));
+        if (middleGap64 > 0) {
+            merged.add(new PaddingNode(
+                    music.notation.duration.Duration.ofSixtyFourths(middleGap64)));
         }
-        return new Bar(last.expectedSixtyFourths(), merged, last.auxBars());
+        merged.addAll(firstAudible);
+        return new Bar(barSize, merged, last.auxBars());
     }
 
     // ── Bar inspection helpers ───────────────────────────────────────

@@ -71,9 +71,9 @@ class JoinedPhraseElisionTest {
     // ── Stage 1: within-bar pickup absorption ────────────────────────
 
     @Test
-    void elided_stage1_fitsExactly() {
+    void elided_stage1_exactFit_noMiddleGap() {
         // bar=64, trail=16, lead=48. audibleLast=48, audibleFirst=16.
-        // residual = trail - audibleFirst = 0.
+        // middleGap = 64 - 48 - 16 = 0.
         var lastBar  = Bar.of(BAR64,
                 PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(48)),
                 pad(16));
@@ -87,8 +87,7 @@ class JoinedPhraseElisionTest {
         List<Bar> bars = joined.bars();
         assertEquals(2, bars.size(), "pickup bar consumed");
         Bar merged = bars.get(0);
-        assertEquals(BAR64, merged.expectedSixtyFourths());
-        // Layout: [audible_last(48)] [audible_first(16)] — no padding.
+        // Layout: [audible_last(48)] [audible_first(16)] — no middle gap.
         assertEquals(2, merged.nodes().size());
         assertTrue(merged.nodes().get(0) instanceof PitchNode);
         assertTrue(merged.nodes().get(1) instanceof PitchNode);
@@ -96,9 +95,9 @@ class JoinedPhraseElisionTest {
     }
 
     @Test
-    void elided_stage1_fitsWithLeftoverPad() {
+    void elided_stage1_withMiddleGap() {
         // bar=64, trail=44, lead=48. audibleLast=20, audibleFirst=16.
-        // residual = trail - audibleFirst = 28.
+        // middleGap = 64 - 20 - 16 = 28.
         var lastBar = Bar.of(BAR64,
                 PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(20)),
                 pad(44));
@@ -111,12 +110,12 @@ class JoinedPhraseElisionTest {
         List<Bar> bars = joined.bars();
         assertEquals(1, bars.size());
         Bar merged = bars.get(0);
-        // Layout: [audible_last(20)] [audible_first(16)] [residual_pad(28)] = 3 nodes.
+        // Layout: [audible_last(20)] [middle_gap(28)] [audible_first(16)] = 3 nodes.
         assertEquals(3, merged.nodes().size());
         assertTrue(merged.nodes().get(0) instanceof PitchNode);
-        assertTrue(merged.nodes().get(1) instanceof PitchNode);
-        assertTrue(merged.nodes().get(2) instanceof PaddingNode);
-        assertEquals(28, ((PaddingNode) merged.nodes().get(2)).duration().sixtyFourths());
+        assertTrue(merged.nodes().get(1) instanceof PaddingNode);
+        assertEquals(28, ((PaddingNode) merged.nodes().get(1)).duration().sixtyFourths());
+        assertTrue(merged.nodes().get(2) instanceof PitchNode);
     }
 
     @Test
@@ -140,19 +139,21 @@ class JoinedPhraseElisionTest {
     }
 
     @Test
-    void elided_stage1_doesNotFit_throws() {
-        // bar=64, trail=8, lead=32. audibleFirst=32 > trailPad=8 → throw.
+    void elided_stage1_belowMinOverlap_fallsBackToAttacca() {
+        // bar=64, trail=8, lead=8. trail+lead=16 < bar=64 → can't merge.
+        // No throw — falls through to ATTACCA-like sequential playout.
         var lastBar = Bar.of(BAR64,
                 PitchNode.of(p(NoteName.C, 4), Duration.ofSixtyFourths(56)),
                 pad(8));
-        var pickupBr = Bar.of(BAR64, pad(32),
-                PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(32)));
+        var pickupBr = Bar.of(BAR64, pad(8),
+                PitchNode.of(p(NoteName.D, 4), Duration.ofSixtyFourths(56)));
         var joined = BarPhrase.join(ConnectingMode.ELIDED,
                 BarPhrase.of(lastBar), BarPhrase.of(pickupBr));
 
-        var ex = assertThrows(IllegalStateException.class, joined::bars);
-        assertTrue(ex.getMessage().contains("pickup audible content"),
-                "message: " + ex.getMessage());
+        List<Bar> bars = joined.bars();
+        assertEquals(2, bars.size(), "no merge — both bars survive");
+        assertSame(lastBar, bars.get(0));
+        assertSame(pickupBr, bars.get(1));
     }
 
     // ── Stage 2: whole-bar trim ─────────────────────────────────────
