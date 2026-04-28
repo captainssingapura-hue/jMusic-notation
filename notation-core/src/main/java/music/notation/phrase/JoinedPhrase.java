@@ -86,22 +86,29 @@ public record JoinedPhrase(String name, List<BarPhrase> children, ConnectingMode
             acc.addAll(next);
             return;
         }
-        // Stage 1: within-bar pickup absorption.
+        // Stage 1: pickup-bar absorption. Triggers when both sides have
+        // boundary silence (last has trailing pad, first has leading pad).
         Bar last = acc.get(acc.size() - 1);
         Bar first = next.get(0);
         int trailPad64 = trailingPadSixtyFourths(last);
         int leadPad64  = leadingPadSixtyFourths(first);
         int firstAudible64 = first.expectedSixtyFourths() - leadPad64;
 
-        if (firstAudible64 > 0) {
+        if (trailPad64 > 0 && leadPad64 > 0) {
             if (firstAudible64 > trailPad64) {
                 throw new IllegalStateException(
                         "ELIDED join: pickup audible content (" + firstAudible64
                                 + "/64) exceeds previous bar's trailing pad (" + trailPad64
                                 + "/64). Shrink the pickup, grow the trailing pad, or use ATTACCA.");
             }
-            Bar merged = mergeAbsorption(last, first, trailPad64, leadPad64);
-            acc.set(acc.size() - 1, merged);
+            if (firstAudible64 > 0) {
+                // Audible pickup: merge audible into last; drop pickup bar.
+                Bar merged = mergeAbsorption(last, first, trailPad64, leadPad64);
+                acc.set(acc.size() - 1, merged);
+            }
+            // Silent-only pickup (firstAudible64 == 0): drop the pickup
+            // bar without modifying last. This handles "alignment" pickups
+            // on harmony tracks that mirror the lead's audible pickup.
             next.remove(0);
         }
 

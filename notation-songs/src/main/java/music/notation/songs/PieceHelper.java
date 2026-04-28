@@ -82,20 +82,71 @@ public final class PieceHelper {
      * {@code MelodicTrack} doesn't carry them. Pickup bars and trailing
      * padding survive verbatim because they're encoded inside the
      * {@link Bar}s themselves.</p>
+     *
+     * <p>Use {@link #joinMelodicPhrases} instead when phrase boundaries
+     * carry {@code ELISION} markings that should overlap pickups.</p>
      */
     public static MelodicTrack flattenMelodic(String name, Instrument inst,
                                               List<? extends Phrase> phrases) {
         var bars = new ArrayList<Bar>();
         for (Phrase phrase : phrases) {
-            MelodicPhrase mp = switch (phrase) {
-                case MelodicPhrase melodic   -> melodic;
-                case LayeredPhrase layered   -> layered.resolve();
-                default -> throw new IllegalArgumentException(
-                        "flattenMelodic: unsupported phrase type "
-                                + phrase.getClass().getSimpleName());
-            };
-            bars.addAll(mp.toMelodicTrack(name, inst).bars());
+            bars.addAll(toLeafBars(phrase, name, inst));
         }
         return new MelodicTrack(name, inst, bars, List.of());
+    }
+
+    /**
+     * Phase 4d.2: flatten a list of melodic phrases into a single
+     * {@link MelodicTrack}, honouring per-phrase {@code ELISION} markings
+     * via {@link JoinedPhrase}. Each phrase's marking decides the
+     * {@link ConnectingMode} between it and the next phrase
+     * ({@code ELISION} → {@link ConnectingMode#ELIDED}; everything else
+     * → {@link ConnectingMode#ATTACCA}).
+     *
+     * <p>Result: the pickup bars that previously sat orphaned at section
+     * boundaries get absorbed into the preceding phrase's trailing pad,
+     * matching the old {@code PhraseInterpreter.applyBoundaryGap(ELISION)}
+     * timing.</p>
+     */
+    public static MelodicTrack joinMelodicPhrases(String name, Instrument inst,
+                                                  List<? extends Phrase> phrases) {
+        if (phrases.isEmpty()) {
+            return new MelodicTrack(name, inst, List.of(), List.of());
+        }
+
+        // Left-fold pairwise: acc starts as LeafPhrase(phrase[0].bars()),
+        // then for each subsequent phrase X join(modeBetween, acc, X).
+        BarPhrase acc = BarPhrase.of(toLeafBars(phrases.get(0), name, inst));
+        for (int i = 1; i < phrases.size(); i++) {
+            ConnectingMode mode = modeAfter(phrases.get(i - 1));
+            BarPhrase next = BarPhrase.of(toLeafBars(phrases.get(i), name, inst));
+            acc = BarPhrase.join(mode, acc, next);
+        }
+        return new MelodicTrack(name, inst, acc.bars(), List.of());
+    }
+
+    /** Extract bars from any supported phrase type. */
+    private static List<Bar> toLeafBars(Phrase phrase, String name, Instrument inst) {
+        MelodicPhrase mp = switch (phrase) {
+            case MelodicPhrase melodic   -> melodic;
+            case LayeredPhrase layered   -> layered.resolve();
+            default -> throw new IllegalArgumentException(
+                    "toLeafBars: unsupported phrase type "
+                            + phrase.getClass().getSimpleName());
+        };
+        return mp.toMelodicTrack(name, inst).bars();
+    }
+
+    /** Connecting mode between {@code phrase} and the next based on its marking. */
+    private static ConnectingMode modeAfter(Phrase phrase) {
+        PhraseMarking marking = switch (phrase) {
+            case MelodicPhrase mp -> mp.marking();
+            case LayeredPhrase lp -> lp.marking();
+            default -> null;
+        };
+        if (marking == null) return ConnectingMode.ATTACCA;
+        return marking.connection() == PhraseConnection.ELISION
+                ? ConnectingMode.ELIDED
+                : ConnectingMode.ATTACCA;
     }
 }

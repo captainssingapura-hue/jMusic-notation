@@ -36,9 +36,9 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
         // loses inter-phrase pickup overlap but bars and pickup-bar
         // padding survive. LayeredPhrase overrides resolve via the
         // helper.
-        final var rhTrack = flattenMelodic("Right Hand", ACOUSTIC_GRAND_PIANO,
+        final var rhTrack = joinMelodicPhrases("Right Hand", ACOUSTIC_GRAND_PIANO,
                 rightHandPhrases());
-        final var lhTrack = flattenMelodic("Left Hand",  ACOUSTIC_GRAND_PIANO,
+        final var lhTrack = joinMelodicPhrases("Left Hand",  ACOUSTIC_GRAND_PIANO,
                 leftHandPhrases());
 
         return Piece.ofTrackKinds(id.title(), id.composer(),

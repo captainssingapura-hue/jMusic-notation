@@ -32,9 +32,9 @@ public final class PianoTianHeiHei implements PieceContentProvider<TianHeiHei> {
         // bar-list shape on MelodicTrack. Phrase markings (elision /
         // attacca / end) and `.aux(...)` voice overlays are dropped
         // — see PieceHelper.flattenMelodic.
-        final var pianoTrack   = flattenMelodic("Piano",   ACOUSTIC_GRAND_PIANO,
+        final var pianoTrack   = joinMelodicPhrases("Piano",   ACOUSTIC_GRAND_PIANO,
                 melodyPhrases());
-        final var harmonyTrack = flattenMelodic("Harmony", ACOUSTIC_GRAND_PIANO,
+        final var harmonyTrack = joinMelodicPhrases("Harmony", ACOUSTIC_GRAND_PIANO,
                 harmonyPhrases());
 
         return Piece.ofTrackKinds(id.title(), id.composer(),
