@@ -219,67 +219,72 @@ public class NotationApp extends Application {
                 selectorRow, providerRow, scaleRow, bpmRow, playbackRow, statusLabel, pieceInfoLabel);
 
         // -- Bottom-left: Piano Roll (GarageBand-style: per-track rows with controls + lane) --
-        final ScrollPane[] scrollPaneRef = {null};
+        // The control-panel column on the left is FROZEN; only the lane column
+        // scrolls horizontally (via PitchScroll's internal ScrollPane).
+        // The outer pianoRollScrollPane handles vertical scroll only.
         final double CONTROL_PANEL_WIDTH = 180;
         pitchScroll = new PitchScroll(
                 tick -> player.setTickPosition(tick),
                 cursorX -> {
-                    final ScrollPane sp = scrollPaneRef[0];
-                    if (sp == null || sp.getViewportBounds() == null) return;
-                    final double contentWidth = pitchScroll.getWidth();
-                    final double vpWidth = sp.getViewportBounds().getWidth();
-                    if (contentWidth <= vpWidth) return;
-                    final double scrollable = contentWidth - vpWidth;
-                    final double scrollOffset = sp.getHvalue() * scrollable;
-                    final double cursorInViewport = cursorX - scrollOffset;
-                    final double threshold = vpWidth * 0.7;
+                    // Auto-scroll: drive PitchScroll's INNER lane scroll so the
+                    // playhead never crosses the right-70% threshold.
+                    if (pitchScroll == null) return;
+                    double vpW = pitchScroll.getLaneViewportWidth();
+                    double contentW = pitchScroll.getLaneContentWidth();
+                    if (vpW <= 0 || contentW <= vpW) return;
+                    double scrollable = contentW - vpW;
+                    double scrollOffset = pitchScroll.getLaneScrollHvalue() * scrollable;
+                    double cursorInViewport = cursorX - scrollOffset;
+                    double threshold = vpW * 0.7;
                     if (cursorInViewport > threshold) {
-                        final double targetOffset = cursorX - threshold;
-                        sp.setHvalue(Math.clamp(targetOffset / scrollable, 0, 1));
+                        double targetOffset = cursorX - threshold;
+                        pitchScroll.setLaneScrollHvalue(Math.clamp(targetOffset / scrollable, 0, 1));
                     }
                 },
                 this::buildTrackRowControlPanel,
                 CONTROL_PANEL_WIDTH
         );
         pianoRollScrollPane = new ScrollPane(pitchScroll);
-        scrollPaneRef[0] = pianoRollScrollPane;
-        pianoRollScrollPane.setFitToWidth(false);
-        pianoRollScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        pianoRollScrollPane.setFitToWidth(true);
+        pianoRollScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         pianoRollScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         pianoRollScrollPane.setStyle("-fx-background: #1e1e2e; -fx-background-color: #1e1e2e;");
+        pianoRollScrollPane.viewportBoundsProperty().addListener((obs, o, n) -> pitchScroll.hostViewportChanged());
 
-        final double MAX_CANVAS_DIM = 8192;
-        final Runnable updateCanvasSize = () -> {
-            if (pianoRollScrollPane.getViewportBounds() == null) return;
-            final double vpw = pianoRollScrollPane.getViewportBounds().getWidth();
-            final double effectiveWidth = Math.min(Math.max(vpw, pitchScroll.getMinContentWidth()), MAX_CANVAS_DIM);
-            pitchScroll.resizeLanesToWidth(effectiveWidth);
-            pitchScroll.setMinWidth(effectiveWidth);
-            pitchScroll.setPrefWidth(effectiveWidth);
+        // ── Top: cursor readout (bar/beat) + skip-to-start button ──────
+        Button skipStartBtn = new Button("⏮");
+        skipStartBtn.setTooltip(new Tooltip("Seek to start"));
+        skipStartBtn.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4; -fx-font-size: 11;");
+        skipStartBtn.setOnAction(e -> {
+            pitchScroll.seekTo(0);
+            pitchScroll.setLaneScrollHvalue(0);
+        });
+        Label cursorReadout = new Label("Bar – · Beat –");
+        cursorReadout.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12; -fx-font-family: monospace;");
+        pitchScroll.setOnCursorTick(tick -> {
+            if (currentScrollData == null) {
+                cursorReadout.setText("Bar – · Beat –");
+                return;
+            }
+            cursorReadout.setText(formatCursorReadout(tick, currentScrollData));
+        });
+        HBox cursorBar = new HBox(10, skipStartBtn, cursorReadout);
+        cursorBar.setAlignment(Pos.CENTER_LEFT);
+        cursorBar.setPadding(new Insets(4, 8, 4, 8));
+        cursorBar.setStyle("-fx-background-color: #181825;");
 
-            final double vpH = pianoRollScrollPane.getViewportBounds().getHeight();
-            final double contentH = pitchScroll.computeContentHeight();
-            final double effectiveH = Math.min(Math.max(contentH, vpH), MAX_CANVAS_DIM);
-            pitchScroll.setMinHeight(effectiveH);
-            pitchScroll.setPrefHeight(effectiveH);
-        };
-        pianoRollScrollPane.viewportBoundsProperty().addListener((obs, o, n) -> updateCanvasSize.run());
-
-        // Zoom slider: controls minimum pixels per quarter note (1–20, default 2)
+        // ── Bottom: Zoom slider ────────────────────────────────────────
         final Label zoomLabel = styledLabel("Zoom:");
         final Slider zoomSlider = new Slider(2, 80, 4);
         zoomSlider.setMaxWidth(120);
-        zoomSlider.valueProperty().addListener((obs, o, n) -> {
-            pitchScroll.setMinQuarterPx(n.doubleValue());
-            updateCanvasSize.run();
-        });
+        zoomSlider.valueProperty().addListener((obs, o, n) -> pitchScroll.setMinQuarterPx(n.doubleValue()));
 
         final HBox zoomBar = new HBox(8, zoomLabel, zoomSlider);
         zoomBar.setAlignment(Pos.CENTER_RIGHT);
         zoomBar.setPadding(new Insets(2, 8, 2, 8));
         zoomBar.setStyle("-fx-background-color: #181825;");
 
-        final VBox pianoRollBox = new VBox(pianoRollScrollPane, zoomBar);
+        final VBox pianoRollBox = new VBox(cursorBar, pianoRollScrollPane, zoomBar);
         VBox.setVgrow(pianoRollScrollPane, Priority.ALWAYS);
 
         // -- Bottom: Keyboard holder (canvas created lazily) --
@@ -454,6 +459,23 @@ public class NotationApp extends Application {
         };
     }
 
+    /** Format "Bar X · Beat Y · tick T" for the cursor readout label. */
+    private static String formatCursorReadout(long tick, PitchScrollData data) {
+        long barWidth = data.barTickWidth();
+        if (barWidth <= 0 || data.ticksPerQuarter() <= 0) {
+            return "tick " + tick;
+        }
+        boolean hasPickup = data.pickupOffsetTicks() > 0;
+        long rawBar = tick / barWidth;
+        long tickInBar = tick % barWidth;
+        long beat = tickInBar / data.ticksPerQuarter() + 1;
+        long barIdx = hasPickup ? rawBar : rawBar + 1;
+        if (hasPickup && rawBar == 0) {
+            return String.format("Pickup · Beat %d · tick %d", beat, tick);
+        }
+        return String.format("Bar %d · Beat %d · tick %d", barIdx, beat, tick);
+    }
+
     // ── Key label helpers ────────────────────────────────────────────
 
     private KeySignature parseKeyFromUI() {
@@ -529,14 +551,15 @@ public class NotationApp extends Application {
 
         currentScrollData = PitchScrollData.fromPiece(currentPiece);
         disabledVisualizerTracks.clear();
-        pitchScroll.load(currentScrollData);
-        if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
-        if (guitarTabDisplay != null) guitarTabDisplay.load(currentScrollData);
-        // Reset per-track state so the lane factory fills with defaults for the new piece.
+        // Reset per-track state BEFORE rebuilding lanes — the lane factory
+        // grows these lists and bakes the indices into button listeners.
+        // Clearing afterwards leaves the listeners pointing into an empty list.
         selectedInstruments.clear();
         selectedVolumes.clear();
         instrumentButtons.clear();
-        // PitchScroll.load() rebuilds lanes (and their control panels) from currentPiece.
+        pitchScroll.load(currentScrollData);
+        if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
+        if (guitarTabDisplay != null) guitarTabDisplay.load(currentScrollData);
         playButton.setDisable(false);
         exportButton.setDisable(false);
         statusLabel.setText("Ready");
@@ -624,7 +647,7 @@ public class NotationApp extends Application {
         stopButton.setDisable(false);
         pieceSelector.setDisable(true);
         statusLabel.setText("Playing...");
-        pianoRollScrollPane.setHvalue(0);
+        pitchScroll.setLaneScrollHvalue(0);
 
         Thread playThread = new Thread(() -> {
             try {
