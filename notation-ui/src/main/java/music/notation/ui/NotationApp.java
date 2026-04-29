@@ -31,7 +31,6 @@ public class NotationApp extends Application {
 
     private ComboBox<String> pieceSelector;
     private ComboBox<PieceContentProvider<?>> providerSelector;
-    private VBox trackControlsBox;
     private Button playButton;
     private Button pauseButton;
     private Button stopButton;
@@ -67,13 +66,18 @@ public class NotationApp extends Application {
     private Slider bpmSlider;
     private Label bpmValueLabel;
 
-    /** Per-track list of instrument combos (outer = track index, inner = instrument slots). */
-    private final List<List<ComboBox<Instrument>>> trackInstrumentCombos = new ArrayList<>();
-    /** Per-track list of volume sliders, parallel to trackInstrumentCombos. */
-    private final List<List<Slider>> trackVolumeSliders = new ArrayList<>();
+    /** Per-track selected instrument (single-instrument-per-track post-Phase-5). */
+    private final List<Instrument> selectedInstruments = new ArrayList<>();
+    /** Per-track selected volume level 0–127. */
+    private final List<Integer> selectedVolumes = new ArrayList<>();
+    /** Per-track instrument button (label updated when selection changes). */
+    private final List<Button> instrumentButtons = new ArrayList<>();
+    /** The host stage — passed to InstrumentPickerDialog as modal owner. */
+    private Stage hostStage;
 
     @Override
     public void start(Stage stage) {
+        this.hostStage = stage;
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #1e1e2e;");
 
@@ -214,62 +218,50 @@ public class NotationApp extends Application {
         libraryContent.getChildren().addAll(
                 selectorRow, providerRow, scaleRow, bpmRow, playbackRow, statusLabel, pieceInfoLabel);
 
-        // -- Top-right: Tracks --
-        trackControlsBox = new VBox(8);
-        trackControlsBox.setPadding(new Insets(10));
-        trackControlsBox.setStyle("-fx-background-color: #1e1e2e;");
-        ScrollPane trackScroll = new ScrollPane(trackControlsBox);
-        trackScroll.setFitToWidth(true);
-        trackScroll.setStyle("-fx-background: #1e1e2e; -fx-background-color: #1e1e2e;");
-
-        // -- Bottom-left: Piano Roll --
-        final ScrollPane[] scrollPaneRef = {null}; // forward reference for the callback
+        // -- Bottom-left: Piano Roll (GarageBand-style: per-track rows with controls + lane) --
+        final ScrollPane[] scrollPaneRef = {null};
+        final double CONTROL_PANEL_WIDTH = 180;
         pitchScroll = new PitchScroll(
                 tick -> player.setTickPosition(tick),
                 cursorX -> {
-                    // Auto-scroll: when cursor enters the rightmost 30% of the viewport,
-                    // scroll to keep it at that boundary.
                     final ScrollPane sp = scrollPaneRef[0];
                     if (sp == null || sp.getViewportBounds() == null) return;
                     final double contentWidth = pitchScroll.getWidth();
                     final double vpWidth = sp.getViewportBounds().getWidth();
                     if (contentWidth <= vpWidth) return;
-
                     final double scrollable = contentWidth - vpWidth;
                     final double scrollOffset = sp.getHvalue() * scrollable;
                     final double cursorInViewport = cursorX - scrollOffset;
                     final double threshold = vpWidth * 0.7;
-
                     if (cursorInViewport > threshold) {
                         final double targetOffset = cursorX - threshold;
                         sp.setHvalue(Math.clamp(targetOffset / scrollable, 0, 1));
                     }
-                }
+                },
+                this::buildTrackRowControlPanel,
+                CONTROL_PANEL_WIDTH
         );
-        final Pane canvasHolder = new Pane(pitchScroll);
-        canvasHolder.setStyle("-fx-background-color: #1e1e2e;");
-        pianoRollScrollPane = new ScrollPane(canvasHolder);
+        pianoRollScrollPane = new ScrollPane(pitchScroll);
         scrollPaneRef[0] = pianoRollScrollPane;
+        pianoRollScrollPane.setFitToWidth(false);
         pianoRollScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         pianoRollScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         pianoRollScrollPane.setStyle("-fx-background: #1e1e2e; -fx-background-color: #1e1e2e;");
 
-        // JavaFX Canvas backed by GPU textures — cap to avoid allocation failure
         final double MAX_CANVAS_DIM = 8192;
         final Runnable updateCanvasSize = () -> {
             if (pianoRollScrollPane.getViewportBounds() == null) return;
             final double vpw = pianoRollScrollPane.getViewportBounds().getWidth();
             final double effectiveWidth = Math.min(Math.max(vpw, pitchScroll.getMinContentWidth()), MAX_CANVAS_DIM);
-            pitchScroll.setWidth(effectiveWidth);
-            canvasHolder.setMinWidth(effectiveWidth);
-            canvasHolder.setPrefWidth(effectiveWidth);
+            pitchScroll.resizeLanesToWidth(effectiveWidth);
+            pitchScroll.setMinWidth(effectiveWidth);
+            pitchScroll.setPrefWidth(effectiveWidth);
 
             final double vpH = pianoRollScrollPane.getViewportBounds().getHeight();
             final double contentH = pitchScroll.computeContentHeight();
             final double effectiveH = Math.min(Math.max(contentH, vpH), MAX_CANVAS_DIM);
-            pitchScroll.setHeight(effectiveH);
-            canvasHolder.setMinHeight(effectiveH);
-            canvasHolder.setPrefHeight(effectiveH);
+            pitchScroll.setMinHeight(effectiveH);
+            pitchScroll.setPrefHeight(effectiveH);
         };
         pianoRollScrollPane.viewportBoundsProperty().addListener((obs, o, n) -> updateCanvasSize.run());
 
@@ -344,9 +336,8 @@ public class NotationApp extends Application {
         guitarBox.setStyle("-fx-background-color: #1e1e2e;");
         VBox.setVgrow(gtHolder, Priority.ALWAYS);
 
-        // === Assemble: Top (Library | Tracks) / Middle (Piano Roll) / Bottom (Keyboard | Guitar) ===
+        // === Assemble: Top (Library) / Middle (Piano Roll w/ embedded track controls) / Bottom (Keyboard | Guitar) ===
         TabPane topLeftTabs = createTabPane(tab("Library", libraryContent));
-        TabPane topRightTabs = createTabPane(tab("Tracks", trackScroll));
         TabPane middleTabs = createTabPane(tab("Piano Roll", pianoRollBox));
         keyboardTab = tab("Keyboard", keyboardBox);
         guitarTab = tab("Guitar", guitarBox);
@@ -360,13 +351,9 @@ public class NotationApp extends Application {
         // Create the initial display (keyboard is first tab)
         setUpBottomDisplay(keyboardTab);
 
-        SplitPane topSplit = new SplitPane(topLeftTabs, topRightTabs);
-        topSplit.setDividerPositions(0.45);
-        styleSplitPane(topSplit);
-
-        SplitPane mainSplit = new SplitPane(topSplit, middleTabs, bottomTabs);
+        SplitPane mainSplit = new SplitPane(topLeftTabs, middleTabs, bottomTabs);
         mainSplit.setOrientation(Orientation.VERTICAL);
-        mainSplit.setDividerPositions(0.25, 0.82);
+        mainSplit.setDividerPositions(0.18, 0.82);
         styleSplitPane(mainSplit);
 
         root.setCenter(mainSplit);
@@ -545,129 +532,82 @@ public class NotationApp extends Application {
         pitchScroll.load(currentScrollData);
         if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
         if (guitarTabDisplay != null) guitarTabDisplay.load(currentScrollData);
-        buildTrackControls();
+        // Reset per-track state so the lane factory fills with defaults for the new piece.
+        selectedInstruments.clear();
+        selectedVolumes.clear();
+        instrumentButtons.clear();
+        // PitchScroll.load() rebuilds lanes (and their control panels) from currentPiece.
         playButton.setDisable(false);
         exportButton.setDisable(false);
         statusLabel.setText("Ready");
     }
 
-    // ── Track controls with dynamic instrument slots ──────────────────────
+    // ── Per-track row control panel (GarageBand-style) ─────────────────
 
-    private void buildTrackControls() {
-        trackControlsBox.getChildren().clear();
-        trackInstrumentCombos.clear();
-        trackVolumeSliders.clear();
+    /**
+     * Build the control panel that sits to the LEFT of each piano-roll
+     * lane: track name + instrument-picker button (opens modal) + volume
+     * slider + KB visualizer toggle. Called by {@link PitchScroll} during
+     * its lane rebuild.
+     */
+    private Node buildTrackRowControlPanel(int trackIndex, String trackName) {
+        Track track = currentPiece.tracks().get(trackIndex);
+        Instrument defaultIns = defaultInstrumentOf(track);
 
-        List<Track> tracks = currentPiece.tracks();
-        for (int i = 0; i < tracks.size(); i++) {
-            Track track = tracks.get(i);
-            int trackIndex = i;
-            // Lyrics tracks no longer exist post-4d; every track is audio.
-            boolean isAudio = true;
+        while (selectedInstruments.size() <= trackIndex) selectedInstruments.add(null);
+        while (selectedVolumes.size() <= trackIndex) selectedVolumes.add(null);
+        while (instrumentButtons.size() <= trackIndex) instrumentButtons.add(null);
+        if (selectedInstruments.get(trackIndex) == null) selectedInstruments.set(trackIndex, defaultIns);
+        if (selectedVolumes.get(trackIndex) == null) selectedVolumes.set(trackIndex, 100);
 
-            // Per-track container: label + instrument rows + add button
-            VBox trackBox = new VBox(4);
-            trackBox.setPadding(new Insets(4, 0, 4, 0));
+        Label nameLabel = new Label(trackName);
+        nameLabel.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12; -fx-font-weight: bold;");
+        nameLabel.setMaxWidth(Double.MAX_VALUE);
 
-            // Track header row: name + "+" button
-            HBox headerRow = new HBox(8);
-            headerRow.setAlignment(Pos.CENTER_LEFT);
-            Label trackLabel = styledLabel(track.name());
-            trackLabel.setMinWidth(80);
-            trackLabel.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 13; -fx-font-weight: bold;");
+        Button instrButton = new Button(InstrumentPickerDialog.displayName(selectedInstruments.get(trackIndex)));
+        instrButton.setMaxWidth(Double.MAX_VALUE);
+        instrButton.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4; -fx-font-size: 11;");
+        instrButton.setOnAction(e -> {
+            Instrument current = selectedInstruments.get(trackIndex);
+            InstrumentPickerDialog.show(hostStage, "Instrument · " + trackName, current)
+                    .ifPresent(picked -> {
+                        selectedInstruments.set(trackIndex, picked);
+                        instrButton.setText(InstrumentPickerDialog.displayName(picked));
+                        // 5.2 will hook player.setProgram here for live mutation.
+                    });
+        });
+        instrumentButtons.set(trackIndex, instrButton);
 
-            headerRow.getChildren().add(trackLabel);
-
-            // Keyboard/guitar toggle checkbox (audio tracks only)
-            if (isAudio) {
-                CheckBox kbToggle = new CheckBox("KB");
-                kbToggle.setSelected(true);
-                kbToggle.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11;");
-                String trackKey = track.name();
-                kbToggle.selectedProperty().addListener((obs, o, n) -> {
-                    if (n) disabledVisualizerTracks.remove(trackKey);
-                    else   disabledVisualizerTracks.add(trackKey);
-                    if (keyboardDisplay != null) keyboardDisplay.setTrackEnabled(trackKey, n);
-                    if (guitarTabDisplay != null) guitarTabDisplay.setTrackEnabled(trackKey, n);
-                });
-                headerRow.getChildren().add(kbToggle);
-            }
-
-            Button addBtn = smallButton("+");
-            addBtn.setOnAction(e -> addInstrumentSlot(trackIndex, trackBox, defaultInstrumentOf(track)));
-
-            headerRow.getChildren().add(addBtn);
-            trackBox.getChildren().add(headerRow);
-
-            // Instrument combo list and volume slider list for this track
-            var combos = new ArrayList<ComboBox<Instrument>>();
-            var sliders = new ArrayList<Slider>();
-            trackInstrumentCombos.add(combos);
-            trackVolumeSliders.add(sliders);
-
-            // Start with one slot showing the default instrument
-            addInstrumentRow(trackIndex, trackBox, combos, sliders, defaultInstrumentOf(track), false);
-
-            // Separator
-            var sep = new Separator();
-            sep.setStyle("-fx-background-color: #313244;");
-
-            trackControlsBox.getChildren().addAll(trackBox, sep);
-        }
-    }
-
-    /** Add a new instrument slot to a track (called by "+" button). */
-    private void addInstrumentSlot(int trackIndex, VBox trackBox, Instrument defaultValue) {
-        var combos = trackInstrumentCombos.get(trackIndex);
-        var sliders = trackVolumeSliders.get(trackIndex);
-        addInstrumentRow(trackIndex, trackBox, combos, sliders, defaultValue, true);
-    }
-
-    /** Create one instrument combo row with volume slider inside a track box. */
-    private void addInstrumentRow(int trackIndex, VBox trackBox,
-                                  List<ComboBox<Instrument>> combos,
-                                  List<Slider> sliders,
-                                  Instrument value, boolean removable) {
-        HBox row = new HBox(6);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(1, 0, 1, 16)); // indent under track name
-
-        ComboBox<Instrument> combo = new ComboBox<>(
-                FXCollections.observableArrayList(Instrument.values()));
-        combo.setValue(value);
-        combo.setStyle(comboStyle());
-        styleComboBoxCells(combo);
-        combo.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(combo, Priority.ALWAYS);
-
-        // Volume slider (0–127, default 100)
-        Slider volSlider = new Slider(0, 127, 100);
-        volSlider.setPrefWidth(80);
+        Slider volSlider = new Slider(0, 127, selectedVolumes.get(trackIndex));
         volSlider.setBlockIncrement(1);
         volSlider.setStyle("-fx-control-inner-background: #313244;");
+        Label volLabel = new Label(String.valueOf(selectedVolumes.get(trackIndex)));
+        volLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11; -fx-min-width: 28;");
+        volSlider.valueProperty().addListener((obs, oldV, newV) -> {
+            int v = newV.intValue();
+            volLabel.setText(String.valueOf(v));
+            selectedVolumes.set(trackIndex, v);
+            // 5.2 will hook player.setVolume here for live mutation.
+        });
+        HBox volRow = new HBox(4, volSlider, volLabel);
+        volRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(volSlider, Priority.ALWAYS);
 
-        Label volLabel = styledLabel(String.valueOf((int) volSlider.getValue()));
-        volLabel.setMinWidth(28);
-        volLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11;");
-        volSlider.valueProperty().addListener((obs, oldVal, newVal) ->
-                volLabel.setText(String.valueOf(newVal.intValue())));
+        CheckBox kbToggle = new CheckBox("KB");
+        kbToggle.setSelected(true);
+        kbToggle.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11;");
+        kbToggle.selectedProperty().addListener((obs, o, n) -> {
+            if (n) disabledVisualizerTracks.remove(trackName);
+            else disabledVisualizerTracks.add(trackName);
+            if (keyboardDisplay != null) keyboardDisplay.setTrackEnabled(trackName, n);
+            if (guitarTabDisplay != null) guitarTabDisplay.setTrackEnabled(trackName, n);
+            pitchScroll.setTrackEnabled(trackName, n);
+        });
 
-        combos.add(combo);
-        sliders.add(volSlider);
-        row.getChildren().addAll(combo, volSlider, volLabel);
-
-        if (removable) {
-            Button removeBtn = smallButton("\u2212"); // minus sign
-            removeBtn.setOnAction(e -> {
-                combos.remove(combo);
-                sliders.remove(volSlider);
-                trackBox.getChildren().remove(row);
-            });
-            row.getChildren().add(removeBtn);
-        }
-
-        // Insert before the separator (which is in the parent, not trackBox)
-        trackBox.getChildren().add(row);
+        VBox panel = new VBox(3, nameLabel, instrButton, volRow, kbToggle);
+        panel.setPadding(new Insets(4, 6, 4, 6));
+        panel.setStyle("-fx-background-color: #181825; -fx-border-color: transparent #313244 transparent transparent; -fx-border-width: 1;");
+        return panel;
     }
 
     // ── Playback ──────────────────────────────────────────────────────────
@@ -779,38 +719,27 @@ public class NotationApp extends Application {
         }
     }
 
-    /** Collect the current instrument assignments from all track combos. */
+    /** Collect per-track instrument assignments from the per-row state. */
     private List<List<Instrument>> collectInstrumentAssignments() {
         var assignments = new ArrayList<List<Instrument>>();
-        for (int t = 0; t < trackInstrumentCombos.size(); t++) {
-            var combos = trackInstrumentCombos.get(t);
-            var instruments = new ArrayList<Instrument>();
-            for (var combo : combos) {
-                if (combo.getValue() != null) {
-                    instruments.add(combo.getValue());
-                }
-            }
-            if (instruments.isEmpty()) {
-                instruments.add(defaultInstrumentOf(currentPiece.tracks().get(t)));
-            }
-            assignments.add(instruments);
+        List<Track> tracks = currentPiece.tracks();
+        for (int t = 0; t < tracks.size(); t++) {
+            Instrument ins = (t < selectedInstruments.size() && selectedInstruments.get(t) != null)
+                    ? selectedInstruments.get(t)
+                    : defaultInstrumentOf(tracks.get(t));
+            assignments.add(List.of(ins));
         }
         return assignments;
     }
 
-    /** Collect the current volume settings from all track sliders. */
+    /** Collect per-track volume settings from the per-row state. */
     private List<List<Integer>> collectVolumeAssignments() {
         var volumes = new ArrayList<List<Integer>>();
-        for (int t = 0; t < trackVolumeSliders.size(); t++) {
-            var sliders = trackVolumeSliders.get(t);
-            var trackVols = new ArrayList<Integer>();
-            for (var slider : sliders) {
-                trackVols.add((int) slider.getValue());
-            }
-            if (trackVols.isEmpty()) {
-                trackVols.add(100);
-            }
-            volumes.add(trackVols);
+        List<Track> tracks = currentPiece.tracks();
+        for (int t = 0; t < tracks.size(); t++) {
+            int v = (t < selectedVolumes.size() && selectedVolumes.get(t) != null)
+                    ? selectedVolumes.get(t) : 100;
+            volumes.add(List.of(v));
         }
         return volumes;
     }
