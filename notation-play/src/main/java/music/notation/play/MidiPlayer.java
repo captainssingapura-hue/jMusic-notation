@@ -43,6 +43,176 @@ public final class MidiPlayer {
      * once the multi-instrument-per-track translation lands on the new
      * path.</p>
      */
+    /**
+     * Build a "note-only" {@link Sequence} for the piece — same pitches,
+     * drums, and tempo events as {@link #buildSequence(Piece)} but with
+     * all program-change and CC #7 (volume) events stripped.
+     *
+     * <p>Phase 5.1: pure projection. Pair with a {@link ChannelSetup}
+     * applied directly to a {@link Synthesizer} for live control.
+     * For self-contained file export, recombine via
+     * {@link #freezeForExport(Sequence, ChannelSetup, TempoSetup, Region)}.</p>
+     */
+    public static Sequence buildNoteSequence(Piece piece) throws InvalidMidiDataException {
+        Sequence seq = buildSequence(piece);
+        stripChannelControlEvents(seq);
+        return seq;
+    }
+
+    /**
+     * Freeze a note-only sequence + channel setup + tempo setup into a
+     * self-contained {@link Sequence} suitable for file export. Pure
+     * combinator — caller passes in the note sequence and the setups,
+     * and gets back a new Sequence with PC/CC events baked at tick 0
+     * and the tempo curve scaled per the {@link TempoSetup} factor.
+     *
+     * <p>If {@code region} is bounded (not {@link Region#full()}),
+     * only events whose tick lies in {@code [region.startTick,
+     * region.endTick)} are copied, shifted by {@code -region.startTick}
+     * so the exported file starts at tick 0. Strict-policy boundary
+     * handling: notes spanning the region edge are clipped (both
+     * NOTE_ON and NOTE_OFF are dropped if either falls outside the
+     * region). For the most-recent tempo before the region start,
+     * we emit a tempo meta event at output tick 0 so partial exports
+     * play at the correct tempo from beat 1.</p>
+     *
+     * @param noteSeq      a sequence built by
+     *                     {@link #buildNoteSequence(Piece)} (or any
+     *                     sequence without PC/CC events)
+     * @param channelSetup channel programs and volumes
+     * @param tempoSetup   tempo factor (1.0 = unchanged)
+     * @param region       region to export (use {@link Region#full()}
+     *                     for the whole sequence)
+     */
+    public static Sequence freezeForExport(Sequence noteSeq,
+                                           ChannelSetup channelSetup,
+                                           TempoSetup tempoSetup,
+                                           Region region)
+            throws InvalidMidiDataException {
+        Sequence out = new Sequence(noteSeq.getDivisionType(), noteSeq.getResolution());
+        long start = region.startTick();
+        long end = region.endTick();
+        long noteSeqLen = noteSeq.getTickLength();
+        long effectiveEnd = Math.min(end, Math.max(start + 1, noteSeqLen + 1));
+
+        // Bake channel setup at tick 0 of the first output track for each
+        // channel. We add one output track per input track to preserve
+        // multi-track structure; PC/CC events are placed on the track
+        // whose channel matches.
+        for (int ti = 0; ti < noteSeq.getTracks().length; ti++) {
+            javax.sound.midi.Track inTrack = noteSeq.getTracks()[ti];
+            javax.sound.midi.Track outTrack = out.createTrack();
+
+            int channel = detectChannel(inTrack);
+
+            // Tempo carry-over: if this is the first track and region
+            // starts mid-piece, emit the latest tempo BEFORE region.start
+            // at output tick 0.
+            if (ti == 0 && start > 0) {
+                MetaMessage carriedTempo = findLatestTempoBefore(noteSeq, start);
+                if (carriedTempo != null) {
+                    outTrack.add(new MidiEvent(scaleTempo(carriedTempo, tempoSetup), 0));
+                }
+            }
+
+            // Bake channel setup at tick 0 if a channel is detected.
+            if (channel >= 0) {
+                Integer prog = channelSetup.programs().get(channel);
+                Integer vol = channelSetup.volumes().get(channel);
+                if (prog != null) {
+                    ShortMessage pc = new ShortMessage();
+                    pc.setMessage(ShortMessage.PROGRAM_CHANGE, channel, prog, 0);
+                    outTrack.add(new MidiEvent(pc, 0));
+                }
+                if (vol != null) {
+                    ShortMessage cc = new ShortMessage();
+                    cc.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #7*/ 7, vol);
+                    outTrack.add(new MidiEvent(cc, 0));
+                }
+            }
+
+            // Copy events in [start, effectiveEnd), shifted to [0, end-start).
+            for (int i = 0; i < inTrack.size(); i++) {
+                MidiEvent ev = inTrack.get(i);
+                long tick = ev.getTick();
+                if (tick < start || tick >= effectiveEnd) continue;
+                MidiMessage msg = ev.getMessage();
+                if (msg instanceof MetaMessage mm && mm.getType() == 0x51) {
+                    msg = scaleTempo(mm, tempoSetup);
+                }
+                outTrack.add(new MidiEvent(msg, tick - start));
+            }
+        }
+        return out;
+    }
+
+    /** Pick the MIDI channel of the first short message on this track. -1 if none. */
+    private static int detectChannel(javax.sound.midi.Track track) {
+        for (int i = 0; i < track.size(); i++) {
+            if (track.get(i).getMessage() instanceof ShortMessage sm) {
+                return sm.getChannel();
+            }
+        }
+        return -1;
+    }
+
+    /** Latest tempo meta event with tick &lt; cutoff, across all tracks. Null if none. */
+    private static MetaMessage findLatestTempoBefore(Sequence seq, long cutoff) {
+        MetaMessage best = null;
+        long bestTick = -1;
+        for (javax.sound.midi.Track track : seq.getTracks()) {
+            for (int i = 0; i < track.size(); i++) {
+                MidiEvent ev = track.get(i);
+                if (ev.getTick() >= cutoff) break; // tracks are tick-ordered
+                if (ev.getMessage() instanceof MetaMessage mm && mm.getType() == 0x51) {
+                    if (ev.getTick() > bestTick) {
+                        best = mm;
+                        bestTick = ev.getTick();
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Scale a tempo meta event's microseconds-per-quarter by 1/factor (faster = lower μs/quarter). */
+    private static MetaMessage scaleTempo(MetaMessage src, TempoSetup setup)
+            throws InvalidMidiDataException {
+        if (setup.bpmFactor() == 1.0) return src;
+        byte[] data = src.getData();
+        if (data.length != 3) return src;
+        int microsPerQuarter = ((data[0] & 0xff) << 16) | ((data[1] & 0xff) << 8) | (data[2] & 0xff);
+        int scaled = Math.max(1, (int) Math.round(microsPerQuarter / setup.bpmFactor()));
+        byte[] out = new byte[] {
+                (byte) ((scaled >> 16) & 0xff),
+                (byte) ((scaled >> 8) & 0xff),
+                (byte) (scaled & 0xff)
+        };
+        MetaMessage mm = new MetaMessage();
+        mm.setMessage(0x51, out, out.length);
+        return mm;
+    }
+
+    /** Remove all PROGRAM_CHANGE and CC #7 events from every track in-place. */
+    private static void stripChannelControlEvents(Sequence seq) {
+        for (javax.sound.midi.Track track : seq.getTracks()) {
+            // Collect events to remove first (avoids index shifting during walk).
+            var toRemove = new ArrayList<MidiEvent>();
+            for (int i = 0; i < track.size(); i++) {
+                MidiEvent ev = track.get(i);
+                if (ev.getMessage() instanceof ShortMessage sm) {
+                    int cmd = sm.getCommand();
+                    if (cmd == ShortMessage.PROGRAM_CHANGE) {
+                        toRemove.add(ev);
+                    } else if (cmd == ShortMessage.CONTROL_CHANGE && sm.getData1() == 7) {
+                        toRemove.add(ev);
+                    }
+                }
+            }
+            for (MidiEvent ev : toRemove) track.remove(ev);
+        }
+    }
+
     public static Sequence buildSequence(Piece piece) throws InvalidMidiDataException {
         try {
             Performance perf = PieceConcretizer.concretize(piece);
