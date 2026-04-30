@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Modal dialog for picking a {@link Instrument} from the GM catalogue,
@@ -56,8 +57,21 @@ final class InstrumentPickerDialog {
             new Family("Drum Kit",        -1, -1)  // special: only DRUM_KIT
     );
 
-    /** Open the modal and return the chosen instrument, if any. */
+    /** Open the modal and return the chosen instrument, if any. No live preview. */
     static Optional<Instrument> show(Window owner, String title, Instrument current) {
+        return show(owner, title, current, null);
+    }
+
+    /**
+     * Open the modal with live preview. Each selection change in the
+     * instrument list invokes {@code onPreview}, so the host can apply
+     * the candidate instrument immediately. On cancel, {@code onPreview}
+     * is invoked once more with the original {@code current} value so
+     * the host can revert. If {@code onPreview} is null, behaves like
+     * the no-preview overload.
+     */
+    static Optional<Instrument> show(Window owner, String title, Instrument current,
+                                     Consumer<Instrument> onPreview) {
         Stage stage = new Stage();
         stage.setTitle(title);
         stage.initModality(Modality.APPLICATION_MODAL);
@@ -84,17 +98,34 @@ final class InstrumentPickerDialog {
         ListView<String> familyList = new ListView<>(familyNames);
         familyList.setPrefWidth(160);
         familyList.setStyle("-fx-control-inner-background: #1e1e2e; -fx-text-fill: #cdd6f4;");
+        familyList.setCellFactory(lv -> {
+            var cell = new javafx.scene.control.ListCell<String>() {
+                @Override protected void updateItem(String name, boolean empty) {
+                    super.updateItem(name, empty);
+                    setText(empty || name == null ? null : name);
+                    restyle(this);
+                }
+            };
+            cell.selectedProperty().addListener((obs, o, n) -> restyle(cell));
+            return cell;
+        });
 
         // ── Right: instrument list
         ObservableList<Instrument> instItems = FXCollections.observableArrayList();
         ListView<Instrument> instList = new ListView<>(instItems);
         instList.setStyle("-fx-control-inner-background: #1e1e2e; -fx-text-fill: #cdd6f4;");
-        instList.setCellFactory(lv -> new javafx.scene.control.ListCell<>() {
-            @Override protected void updateItem(Instrument ins, boolean empty) {
-                super.updateItem(ins, empty);
-                setText(empty || ins == null ? null : displayName(ins) + "   (" + ins.program() + ")");
-                setStyle("-fx-text-fill: #cdd6f4;");
-            }
+        instList.setCellFactory(lv -> {
+            var cell = new javafx.scene.control.ListCell<Instrument>() {
+                @Override protected void updateItem(Instrument ins, boolean empty) {
+                    super.updateItem(ins, empty);
+                    setText(empty || ins == null ? null : displayName(ins) + "   (" + ins.program() + ")");
+                    restyle(this);
+                }
+            };
+            // Re-apply styling whenever the cell's selection state flips,
+            // so the selected row gets readable contrast.
+            cell.selectedProperty().addListener((obs, o, n) -> restyle(cell));
+            return cell;
         });
 
         // ── Refresh handler: filter by family + search.
@@ -121,6 +152,14 @@ final class InstrumentPickerDialog {
         familyList.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refresh.run());
         search.textProperty().addListener((obs, o, n) -> refresh.run());
 
+        // Live preview: every selection change in the instrument list
+        // fires onPreview so the host can apply the candidate now.
+        if (onPreview != null) {
+            instList.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> {
+                if (n != null) onPreview.accept(n);
+            });
+        }
+
         // Pre-select current's family.
         String currentFamily = current != null ? familyOf(current) : familyNames.get(0);
         if (familyNames.contains(currentFamily)) {
@@ -133,17 +172,22 @@ final class InstrumentPickerDialog {
         Button okBtn = new Button("OK");
         Button cancelBtn = new Button("Cancel");
         Instrument[] result = {null};
+        boolean[] committed = {false};
         okBtn.setOnAction(e -> {
             result[0] = instList.getSelectionModel().getSelectedItem();
+            committed[0] = true;
             stage.close();
         });
         cancelBtn.setOnAction(e -> stage.close());
         instList.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2 && instList.getSelectionModel().getSelectedItem() != null) {
                 result[0] = instList.getSelectionModel().getSelectedItem();
+                committed[0] = true;
                 stage.close();
             }
         });
+        // Window-close (X button) is treated as cancel.
+        stage.setOnCloseRequest(e -> { /* no commit */ });
         okBtn.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;");
         cancelBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4;");
 
@@ -174,7 +218,26 @@ final class InstrumentPickerDialog {
         refresh.run();
 
         stage.showAndWait();
+
+        // On cancel, revert the live-preview by re-applying the original.
+        if (!committed[0] && onPreview != null && current != null) {
+            onPreview.accept(current);
+        }
         return Optional.ofNullable(result[0]);
+    }
+
+    /** Apply readable colours to a list cell, accounting for selection state. */
+    private static void restyle(javafx.scene.control.ListCell<?> cell) {
+        if (cell.isEmpty()) {
+            cell.setStyle("");
+            return;
+        }
+        if (cell.isSelected()) {
+            // Dark text on light-blue selection — high contrast.
+            cell.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;");
+        } else {
+            cell.setStyle("-fx-background-color: transparent; -fx-text-fill: #cdd6f4;");
+        }
     }
 
     private static String familyOf(Instrument ins) {

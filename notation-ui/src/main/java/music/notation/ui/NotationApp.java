@@ -25,6 +25,7 @@ import music.notation.structure.*;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.Consumer;
 
 public class NotationApp extends Application {
 
@@ -34,7 +35,6 @@ public class NotationApp extends Application {
     private ComboBox<String> pieceSelector;
     private ComboBox<PieceContentProvider<?>> providerSelector;
     private Button playButton;
-    private Button pauseButton;
     private Button stopButton;
     private Button exportButton;
     private Label statusLabel;
@@ -84,16 +84,16 @@ public class NotationApp extends Application {
         root.setStyle("-fx-background-color: #1e1e2e;");
 
         // === Playback controls (icon-only; placed inside the Library panel below) ===
+        // Combined play/pause toggle: shows ▶ when stopped or paused,
+        // ⏸ while playing. One button handles all three actions
+        // (start, pause, resume).
         playButton   = iconButton("▶", "Play (Space)");
-        pauseButton  = iconButton("⏸", "Pause");
         stopButton   = iconButton("⏹", "Stop");
         exportButton = iconButton("⬇", "Export MIDI…");
-        playButton.setOnAction(e -> onPlay());
-        pauseButton.setOnAction(e -> onPause());
+        playButton.setOnAction(e -> onPlayPause());
         stopButton.setOnAction(e -> onStop());
         exportButton.setOnAction(e -> onExport(stage));
         playButton.setDisable(true);
-        pauseButton.setDisable(true);
         stopButton.setDisable(true);
         exportButton.setDisable(true);
 
@@ -208,17 +208,10 @@ public class NotationApp extends Application {
         pieceInfoLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
         pieceInfoLabel.setWrapText(true);
 
-        // -- Playback row: icon-only transport + export, equal-width flex --
-        HBox playbackRow = new HBox(8);
-        playbackRow.setAlignment(Pos.CENTER_LEFT);
-        for (Button btn : new Button[] {playButton, pauseButton, stopButton, exportButton}) {
-            HBox.setHgrow(btn, Priority.ALWAYS);
-            btn.setMaxWidth(Double.MAX_VALUE);
-        }
-        playbackRow.getChildren().addAll(playButton, pauseButton, stopButton, exportButton);
-
+        // Playback row moved to the top-left toolbar (built below). Library
+        // tab keeps the piece/scale/BPM controls.
         libraryContent.getChildren().addAll(
-                selectorRow, providerRow, scaleRow, bpmRow, playbackRow, statusLabel, pieceInfoLabel);
+                selectorRow, providerRow, scaleRow, bpmRow, statusLabel, pieceInfoLabel);
 
         // -- Bottom-left: Piano Roll (GarageBand-style: per-track rows with controls + lane) --
         // The control-panel column on the left is FROZEN; only the lane column
@@ -363,6 +356,14 @@ public class NotationApp extends Application {
         mainSplit.setDividerPositions(0.18, 0.82);
         styleSplitPane(mainSplit);
 
+        // Top-left transport toolbar: Play / Pause / Stop / Export.
+        HBox transportBar = new HBox(6, playButton, stopButton, exportButton);
+        transportBar.setAlignment(Pos.CENTER_LEFT);
+        transportBar.setPadding(new Insets(4, 8, 4, 8));
+        transportBar.setStyle("-fx-background-color: #181825; "
+                + "-fx-border-color: transparent transparent #313244 transparent; -fx-border-width: 1;");
+
+        root.setTop(transportBar);
         root.setCenter(mainSplit);
 
         Scene scene = new Scene(root, 1100, 720);
@@ -622,12 +623,20 @@ public class NotationApp extends Application {
         instrButton.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4; -fx-font-size: 11;");
         instrButton.setOnAction(e -> {
             Instrument current = selectedInstruments.get(trackIndex);
-            InstrumentPickerDialog.show(hostStage, "Instrument · " + trackName, current)
-                    .ifPresent(picked -> {
-                        selectedInstruments.set(trackIndex, picked);
-                        instrButton.setText(InstrumentPickerDialog.displayName(picked));
-                        applyChannelSetupLive();
-                    });
+            // Live preview: each selection in the dialog is applied
+            // immediately. On cancel, the dialog re-applies `current`.
+            Consumer<Instrument> preview = picked -> {
+                selectedInstruments.set(trackIndex, picked);
+                applyChannelSetupLive();
+            };
+            var chosen = InstrumentPickerDialog.show(
+                    hostStage, "Instrument · " + trackName, current, preview);
+            if (chosen.isPresent()) {
+                instrButton.setText(InstrumentPickerDialog.displayName(chosen.get()));
+            } else {
+                // Cancel — preview already reverted via onPreview(current).
+                instrButton.setText(InstrumentPickerDialog.displayName(current));
+            }
         });
         instrumentButtons.set(trackIndex, instrButton);
 
@@ -671,9 +680,7 @@ public class NotationApp extends Application {
         var assignments = collectInstrumentAssignments();
         var volumes = collectVolumeAssignments();
 
-        playButton.setDisable(true);
-        pauseButton.setDisable(false);
-        pauseButton.setText("Pause");
+        playButton.setText("⏸");
         stopButton.setDisable(false);
         pieceSelector.setDisable(true);
         statusLabel.setText("Playing...");
@@ -699,9 +706,8 @@ public class NotationApp extends Application {
                     animating = false;
                     pitchScroll.stopAnimation();
                     stopActiveBottomDisplay();
+                    playButton.setText("▶");
                     playButton.setDisable(false);
-                    pauseButton.setDisable(true);
-                    pauseButton.setText("Pause");
                     stopButton.setDisable(true);
                     pieceSelector.setDisable(false);
                     statusLabel.setText("Finished");
@@ -712,21 +718,28 @@ public class NotationApp extends Application {
         playThread.start();
     }
 
-    private void onPause() {
+    /**
+     * Combined play/pause/resume button. The button glyph reflects the
+     * action that will be taken on next click (▶ = will play/resume,
+     * ⏸ = will pause).
+     */
+    private void onPlayPause() {
         if (player.isPaused()) {
             player.resume();
-            pauseButton.setText("Pause");
+            playButton.setText("⏸");
             statusLabel.setText("Playing...");
             animating = true;
             pitchScroll.startAnimation(player::getTickPosition);
             startActiveBottomDisplay();
-        } else {
+        } else if (player.isPlaying()) {
             player.pause();
-            pauseButton.setText("Resume");
+            playButton.setText("▶");
             statusLabel.setText("Paused");
             animating = false;
             pitchScroll.stopAnimation();
             stopActiveBottomDisplay();
+        } else {
+            onPlay();
         }
     }
 
@@ -735,9 +748,8 @@ public class NotationApp extends Application {
         pitchScroll.stopAnimation();
         stopActiveBottomDisplay();
         player.stop();
+        playButton.setText("▶");
         playButton.setDisable(currentPiece == null);
-        pauseButton.setDisable(true);
-        pauseButton.setText("Pause");
         stopButton.setDisable(true);
         pieceSelector.setDisable(false);
         statusLabel.setText("Stopped");
@@ -899,10 +911,18 @@ public class NotationApp extends Application {
      */
     private static Button iconButton(String icon, String tooltipText) {
         Button b = new Button(icon);
+        // Fixed-size circular button — the glyph (▶ vs ⏸ vs ⏹) shouldn't
+        // change the button width when toggling.
+        final double SIZE = 32;
+        b.setMinSize(SIZE, SIZE);
+        b.setPrefSize(SIZE, SIZE);
+        b.setMaxSize(SIZE, SIZE);
         final String base = "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 18; -fx-padding: 6 10; -fx-background-radius: 6;";
+                + "-fx-font-size: 14; -fx-padding: 0; "
+                + "-fx-background-radius: 16; -fx-min-width: 32; -fx-alignment: center;";
         final String hover = "-fx-background-color: #585b70; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 18; -fx-padding: 6 10; -fx-background-radius: 6;";
+                + "-fx-font-size: 14; -fx-padding: 0; "
+                + "-fx-background-radius: 16; -fx-min-width: 32; -fx-alignment: center;";
         b.setStyle(base);
         b.setOnMouseEntered(e -> b.setStyle(hover));
         b.setOnMouseExited(e -> b.setStyle(base));
