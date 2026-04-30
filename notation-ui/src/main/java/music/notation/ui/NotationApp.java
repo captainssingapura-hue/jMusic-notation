@@ -17,7 +17,9 @@ import javafx.stage.Stage;
 import music.notation.event.Instrument;
 import music.notation.pitch.Accidental;
 import music.notation.pitch.NoteName;
+import music.notation.play.ChannelSetup;
 import music.notation.play.MidiPlayer;
+import music.notation.play.TempoSetup;
 import music.notation.songs.PieceLibrary;
 import music.notation.structure.*;
 
@@ -408,7 +410,19 @@ public class NotationApp extends Application {
 
     private void onScaleChanged() { rebuildPiece(); }
 
-    private void onBpmChanged() { rebuildPiece(); }
+    /**
+     * Phase 5.2: BPM changes are now live. Apply a {@link TempoSetup}
+     * scaled against the original piece's authored tempo — no piece
+     * rebuild, no playback restart.
+     */
+    private void onBpmChanged() {
+        if (originalPiece == null) return;
+        int targetBpm = (int) Math.round(bpmSlider.getValue());
+        int authoredBpm = originalPiece.tempo().bpm();
+        if (authoredBpm > 0) {
+            player.applyTempo(TempoSetup.atBpm(targetBpm, authoredBpm));
+        }
+    }
 
     /**
      * Apply scale transposition and tempo override to {@link #originalPiece},
@@ -457,6 +471,22 @@ public class NotationApp extends Application {
             case MelodicTrack mt -> mt.defaultInstrument();
             case DrumTrack dt -> Instrument.DRUM_KIT;
         };
+    }
+
+    /**
+     * Phase 5.2: rebuild the {@link ChannelSetup} from the current per-track
+     * UI selections and push it to the player. Idempotent — works whether
+     * playing or not (player.applySetup is a no-op when not running).
+     */
+    private void applyChannelSetupLive() {
+        if (currentPiece == null) return;
+        try {
+            var setup = ChannelSetup.from(currentPiece, selectedInstruments, selectedVolumes);
+            player.applySetup(setup);
+        } catch (Exception ex) {
+            // Don't kill the listener thread on invalid state — just log.
+            ex.printStackTrace();
+        }
     }
 
     /** Format "Bar X · Beat Y · tick T" for the cursor readout label. */
@@ -596,7 +626,7 @@ public class NotationApp extends Application {
                     .ifPresent(picked -> {
                         selectedInstruments.set(trackIndex, picked);
                         instrButton.setText(InstrumentPickerDialog.displayName(picked));
-                        // 5.2 will hook player.setProgram here for live mutation.
+                        applyChannelSetupLive();
                     });
         });
         instrumentButtons.set(trackIndex, instrButton);
@@ -610,7 +640,7 @@ public class NotationApp extends Application {
             int v = newV.intValue();
             volLabel.setText(String.valueOf(v));
             selectedVolumes.set(trackIndex, v);
-            // 5.2 will hook player.setVolume here for live mutation.
+            applyChannelSetupLive();
         });
         HBox volRow = new HBox(4, volSlider, volLabel);
         volRow.setAlignment(Pos.CENTER_LEFT);
