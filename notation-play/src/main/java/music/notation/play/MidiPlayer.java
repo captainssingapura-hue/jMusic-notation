@@ -368,29 +368,54 @@ public final class MidiPlayer {
         return null;
     }
 
+    // ── Phase 5.1: ChannelSetup + TempoSetup live-control surface ──
+
+    /** The note-only sequence currently loaded (held for export). */
+    private Sequence currentNoteSequence;
+    /** The most-recently applied channel setup (held for export + reapply on stop/start). */
+    private ChannelSetup currentSetup;
+    /** The most-recently applied tempo setup (held for export). */
+    private TempoSetup currentTempo = TempoSetup.unity();
+    /** The piece currently loaded (held for leading-pad lookup). */
+    private Piece currentPiece;
+
     /** Start playback with default instruments. */
     public void start(Piece piece) throws Exception {
-        var defaults = new ArrayList<List<Instrument>>();
-        for (Track track : piece.tracks()) {
-            defaults.add(List.of(defaultInstrumentOf(track)));
-        }
-        start(piece, defaults);
+        start(piece, ChannelSetup.from(piece, null, null), TempoSetup.unity());
     }
 
-    /** Start playback with explicit instrument assignments. Non-blocking. */
+    /**
+     * Backwards-compat overload: per-track instrument lists. Internally
+     * derives a {@link ChannelSetup} (uses each list's first element).
+     */
     public void start(Piece piece, List<List<Instrument>> trackInstruments) throws Exception {
         start(piece, trackInstruments, null);
     }
 
-    /** Start playback with explicit instrument and volume assignments. Non-blocking. */
+    /**
+     * Backwards-compat overload: per-track instrument + volume lists.
+     * Internally derives a {@link ChannelSetup}.
+     */
     public void start(Piece piece, List<List<Instrument>> trackInstruments,
                       List<List<Integer>> trackVolumes) throws Exception {
+        var ins = firstOf(trackInstruments);
+        var vol = firstOf(trackVolumes);
+        start(piece, ChannelSetup.from(piece, ins, vol), TempoSetup.unity());
+    }
+
+    /**
+     * Phase 5.1 functional entry point: start playback driven by a
+     * {@link ChannelSetup} (programs + volumes) and {@link TempoSetup}
+     * (tempo factor). The Sequencer is loaded with a note-only Sequence
+     * (no PC/CC); the setup is applied directly to the Synthesizer
+     * channels. Subsequent live changes go through {@link #applySetup}
+     * and {@link #applyTempo}.
+     */
+    public void start(Piece piece, ChannelSetup channelSetup, TempoSetup tempoSetup) throws Exception {
         stop();
         paused = false;
 
-        Sequence sequence = trackVolumes != null
-                ? buildSequence(piece, trackInstruments, trackVolumes)
-                : buildSequence(piece, trackInstruments);
+        Sequence sequence = buildNoteSequence(piece);
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
@@ -398,13 +423,58 @@ public final class MidiPlayer {
         sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
         sequencer.setSequence(sequence);
 
-        // Skip leading padding so pickup bars don't produce silence
+        currentNoteSequence = sequence;
+        currentPiece = piece;
+        currentSetup = channelSetup;
+        currentTempo = tempoSetup;
+
+        // Apply setups to live targets.
+        channelSetup.apply(synthesizer);
+        tempoSetup.apply(sequencer);
+
+        // Skip leading padding so pickup bars don't produce silence.
         long paddingOffset = computeLeadingPaddingTicks(piece);
         if (paddingOffset > 0) {
             sequencer.setTickPosition(paddingOffset);
         }
 
         sequencer.start();
+    }
+
+    /**
+     * Live channel-control change: re-apply a {@link ChannelSetup}.
+     * Idempotent — call any time. No-op if not running.
+     */
+    public void applySetup(ChannelSetup setup) {
+        if (setup == null) return;
+        currentSetup = setup;
+        if (synthesizer != null && synthesizer.isOpen()) {
+            setup.apply(synthesizer);
+        }
+    }
+
+    /**
+     * Live tempo change: re-apply a {@link TempoSetup}. Idempotent.
+     * No-op if not running.
+     */
+    public void applyTempo(TempoSetup tempo) {
+        if (tempo == null) return;
+        currentTempo = tempo;
+        if (sequencer != null && sequencer.isOpen()) {
+            tempo.apply(sequencer);
+        }
+    }
+
+    public ChannelSetup currentSetup() { return currentSetup; }
+    public TempoSetup currentTempo() { return currentTempo; }
+
+    private static <T> List<T> firstOf(List<List<T>> nested) {
+        if (nested == null) return null;
+        var out = new ArrayList<T>(nested.size());
+        for (var lst : nested) {
+            out.add(lst != null && !lst.isEmpty() ? lst.get(0) : null);
+        }
+        return out;
     }
 
     /** Stop playback and release resources. */
@@ -482,6 +552,33 @@ public final class MidiPlayer {
         int[] types = MidiSystem.getMidiFileTypes(sequence);
         int fileType = (types.length > 1) ? 1 : types[0];
         MidiSystem.write(sequence, fileType, file);
+    }
+
+    /**
+     * Export the currently-loaded piece (started via
+     * {@link #start(Piece, ChannelSetup, TempoSetup)} or any of its
+     * overloads) as a self-contained MIDI file. Reflects whatever
+     * live setup has been applied via {@link #applySetup} /
+     * {@link #applyTempo}.
+     *
+     * <p>Use {@link Region#full()} for whole-song export, or a
+     * bounded {@link Region} for partial export.</p>
+     */
+    public void exportTo(File file, Region region)
+            throws InvalidMidiDataException, IOException {
+        if (currentNoteSequence == null || currentSetup == null) {
+            throw new IllegalStateException(
+                    "Nothing to export — start(...) the player first.");
+        }
+        Sequence frozen = freezeForExport(currentNoteSequence, currentSetup, currentTempo, region);
+        int[] types = MidiSystem.getMidiFileTypes(frozen);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(frozen, fileType, file);
+    }
+
+    /** Whole-song export. Equivalent to {@code exportTo(file, Region.full())}. */
+    public void exportTo(File file) throws InvalidMidiDataException, IOException {
+        exportTo(file, Region.full());
     }
 
     public static void exportMidi(Piece piece, List<List<Instrument>> trackInstruments, File file)
