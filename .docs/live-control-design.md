@@ -236,4 +236,120 @@ public void exportTo(File file) throws IOException {
   noteSequence as data, not in ChannelSetup. None of the surviving
   4 songs do this, so deferred.
 
-## Resume next session at: implement step 1 (ChannelSetup value object).
+## Live tempo + partial export — same pattern
+
+### Live tempo
+
+Add a sibling value object:
+
+```java
+public record TempoSetup(double bpmFactor) {
+    public static TempoSetup unity() { return new TempoSetup(1.0); }
+    public static TempoSetup factor(double f) { return new TempoSetup(f); }
+    public static TempoSetup atBpm(int desired, int authored) {
+        return new TempoSetup((double) desired / authored);
+    }
+    /** Idempotent live application. */
+    public void apply(Sequencer seq) { seq.setTempoFactor((float) bpmFactor); }
+}
+```
+
+Use **`Sequencer.setTempoFactor(float)`**, not `setTempoInBPM`:
+factor scales the composer-authored tempo *curve* (preserves
+ritardando, accelerando, etc.). Absolute BPM would flatten expressivity.
+
+### Two value objects, two apply methods
+
+```java
+public void start(Piece piece, ChannelSetup channelSetup, TempoSetup tempoSetup);
+public void applySetup(ChannelSetup s);   // live channel changes
+public void applyTempo(TempoSetup t);     // live tempo changes
+```
+
+Keep ChannelSetup and TempoSetup **separate** records. They're
+orthogonal control axes. No `PlaybackSetup` aggregate — adds nesting
+for no benefit.
+
+### Partial export
+
+`freezeForExport` gains a region parameter:
+
+```java
+public record Region(long startTick, long endTick) {
+    public Region {
+        if (startTick < 0 || endTick <= startTick) throw new IAE(...);
+    }
+    public static Region full() { return new Region(0L, Long.MAX_VALUE); }
+}
+
+public static Sequence freezeForExport(
+        Sequence noteSeq,
+        ChannelSetup channelSetup,
+        TempoSetup tempoSetup,
+        Region region
+);
+```
+
+Implementation: pure tick filter + shift.
+
+```java
+for each track in noteSeq:
+    bake channel events at tick 0 of output
+    copy events in [start, end), shifted by -start
+bake tempo override (scale tempo meta events per TempoSetup factor)
+```
+
+Edge cases handled inline:
+- **Notes spanning the boundary**: strict policy — drop both halves.
+  Composer's selection should be clean. Bridge mode (synthesize a
+  NOTE_ON at region start) deferred.
+- **Tempo before region**: scan tempos before `startTick`, take the
+  most recent, emit at output tick 0 so the partial plays at the
+  correct tempo from beat 1.
+- **Region beyond song length**: clamp `endTick` to the noteSeq's
+  tick length.
+
+### Why this pattern stays clean
+
+Each runtime control axis follows the same template:
+1. Define `XxxSetup` record with pure `from(...)` factory.
+2. Implement `apply(target)` for live use.
+3. Add an `XxxSetup` parameter to `freezeForExport` for export.
+4. Add `applyXxx(setup)` method on `MidiPlayer`.
+
+No coupling between axes — `ChannelSetup` doesn't reference
+`TempoSetup`; each is independently testable. The pure functions
+compose without conditionals because the *output sink* is the only
+thing that varies between live and export.
+
+### Out of scope (would not fit the value-object pattern)
+
+- **Time-varying automation** (a tempo curve recorded by user input
+  over time) — that's a trajectory, not a setup. Would need
+  `TempoCurve(List<TempoEvent>)`. Doable but distinct shape.
+- **Track-level mute with selective export inclusion** — needs a
+  flag on `MuteSetup` for "stripFromExport". Doable.
+- **Effects routing / voice splits / reverb sends** — not
+  representable in standard Java Sequence; out of scope.
+
+## Implementation order — Phase 5.1 foundations
+
+1. **`ChannelSetup` record + `apply(synth)`** — pure value object.
+2. **`TempoSetup` record + `apply(sequencer)`** — pure value object.
+3. **`Region` record** — pure value object.
+4. **`MidiPlayer.buildNoteSequence(piece)`** — note-only Sequence
+   (strip PC/CC + tempo meta-events; tempo lives in TempoSetup +
+   piece-authored tempo curve baked on first build).
+   - Decision: strip PC/CC on the fly inside MidiPlayer
+     (post-process the codec output) for the first cut. Promote to
+     a codec flag if it gets messy.
+5. **`MidiPlayer.freezeForExport(noteSeq, ch, tempo, region)`** —
+   pure combinator.
+6. **Refactor `MidiPlayer.start(piece, ch, tempo)`** to use the new
+   pieces. Existing overloads stay during transition.
+7. **`MidiPlayer.applySetup(ChannelSetup)` + `applyTempo(TempoSetup)`**.
+8. **Headless tests**: `ChannelSetupTest`, `TempoSetupTest`,
+   `FreezeForExportTest`.
+
+Phase 5.2 UI wiring: trivial single-line calls to `applySetup` /
+`applyTempo` from the existing listeners.
