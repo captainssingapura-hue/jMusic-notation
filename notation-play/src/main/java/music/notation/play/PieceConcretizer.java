@@ -57,11 +57,6 @@ public final class PieceConcretizer {
 
         for (music.notation.structure.Track t : piece.tracks()) {
             trackEventsList.add(walkTrack(t, t.name(), piece, tempoTimeline));
-            int auxIndex = 1;
-            for (music.notation.structure.Track aux : t.auxTracks()) {
-                String auxName = t.name() + " Aux " + auxIndex++;
-                trackEventsList.add(walkTrack(aux, auxName, piece, tempoTimeline));
-            }
         }
 
         TempoMap tempoMap = tempoTimeline.build();
@@ -127,6 +122,22 @@ public final class PieceConcretizer {
         for (Bar bar : t.bars()) {
             for (PhraseNode node : bar.nodes()) {
                 walker.interpretNode(node);
+            }
+        }
+        // Aux voices share this track's channel/instrument/volume.
+        // Each aux is walked independently with its tick reset to 0
+        // (matching the primary timeline) and its emitted notes are
+        // merged into the same TrackEvents.
+        if (t instanceof MelodicTrack mt && !mt.auxBars().isEmpty()) {
+            for (var auxBars : mt.auxBars().values()) {
+                BarWalker auxWalker = new BarWalker(tempoTimeline, piece.tempo().bpm());
+                for (Bar bar : auxBars) {
+                    for (PhraseNode node : bar.nodes()) {
+                        auxWalker.interpretNode(node);
+                    }
+                }
+                walker.pitched.addAll(auxWalker.pitched);
+                walker.drums.addAll(auxWalker.drums);
             }
         }
         return new TrackEvents(name, kind, walker.pitched, walker.drums, program);

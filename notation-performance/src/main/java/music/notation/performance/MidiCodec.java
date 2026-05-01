@@ -119,6 +119,8 @@ public final class MidiCodec {
     private static final int DRUM_CHANNEL = 9;
     private static final int META_TEMPO = 0x51;
     private static final int META_TRACK_NAME = 0x03;
+    private static final int META_TIME_SIGNATURE = 0x58;
+    private static final int META_KEY_SIGNATURE = 0x59;
 
     private MidiCodec() {}
 
@@ -394,19 +396,31 @@ public final class MidiCodec {
             }
 
             // 3. Build Track/Instrumentation from lanes deterministically.
+            // Channel 9 lanes from multiple MIDI tracks are coalesced into a
+            // single DRUM Track — Score allows at most one drum track, but
+            // real-world MIDI commonly splits drum kit pieces across tracks.
             List<Track> outTracks = new ArrayList<>();
             Map<TrackId, InstrumentControl> instrMap = new LinkedHashMap<>();
             Set<String> usedNames = new HashSet<>();
             int unnamedCounter = 0;
+
+            List<ConcreteNote> drumNotes = new ArrayList<>();
+            List<InstrumentChange> drumProgramChanges = new ArrayList<>();
 
             for (Map.Entry<LaneKey, Lane> entry : lanes.entrySet()) {
                 LaneKey key = entry.getKey();
                 Lane lane = entry.getValue();
                 if (lane.notes.isEmpty() && lane.programChanges.isEmpty()) continue;
 
-                TrackKind kind = (key.channel == DRUM_CHANNEL) ? TrackKind.DRUM : TrackKind.PITCHED;
+                if (key.channel == DRUM_CHANNEL) {
+                    for (RawNote rn : lane.notes) {
+                        drumNotes.add(new DrumNote(rn.tickMs, rn.durationMs, rn.pitch));
+                    }
+                    drumProgramChanges.addAll(lane.programChanges);
+                    continue;
+                }
 
-                // Synthesize TrackId.
+                // Pitched lane → its own Track.
                 String baseName;
                 String trackName = trackNames.get(key.midiTrackIndex);
                 Set<Integer> channels = channelsByTrack.getOrDefault(key.midiTrackIndex, Set.of());
@@ -421,16 +435,25 @@ public final class MidiCodec {
 
                 List<ConcreteNote> notes = new ArrayList<>(lane.notes.size());
                 for (RawNote rn : lane.notes) {
-                    if (kind == TrackKind.DRUM) {
-                        notes.add(new DrumNote(rn.tickMs, rn.durationMs, rn.pitch));
-                    } else {
-                        notes.add(new PitchedNote(rn.tickMs, rn.durationMs, rn.pitch));
-                    }
+                    notes.add(new PitchedNote(rn.tickMs, rn.durationMs, rn.pitch));
                 }
-                outTracks.add(new Track(id, kind, notes));
+                outTracks.add(new Track(id, TrackKind.PITCHED, notes));
 
                 if (!lane.programChanges.isEmpty()) {
                     instrMap.put(id, new InstrumentControl(lane.programChanges));
+                }
+            }
+
+            // Emit the coalesced drum Track if any drum events were seen.
+            if (!drumNotes.isEmpty() || !drumProgramChanges.isEmpty()) {
+                drumNotes.sort(Comparator.comparingLong(ConcreteNote::tickMs));
+                drumProgramChanges.sort(Comparator.comparingLong(InstrumentChange::tickMs));
+                String drumName = uniqueName("drums", usedNames);
+                usedNames.add(drumName);
+                TrackId id = new TrackId(drumName);
+                outTracks.add(new Track(id, TrackKind.DRUM, drumNotes));
+                if (!drumProgramChanges.isEmpty()) {
+                    instrMap.put(id, new InstrumentControl(drumProgramChanges));
                 }
             }
 
@@ -507,6 +530,113 @@ public final class MidiCodec {
     private static final class Lane {
         final List<RawNote> notes = new ArrayList<>();
         final List<InstrumentChange> programChanges = new ArrayList<>();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Convenience: read with time-sig + key-sig meta
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Read a MIDI file plus the first time-signature and key-signature
+     * meta events into a {@link MidiImport}. Defaults applied when the
+     * meta events are absent: 4/4 time, C-major key.
+     */
+    public static MidiImport fromMidiWithMeta(byte[] bytes, String displayName) {
+        Performance performance = fromMidi(bytes);
+        try {
+            Sequence sequence = MidiSystem.getSequence(new ByteArrayInputStream(bytes));
+            return new MidiImport(displayName, performance,
+                    readTimeSignature(sequence).orElse(
+                            new music.notation.structure.TimeSignature(4, 4)),
+                    readKeySignature(sequence).orElse(
+                            new music.notation.structure.KeySignature(
+                                    music.notation.pitch.NoteName.C,
+                                    music.notation.pitch.Accidental.NATURAL,
+                                    music.notation.structure.Mode.MAJOR)));
+        } catch (InvalidMidiDataException | IOException e) {
+            throw new IllegalStateException("Re-reading MIDI for meta extraction failed", e);
+        }
+    }
+
+    private static java.util.Optional<music.notation.structure.TimeSignature> readTimeSignature(Sequence seq) {
+        for (javax.sound.midi.Track t : seq.getTracks()) {
+            for (int i = 0; i < t.size(); i++) {
+                if (t.get(i).getMessage() instanceof MetaMessage mm
+                        && mm.getType() == META_TIME_SIGNATURE) {
+                    byte[] d = mm.getData();
+                    if (d.length < 2) continue;
+                    int numerator   = d[0] & 0xff;
+                    int denomPower  = d[1] & 0xff;
+                    int beatValue   = 1 << denomPower;   // 0→1, 1→2, 2→4, 3→8
+                    return java.util.Optional.of(
+                            new music.notation.structure.TimeSignature(numerator, beatValue));
+                }
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    private static java.util.Optional<music.notation.structure.KeySignature> readKeySignature(Sequence seq) {
+        for (javax.sound.midi.Track t : seq.getTracks()) {
+            for (int i = 0; i < t.size(); i++) {
+                if (t.get(i).getMessage() instanceof MetaMessage mm
+                        && mm.getType() == META_KEY_SIGNATURE) {
+                    byte[] d = mm.getData();
+                    if (d.length < 2) continue;
+                    int sharps = (byte) d[0];     // -7..+7
+                    int minor  = d[1] & 0xff;     // 0 = major, 1 = minor
+                    return java.util.Optional.of(decodeKey(sharps, minor != 0));
+                }
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    /** Map MIDI key-sig (sharps in [-7, +7], minor flag) to {@link music.notation.structure.KeySignature}. */
+    private static music.notation.structure.KeySignature decodeKey(int sharps, boolean minor) {
+        music.notation.pitch.NoteName tonic;
+        music.notation.pitch.Accidental acc = music.notation.pitch.Accidental.NATURAL;
+        if (!minor) {
+            tonic = switch (sharps) {
+                case -7 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.C; }
+                case -6 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.G; }
+                case -5 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.D; }
+                case -4 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.A; }
+                case -3 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.E; }
+                case -2 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.B; }
+                case -1 -> music.notation.pitch.NoteName.F;
+                case  0 -> music.notation.pitch.NoteName.C;
+                case  1 -> music.notation.pitch.NoteName.G;
+                case  2 -> music.notation.pitch.NoteName.D;
+                case  3 -> music.notation.pitch.NoteName.A;
+                case  4 -> music.notation.pitch.NoteName.E;
+                case  5 -> music.notation.pitch.NoteName.B;
+                case  6 -> { acc = music.notation.pitch.Accidental.SHARP; yield music.notation.pitch.NoteName.F; }
+                case  7 -> { acc = music.notation.pitch.Accidental.SHARP; yield music.notation.pitch.NoteName.C; }
+                default -> music.notation.pitch.NoteName.C;
+            };
+            return new music.notation.structure.KeySignature(tonic, acc, music.notation.structure.Mode.MAJOR);
+        }
+        // Minor — relative-minor mapping.
+        tonic = switch (sharps) {
+            case -7 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.A; }
+            case -6 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.E; }
+            case -5 -> { acc = music.notation.pitch.Accidental.FLAT; yield music.notation.pitch.NoteName.B; }
+            case -4 -> music.notation.pitch.NoteName.F;
+            case -3 -> music.notation.pitch.NoteName.C;
+            case -2 -> music.notation.pitch.NoteName.G;
+            case -1 -> music.notation.pitch.NoteName.D;
+            case  0 -> music.notation.pitch.NoteName.A;
+            case  1 -> music.notation.pitch.NoteName.E;
+            case  2 -> music.notation.pitch.NoteName.B;
+            case  3 -> { acc = music.notation.pitch.Accidental.SHARP; yield music.notation.pitch.NoteName.F; }
+            case  4 -> { acc = music.notation.pitch.Accidental.SHARP; yield music.notation.pitch.NoteName.C; }
+            case  5 -> { acc = music.notation.pitch.Accidental.SHARP; yield music.notation.pitch.NoteName.G; }
+            case  6 -> { acc = music.notation.pitch.Accidental.SHARP; yield music.notation.pitch.NoteName.D; }
+            case  7 -> { acc = music.notation.pitch.Accidental.SHARP; yield music.notation.pitch.NoteName.A; }
+            default -> music.notation.pitch.NoteName.A;
+        };
+        return new music.notation.structure.KeySignature(tonic, acc, music.notation.structure.Mode.MINOR);
     }
 
     // ═══════════════════════════════════════════════════════════════════

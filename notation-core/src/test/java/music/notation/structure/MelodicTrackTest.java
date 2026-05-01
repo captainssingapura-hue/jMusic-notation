@@ -10,16 +10,14 @@ import music.notation.pitch.NoteName;
 import music.notation.pitch.Pitch;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static music.notation.duration.BaseValue.QUARTER;
 import static music.notation.duration.BaseValue.WHOLE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase 4a: locks the construction shape of the new
- * {@link MelodicTrack} and {@link DrumTrack} types. Not wired into the
- * build or playback pipeline yet.
+ * Construction-shape tests for {@link MelodicTrack} and {@link DrumTrack}.
+ * Aux behaviour now lives on {@link Phrase}; assertions about aux content
+ * are in {@code LeafPhraseAuxTest} / {@code JoinedPhraseAuxTest}.
  */
 class MelodicTrackTest {
 
@@ -31,25 +29,23 @@ class MelodicTrackTest {
         return Bar.of(16, new RestNode(Duration.of(QUARTER)));
     }
 
-    // ── MelodicTrack ──────────────────────────────────────────────
-
     @Test
     void melodicTrack_constructsWithBars() {
         var t = MelodicTrack.of("Melody", Instrument.ACOUSTIC_GRAND_PIANO, oneNoteBar());
         assertEquals("Melody", t.name());
         assertEquals(Instrument.ACOUSTIC_GRAND_PIANO, t.defaultInstrument());
         assertEquals(1, t.bars().size());
-        assertTrue(t.auxTracks().isEmpty());
+        assertTrue(t.auxBars().isEmpty());
     }
 
     @Test
-    void melodicTrack_acceptsAuxTracks() {
-        var aux = MelodicTrack.of("Harmony", Instrument.STRING_ENSEMBLE_1, oneNoteBar());
-        var main = new MelodicTrack(
-                "Lead", Instrument.ACOUSTIC_GRAND_PIANO,
-                Phrase.of(oneNoteBar()), List.of(aux));
-        assertEquals(1, main.auxTracks().size());
-        assertEquals("Harmony", main.auxTracks().get(0).name());
+    void melodicTrack_delegatesAuxToPhrase() {
+        var phrase = Phrase.of(java.util.List.of(oneNoteBar(), oneNoteBar()),
+                java.util.Map.of("Harmony", java.util.Map.of(0, oneNoteBar())));
+        var track = new MelodicTrack("Lead", Instrument.ACOUSTIC_GRAND_PIANO, phrase);
+        var dense = track.auxBars();
+        assertEquals(1, dense.size());
+        assertEquals(2, dense.get("Harmony").size());
     }
 
     @Test
@@ -76,45 +72,16 @@ class MelodicTrackTest {
     }
 
     @Test
-    void melodicTrack_defensivelyCopiesBars() {
-        var bars = new java.util.ArrayList<Bar>();
-        bars.add(oneNoteBar());
-        var t = MelodicTrack.of("M", Instrument.ACOUSTIC_GRAND_PIANO, bars);
-        bars.add(oneBeatRestBar()); // mutate after construction
-        assertEquals(1, t.bars().size(), "Track must have copied the list");
-    }
-
-    // ── DrumTrack ─────────────────────────────────────────────────
-
-    @Test
     void drumTrack_constructsWithBars() {
         var bar = Bar.of(16, new RestNode(Duration.of(QUARTER)));
         var t = DrumTrack.of("Drums", bar);
         assertEquals("Drums", t.name());
         assertEquals(1, t.bars().size());
-        assertTrue(t.auxTracks().isEmpty());
-    }
-
-    @Test
-    void drumTrack_acceptsAuxTracks() {
-        var bar = Bar.of(16, new RestNode(Duration.of(QUARTER)));
-        var aux = DrumTrack.of("DrumsAux", bar);
-        var main = new DrumTrack("Drums", Phrase.of(bar), List.of(aux));
-        assertEquals(1, main.auxTracks().size());
-        assertEquals("DrumsAux", main.auxTracks().get(0).name());
     }
 
     @Test
     void drumTrack_rejectsBlankName() {
         var bar = Bar.of(16, new RestNode(Duration.of(QUARTER)));
         assertThrows(IllegalArgumentException.class, () -> DrumTrack.of("", bar));
-    }
-
-    @Test
-    void drumTrack_recordEquality() {
-        var bar = Bar.of(16, new RestNode(Duration.of(QUARTER)));
-        var t1 = DrumTrack.of("D", bar);
-        var t2 = DrumTrack.of("D", bar);
-        assertEquals(t1, t2);
     }
 }

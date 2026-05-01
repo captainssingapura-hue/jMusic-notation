@@ -9,6 +9,7 @@ import music.notation.phrase.PitchNode;
 import music.notation.phrase.RestNode;
 import music.notation.play.MidiMapper;
 import music.notation.pitch.Pitch;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
 import music.notation.structure.PieceContentProvider;
 import music.notation.structure.Track;
@@ -108,10 +109,12 @@ public abstract class PieceTestBase {
                     checkNodeMidi(track.name(), node);
                 }
             }
-            for (final Track auxTrack : track.auxTracks()) {
-                for (final Bar bar : auxTrack.bars()) {
-                    for (final PhraseNode node : bar.nodes()) {
-                        checkNodeMidi(auxTrack.name(), node);
+            if (track instanceof MelodicTrack mt) {
+                for (final var entry : mt.auxBars().entrySet()) {
+                    for (final Bar bar : entry.getValue()) {
+                        for (final PhraseNode node : bar.nodes()) {
+                            checkNodeMidi(track.name() + "/" + entry.getKey(), node);
+                        }
                     }
                 }
             }

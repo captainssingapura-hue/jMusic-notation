@@ -158,7 +158,7 @@ public final class NumberedPhraseBuilder {
 
     private void flush() {
         if (current != null) {
-            bars.add(new Bar(ts.barSixtyFourths(), current, List.of()));
+            bars.add(new Bar(ts.barSixtyFourths(), current));
             current = null;
         }
     }

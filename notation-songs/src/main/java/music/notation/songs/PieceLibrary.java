@@ -45,6 +45,9 @@ public final class PieceLibrary {
     /** Identity class → all discovered providers (first = default). */
     private static final Map<Class<? extends MusicalPiece>, List<PieceContentProvider<?>>> PROVIDERS;
 
+    /** Identity class → name of the first {@link Collection} that contributed it. */
+    private static final Map<Class<? extends MusicalPiece>, String> COLLECTION_BY_PIECE;
+
     /** Identity class → lazily cached Piece from the default provider. */
     private static final Map<Class<? extends MusicalPiece>, Piece> CACHE = new LinkedHashMap<>();
 
@@ -53,12 +56,14 @@ public final class PieceLibrary {
 
         final var identities = new LinkedHashMap<Class<? extends MusicalPiece>, MusicalPiece>();
         final var providers = new LinkedHashMap<Class<? extends MusicalPiece>, List<PieceContentProvider<?>>>();
+        final var collectionByPiece = new LinkedHashMap<Class<? extends MusicalPiece>, String>();
 
         for (final Collection collection : collections) {
             for (final Entry<?> entry : collection.entries()) {
                 @SuppressWarnings("unchecked")
                 final var key = (Class<? extends MusicalPiece>) entry.identity().getClass();
                 identities.putIfAbsent(key, entry.identity());
+                collectionByPiece.putIfAbsent(key, collection.name());
                 providers.computeIfAbsent(key, k -> new ArrayList<>())
                         .addAll(entry.providers());
             }
@@ -77,6 +82,7 @@ public final class PieceLibrary {
 
         IDENTITIES = Collections.unmodifiableMap(sorted);
         PROVIDERS = Collections.unmodifiableMap(sortedProviders);
+        COLLECTION_BY_PIECE = Collections.unmodifiableMap(collectionByPiece);
     }
 
     // ── Configuration loading ───────────────────────────────────────
@@ -181,6 +187,34 @@ public final class PieceLibrary {
             }
         }
         return null;
+    }
+
+    /**
+     * Collection name that contributed this piece (the first if multiple
+     * collections include the same identity). Returns {@code "Other"} if
+     * unknown.
+     */
+    public static String collectionOf(final MusicalPiece piece) {
+        final var name = COLLECTION_BY_PIECE.get(piece.getClass());
+        return name == null ? "Other" : name;
+    }
+
+    /**
+     * Categorical "type" derived from the package the piece's identity
+     * class lives in. Conventionally the segment immediately under
+     * {@code music.notation.songs} (e.g. {@code anthem}, {@code classical},
+     * {@code folk}). Returns {@code "Other"} if no such segment is found.
+     * The returned label is title-cased for direct UI display.
+     */
+    public static String typeOf(final MusicalPiece piece) {
+        final String pkg = piece.getClass().getPackageName();
+        final String marker = "music.notation.songs.";
+        if (!pkg.startsWith(marker)) return "Other";
+        final String tail = pkg.substring(marker.length());
+        if (tail.isEmpty()) return "Other";
+        final String first = tail.contains(".") ? tail.substring(0, tail.indexOf('.')) : tail;
+        if (first.isEmpty()) return "Other";
+        return Character.toUpperCase(first.charAt(0)) + first.substring(1);
     }
 
     /** All providers registered for a given piece title. */

@@ -41,7 +41,7 @@ final class PitchScroll extends HBox {
 
     // ── Visual constants ──────────────────────────────────────────────
     private static final double RULER_HEIGHT = 20.0;
-    private static final double LANE_HEIGHT = 80.0;
+    private static final double LANE_HEIGHT = 130.0;
     private static final double LANE_GAP = 2.0;
     private static final double LANE_HEADER = 4.0;     // top inset within a lane
     private static final double NOTE_HEIGHT = 4.0;

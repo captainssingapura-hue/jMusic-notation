@@ -13,12 +13,10 @@ import java.util.List;
  * lazily from a {@link music.notation.phrase.Phrase} tree (preserving
  * authored elision boundaries) but must return an immutable list.</p>
  *
- * <p>Phase 4d cutover: replaces the previous {@code Track} record
- * carrying {@link music.notation.phrase.AuthorPhrase} sequences. Elision
- * resolution now lives inside the Phrase tree
- * ({@link music.notation.phrase.JoinedPhrase}); consumers read
- * {@code bars()} as a uniform value object and no longer pattern-match
- * on legacy phrase types.</p>
+ * <p>Auxiliary parallel voices are a {@link MelodicTrack}-only feature
+ * (see {@link MelodicTrack#auxBars()}); they share the parent track's
+ * MIDI channel, instrument, and volume. Anything that needs an
+ * independent fader belongs in its own {@code Track}.</p>
  */
 public sealed interface Track permits MelodicTrack, DrumTrack {
 
@@ -27,10 +25,4 @@ public sealed interface Track permits MelodicTrack, DrumTrack {
 
     /** Resolved bar list. May be lazy; treat as immutable. */
     List<Bar> bars();
-
-    /**
-     * Auxiliary parallel voices on the same track timeline. Each aux
-     * track is itself a {@code Track} — covariantly typed by subclass.
-     */
-    List<? extends Track> auxTracks();
 }

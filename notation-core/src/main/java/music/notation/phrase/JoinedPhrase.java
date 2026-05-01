@@ -1,13 +1,19 @@
 package music.notation.phrase;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Composite {@link Phrase} — joins multiple child phrases with a
  * {@link ConnectingMode}. {@link #bars()} materialises the configured
- * stitch into a flat bar list.
+ * stitch into a flat bar list; {@link #auxBars()} replays the same
+ * structural decisions on each named aux voice so aux always stays in
+ * lock-step with primary.
  *
  * <h2>Resolution spec</h2>
  *
@@ -20,38 +26,23 @@ import java.util.Objects;
  * <ol>
  *   <li><b>Stage 1 — within-bar pickup absorption.</b>
  *     Look at the last bar of {@code child[i]} ({@code last}) and the
- *     first bar of {@code child[i+1]} ({@code first}). Compute
- *     {@code trailPad64} (trailing {@link PaddingNode}/{@link RestNode}
- *     chain in {@code last}, in 64ths) and {@code leadPad64} (leading
- *     {@link PaddingNode}/{@link RestNode} chain in {@code first}).
- *     Compute {@code firstAudible64 = first.expectedSixtyFourths() - leadPad64}.
- *
- *     <ul>
- *       <li>If {@code firstAudible64 > 0 && firstAudible64 <= trailPad64}:
- *         <b>absorb</b>. Build a merged bar from {@code last}'s audible
- *         nodes + {@code first}'s audible nodes + a residual
- *         {@link PaddingNode} of {@code trailPad64 - firstAudible64} (if
- *         non-zero) so the merged bar still sums to its expected size.
- *         The merged bar replaces {@code last}; {@code first} is consumed
- *         (dropped from {@code child[i+1]}).</li>
- *       <li>If {@code firstAudible64 > trailPad64}: throw
- *         {@link IllegalStateException} — pickup doesn't fit; composer
- *         must shrink the pickup or grow the trailing pad.</li>
- *       <li>If {@code firstAudible64 == 0}: skip absorption (entire
- *         {@code first} is silent — falls through to Stage 2).</li>
- *     </ul>
- *   </li>
- *   <li><b>Stage 2 — whole-bar trim.</b>
- *     After Stage 1 (or if Stage 1 didn't apply): drop
- *     {@code min(t, l)} whole bars from the front of {@code child[i+1]},
- *     where {@code t} = trailing-silence-bar count of the
- *     (post-Stage-1) {@code child[i]} bar list and {@code l} =
- *     leading-silence-bar count of {@code child[i+1]}.</li>
+ *     first bar of {@code child[i+1]} ({@code first}). If the trailing
+ *     pad of {@code last} plus the leading pad of {@code first} fills
+ *     the bar, collapse them into a single merged bar laid out as
+ *     {@code [audible_last] [middle_gap] [audible_first]}. The merged
+ *     bar replaces {@code last}; {@code first} is consumed.</li>
+ *   <li><b>Stage 2 — whole-bar trim.</b> After Stage 1: drop
+ *     {@code min(t, l)} whole silent bars from the front of
+ *     {@code child[i+1]}.</li>
  * </ol>
  *
- * <p>Implementation note: {@code bars()} computes on each call. If
- * profiling shows this hot, add a cache; for the current corpus a
- * recursive recompute is fine.</p>
+ * <h2>Aux composition</h2>
+ * Joining is decided at the primary level — aux voices follow. For each
+ * boundary, primary records a {@link StitchPlan} {@code (merged?,
+ * rightHeadDrop)}. Each named aux voice replays that plan: if primary
+ * merged, aux merges its own pair via {@link #mergeAuxBars}; aux always
+ * drops the same number of bars from {@code right}'s head as primary
+ * did. Result: aux bar lists have the same length as primary.
  */
 public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mode)
         implements Phrase {
@@ -64,65 +55,135 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
 
     @Override
     public List<Bar> bars() {
-        if (children.isEmpty()) {
-            return List.of();
-        }
-        // Start with first child's bars (mutable working list).
-        List<Bar> acc = new ArrayList<>(children.get(0).bars());
-        for (int i = 1; i < children.size(); i++) {
-            List<Bar> next = new ArrayList<>(children.get(i).bars());
-            switch (mode) {
-                case ATTACCA -> acc.addAll(next);
-                case ELIDED  -> elideStitch(acc, next);
-            }
-        }
-        return List.copyOf(acc);
+        return composeWithPlans().bars;
     }
 
-    // ── ELIDED stitch ────────────────────────────────────────────────
+    @Override
+    public Map<String, List<Bar>> auxBars() {
+        if (children.isEmpty()) return Map.of();
 
-    private static void elideStitch(List<Bar> acc, List<Bar> next) {
-        if (acc.isEmpty() || next.isEmpty()) {
-            acc.addAll(next);
-            return;
+        // Collect voice names appearing in any child.
+        Set<String> names = new LinkedHashSet<>();
+        for (Phrase c : children) names.addAll(c.auxBars().keySet());
+        if (names.isEmpty()) return Map.of();
+
+        var primary = composeWithPlans();
+        var out = new LinkedHashMap<String, List<Bar>>();
+        for (String v : names) {
+            List<Bar> acc = new ArrayList<>(auxOrSilent(children.get(0), v));
+            for (int i = 1; i < children.size(); i++) {
+                List<Bar> next = new ArrayList<>(auxOrSilent(children.get(i), v));
+                applyPlan(acc, next, primary.plans.get(i - 1));
+            }
+            out.put(v, List.copyOf(acc));
         }
-        // Stage 1: pickup-bar absorption — collapse last+first into one
-        // merged bar with pickup audible at the END of the bar so bar 2
-        // of the pickup phrase follows immediately. Layout:
-        //   [audible_last] [middle_gap] [audible_first]
-        // where middle_gap = bar - audibleLast - audibleFirst >= 0.
-        //
-        // Triggers iff trail + lead >= bar (otherwise the audible content
-        // of both sides won't fit alongside any gap). When the constraint
-        // fails, we fall through to ATTACCA-like sequential playout —
-        // no throw.
+        return Map.copyOf(out);
+    }
+
+    // ── Single-pass primary composer that captures per-boundary plans ──
+
+    private record Composed(List<Bar> bars, List<StitchPlan> plans) {}
+    private record StitchPlan(boolean merged, int rightHeadDrop) {}
+
+    private Composed composeWithPlans() {
+        if (children.isEmpty()) return new Composed(List.of(), List.of());
+        List<Bar> acc = new ArrayList<>(children.get(0).bars());
+        List<StitchPlan> plans = new ArrayList<>();
+        for (int i = 1; i < children.size(); i++) {
+            List<Bar> next = new ArrayList<>(children.get(i).bars());
+            StitchPlan plan = switch (mode) {
+                case ATTACCA -> new StitchPlan(false, 0);
+                case ELIDED  -> elideStitch(acc, next);
+            };
+            plans.add(plan);
+            acc.addAll(next);  // ATTACCA: full next; ELIDED: residual after drops.
+        }
+        return new Composed(List.copyOf(acc), List.copyOf(plans));
+    }
+
+    /**
+     * In-place ELIDED stitch: mutates {@code acc} (replacing its last
+     * bar with the merged bar when absorption fires) and {@code next}
+     * (removing its head by stage-1 absorption + stage-2 silence trim).
+     * Returns the plan executed so aux can replay it.
+     */
+    private static StitchPlan elideStitch(List<Bar> acc, List<Bar> next) {
+        if (acc.isEmpty() || next.isEmpty()) return new StitchPlan(false, 0);
+
         Bar last = acc.get(acc.size() - 1);
         Bar first = next.get(0);
         int barSize = last.expectedSixtyFourths();
         int trailPad64 = trailingPadSixtyFourths(last);
         int leadPad64  = leadingPadSixtyFourths(first);
 
+        boolean merged = false;
+        int drop = 0;
+
         if (trailPad64 > 0 && leadPad64 > 0
                 && first.expectedSixtyFourths() == barSize
                 && trailPad64 + leadPad64 >= barSize) {
             int audibleFirst64 = barSize - leadPad64;
             if (audibleFirst64 > 0) {
-                Bar merged = mergeAbsorption(last, first, trailPad64, leadPad64);
-                acc.set(acc.size() - 1, merged);
+                Bar mergedBar = mergeAbsorption(last, first, trailPad64, leadPad64);
+                acc.set(acc.size() - 1, mergedBar);
+                merged = true;
             }
-            // Silent-only pickup (audibleFirst64 == 0): drop the pickup bar
-            // without modifying last. Harmony "alignment" pickups land here.
             next.remove(0);
+            drop = 1;
         }
 
-        // Stage 2: whole-bar trim. Recompute counts post-Stage-1.
         int t = trailingSilenceBarCount(acc);
         int l = leadingSilenceBarCount(next);
         int trim = Math.min(t, l);
-        for (int k = 0; k < trim; k++) {
-            next.remove(0);
+        for (int k = 0; k < trim; k++) next.remove(0);
+        drop += trim;
+
+        return new StitchPlan(merged, drop);
+    }
+
+    // ── Apply primary plan to one aux voice ────────────────────────────
+
+    private static void applyPlan(List<Bar> acc, List<Bar> next, StitchPlan plan) {
+        if (plan.merged() && !acc.isEmpty() && !next.isEmpty()) {
+            Bar mergedAux = mergeAuxBars(acc.get(acc.size() - 1), next.get(0));
+            acc.set(acc.size() - 1, mergedAux);
         }
+        int drop = Math.min(plan.rightHeadDrop(), next.size());
+        for (int k = 0; k < drop; k++) next.remove(0);
         acc.addAll(next);
+    }
+
+    /**
+     * Best-effort aux-bar merge: silent sides yield trivially; both
+     * audible falls back to {@link #mergeAbsorption} when pads allow,
+     * else right wins. Author should structure aux so audible content
+     * doesn't collide at elision boundaries; this fallback keeps the
+     * length contract.
+     */
+    private static Bar mergeAuxBars(Bar left, Bar right) {
+        boolean leftSilent = isAllSilence(left);
+        boolean rightSilent = isAllSilence(right);
+        int barSize = left.expectedSixtyFourths();
+        if (leftSilent && rightSilent) return Bar.silent(barSize);
+        if (leftSilent)  return right;
+        if (rightSilent) return left;
+        int trailPad = trailingPadSixtyFourths(left);
+        int leadPad  = leadingPadSixtyFourths(right);
+        if (trailPad > 0 && leadPad > 0
+                && right.expectedSixtyFourths() == barSize
+                && trailPad + leadPad >= barSize) {
+            return mergeAbsorption(left, right, trailPad, leadPad);
+        }
+        return right;
+    }
+
+    private static List<Bar> auxOrSilent(Phrase child, String voice) {
+        List<Bar> aux = child.auxBars().get(voice);
+        if (aux != null) return aux;
+        var primary = child.bars();
+        var out = new ArrayList<Bar>(primary.size());
+        for (Bar b : primary) out.add(Bar.silent(b.expectedSixtyFourths()));
+        return out;
     }
 
     /**
@@ -132,10 +193,6 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
      *   [audible_last] [middle_gap] [audible_first]
      * </pre>
      * where {@code middle_gap = bar - audibleLast - audibleFirst}.
-     *
-     * <p>Visual win: bar 2 of the pickup phrase butts up against the
-     * pickup audible in the piano roll — no trailing residual gap
-     * inside the merged bar.</p>
      */
     private static Bar mergeAbsorption(Bar last, Bar first, int trailPad64, int leadPad64) {
         int barSize = last.expectedSixtyFourths();
@@ -154,17 +211,15 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
                     music.notation.duration.Duration.ofSixtyFourths(middleGap64)));
         }
         merged.addAll(firstAudible);
-        return new Bar(barSize, merged, List.of());
+        return new Bar(barSize, merged);
     }
 
     // ── Bar inspection helpers ───────────────────────────────────────
 
-    /** True iff the node is structural silence (no audible output). */
     private static boolean isSilence(PhraseNode node) {
         return node instanceof PaddingNode || node instanceof RestNode;
     }
 
-    /** Sum of trailing silence-node durations in 64ths. */
     static int trailingPadSixtyFourths(Bar bar) {
         var nodes = bar.nodes();
         int total = 0;
@@ -176,7 +231,6 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
         return total;
     }
 
-    /** Sum of leading silence-node durations in 64ths. */
     static int leadingPadSixtyFourths(Bar bar) {
         int total = 0;
         for (PhraseNode n : bar.nodes()) {
@@ -186,7 +240,6 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
         return total;
     }
 
-    /** Drop the trailing silence chain from a node list. */
     private static List<PhraseNode> stripTrailingPad(List<PhraseNode> nodes, int trailPad64) {
         if (trailPad64 == 0) return nodes;
         int idx = nodes.size();
@@ -201,7 +254,6 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
         return new ArrayList<>(nodes.subList(0, idx));
     }
 
-    /** Drop the leading silence chain from a node list. */
     private static List<PhraseNode> stripLeadingPad(List<PhraseNode> nodes, int leadPad64) {
         if (leadPad64 == 0) return nodes;
         int idx = 0;
@@ -216,7 +268,6 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
         return new ArrayList<>(nodes.subList(idx, nodes.size()));
     }
 
-    /** Count of trailing whole-silence bars in a list. */
     private static int trailingSilenceBarCount(List<Bar> bars) {
         int count = 0;
         for (int i = bars.size() - 1; i >= 0; i--) {
@@ -226,7 +277,6 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
         return count;
     }
 
-    /** Count of leading whole-silence bars in a list. */
     private static int leadingSilenceBarCount(List<Bar> bars) {
         int count = 0;
         for (Bar bar : bars) {
@@ -236,7 +286,6 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
         return count;
     }
 
-    /** True iff every node in the bar is structural silence. */
     private static boolean isAllSilence(Bar bar) {
         for (PhraseNode n : bar.nodes()) {
             if (!isSilence(n)) return false;

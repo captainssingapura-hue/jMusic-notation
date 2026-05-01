@@ -1,6 +1,7 @@
 package music.notation.phrase;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Recursive structural container for bars.
@@ -43,6 +44,16 @@ public sealed interface Phrase permits LeafPhrase, JoinedPhrase {
      */
     List<Bar> bars();
 
+    /**
+     * Named auxiliary voices, expanded to dense bar lists matching
+     * {@link #bars()} length. Gaps in the authored sparse form are
+     * filled with {@link Bar#silent(int)}. Empty map = no aux voices.
+     * Default implementation returns empty.
+     */
+    default Map<String, List<Bar>> auxBars() {
+        return Map.of();
+    }
+
     // ── Convenience factories ────────────────────────────────────────
 
     /** Anonymous leaf carrying the given bars. */
@@ -53,6 +64,11 @@ public sealed interface Phrase permits LeafPhrase, JoinedPhrase {
     /** Anonymous leaf carrying the given bars (list form). */
     static Phrase of(List<Bar> bars) {
         return new LeafPhrase("", bars);
+    }
+
+    /** Anonymous leaf with bars and aux voices (name → barIndex → Bar, sparse). */
+    static Phrase of(List<Bar> bars, Map<String, Map<Integer, Bar>> auxBarsSparse) {
+        return new LeafPhrase("", bars, auxBarsSparse);
     }
 
     /** Named leaf carrying the given bars. */

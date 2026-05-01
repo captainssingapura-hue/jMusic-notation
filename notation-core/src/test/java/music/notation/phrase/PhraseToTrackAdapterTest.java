@@ -53,7 +53,7 @@ class PhraseToTrackAdapterTest {
         assertEquals(2, track.bars().size());
         assertEquals(bar1, track.bars().get(0));
         assertEquals(bar2, track.bars().get(1));
-        assertTrue(track.auxTracks().isEmpty());
+        assertTrue(track.auxBars().isEmpty());
     }
 
     @Test

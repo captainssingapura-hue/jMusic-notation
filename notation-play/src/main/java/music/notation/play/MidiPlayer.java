@@ -60,6 +60,24 @@ public final class MidiPlayer {
     }
 
     /**
+     * Note-only sequence built from an imported {@link music.notation.performance.Performance}.
+     * Re-encodes via {@link MidiCodec#toMidi} (lossless for the supported feature set)
+     * and strips channel-control events so the live {@link ChannelSetup}
+     * fully owns program / volume / pan.
+     */
+    public static Sequence buildNoteSequence(music.notation.performance.Performance performance)
+            throws InvalidMidiDataException {
+        try {
+            byte[] bytes = MidiCodec.toMidi(performance);
+            Sequence seq = MidiSystem.getSequence(new ByteArrayInputStream(bytes));
+            stripChannelControlEvents(seq);
+            return seq;
+        } catch (IOException e) {
+            throw new InvalidMidiDataException("Failed to materialise Performance into Sequence: " + e.getMessage());
+        }
+    }
+
+    /**
      * Freeze a note-only sequence + channel setup + tempo setup into a
      * self-contained {@link Sequence} suitable for file export. Pure
      * combinator — caller passes in the note sequence and the setups,
@@ -127,6 +145,12 @@ public final class MidiPlayer {
                 if (vol != null) {
                     ShortMessage cc = new ShortMessage();
                     cc.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #7*/ 7, vol);
+                    outTrack.add(new MidiEvent(cc, 0));
+                }
+                Integer pan = channelSetup.pans().get(channel);
+                if (pan != null) {
+                    ShortMessage cc = new ShortMessage();
+                    cc.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #10*/ 10, pan);
                     outTrack.add(new MidiEvent(cc, 0));
                 }
             }
@@ -376,8 +400,21 @@ public final class MidiPlayer {
     private ChannelSetup currentSetup;
     /** The most-recently applied tempo setup (held for export). */
     private TempoSetup currentTempo = TempoSetup.unity();
+    /** The most-recently applied swing setup (held for restart-at-tick). */
+    private SwingSetup currentSwing = SwingSetup.OFF;
     /** The piece currently loaded (held for leading-pad lookup). */
     private Piece currentPiece;
+    /**
+     * Note-sequence factory bound at start() time. Lets restartAt / applySwing
+     * rebuild the underlying note sequence regardless of whether the source
+     * was a {@link Piece} or an imported {@link music.notation.performance.Performance}.
+     */
+    private NoteSequenceFactory baseFactory;
+
+    @FunctionalInterface
+    private interface NoteSequenceFactory {
+        Sequence build() throws Exception;
+    }
 
     /** Start playback with default instruments. */
     public void start(Piece piece) throws Exception {
@@ -412,10 +449,20 @@ public final class MidiPlayer {
      * and {@link #applyTempo}.
      */
     public void start(Piece piece, ChannelSetup channelSetup, TempoSetup tempoSetup) throws Exception {
+        start(piece, channelSetup, tempoSetup, SwingSetup.OFF);
+    }
+
+    /**
+     * Phase 7.2: start playback with swing applied to the note sequence.
+     * Subsequent live swing changes go through {@link #applySwing}, which
+     * rebuilds the sequence and resumes at the requested tick.
+     */
+    public void start(Piece piece, ChannelSetup channelSetup,
+                      TempoSetup tempoSetup, SwingSetup swingSetup) throws Exception {
         stop();
         paused = false;
 
-        Sequence sequence = buildNoteSequence(piece);
+        Sequence sequence = swingSetup.apply(buildNoteSequence(piece));
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
@@ -427,18 +474,87 @@ public final class MidiPlayer {
         currentPiece = piece;
         currentSetup = channelSetup;
         currentTempo = tempoSetup;
+        currentSwing = swingSetup;
+        baseFactory = () -> buildNoteSequence(piece);
 
-        // Apply setups to live targets.
         channelSetup.apply(synthesizer);
         tempoSetup.apply(sequencer);
 
-        // Skip leading padding so pickup bars don't produce silence.
         long paddingOffset = computeLeadingPaddingTicks(piece);
         if (paddingOffset > 0) {
-            sequencer.setTickPosition(paddingOffset);
+            sequencer.setTickPosition(swingSetup.mapTick(paddingOffset, sequence.getResolution()));
         }
-
         sequencer.start();
+    }
+
+    /**
+     * Start playback for an imported {@link music.notation.performance.Performance}.
+     * Pure shim: re-encodes the Performance to a note-only Sequence, then
+     * proceeds exactly as the Piece-based path. {@link #currentPiece} is
+     * left null — Piece-only operations (scale rebuild, leading-padding
+     * pickup) are not relevant for imports.
+     */
+    public void start(music.notation.performance.Performance performance,
+                      ChannelSetup channelSetup, TempoSetup tempoSetup,
+                      SwingSetup swingSetup) throws Exception {
+        stop();
+        paused = false;
+
+        Sequence sequence = swingSetup.apply(buildNoteSequence(performance));
+        sequencer = MidiSystem.getSequencer(false);
+        synthesizer = MidiSystem.getSynthesizer();
+        synthesizer.open();
+        sequencer.open();
+        sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
+        sequencer.setSequence(sequence);
+
+        currentNoteSequence = sequence;
+        currentPiece = null;
+        currentSetup = channelSetup;
+        currentTempo = tempoSetup;
+        currentSwing = swingSetup;
+        baseFactory = () -> buildNoteSequence(performance);
+
+        channelSetup.apply(synthesizer);
+        tempoSetup.apply(sequencer);
+        sequencer.start();
+    }
+
+    /**
+     * Reusable restart primitive: stop the running sequencer, rebuild the
+     * note sequence under {@code swingSetup}, re-apply channel/tempo, and
+     * resume at {@code resumeTick}. {@code resumeTick} is interpreted in
+     * the new (swung) tick space — bar/beat-aligned ticks are stable across
+     * swing ratios so callers can pass them directly. No-op if not running.
+     */
+    public void restartAt(long resumeTick, ChannelSetup channelSetup,
+                          TempoSetup tempoSetup, SwingSetup swingSetup) throws Exception {
+        if (sequencer == null || baseFactory == null) return;
+        sequencer.stop();
+        Sequence seq = swingSetup.apply(baseFactory.build());
+        sequencer.setSequence(seq);
+        currentNoteSequence = seq;
+        currentSetup = channelSetup;
+        currentTempo = tempoSetup;
+        currentSwing = swingSetup;
+        channelSetup.apply(synthesizer);
+        tempoSetup.apply(sequencer);
+        long bound = Math.max(0, Math.min(resumeTick, seq.getTickLength()));
+        sequencer.setTickPosition(bound);
+        sequencer.start();
+    }
+
+    /**
+     * Live swing change. Stops, rebuilds with new swing, resumes at the
+     * given tick (typically the current playhead, snapped to a bar, or 0).
+     */
+    public void applySwing(SwingSetup swingSetup, long resumeTick) throws Exception {
+        if (swingSetup == null) return;
+        if (sequencer == null) {
+            currentSwing = swingSetup;
+            return;
+        }
+        restartAt(resumeTick, currentSetup, currentTempo, swingSetup);
     }
 
     /**
@@ -589,6 +705,36 @@ public final class MidiPlayer {
         MidiSystem.write(sequence, fileType, file);
     }
 
+    /**
+     * Export a piece using a {@link ChannelSetup} (programs + volumes +
+     * pans). Builds a note-only sequence and freezes the setup at tick
+     * 0 — the same code path live playback uses, so an exported file
+     * matches what would be heard.
+     */
+    public static void exportMidi(Piece piece, ChannelSetup channelSetup, File file)
+            throws InvalidMidiDataException, IOException {
+        Sequence noteSeq = buildNoteSequence(piece);
+        Sequence frozen = freezeForExport(noteSeq, channelSetup, TempoSetup.unity(), Region.full());
+        int[] types = MidiSystem.getMidiFileTypes(frozen);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(frozen, fileType, file);
+    }
+
+    /**
+     * Export an imported {@link music.notation.performance.Performance}
+     * with current per-track instrument / volume / pan applied. Used by
+     * the UI's export button when the loaded source is an import.
+     */
+    public static void exportMidi(music.notation.performance.Performance performance,
+                                  ChannelSetup channelSetup, File file)
+            throws InvalidMidiDataException, IOException {
+        Sequence noteSeq = buildNoteSequence(performance);
+        Sequence frozen = freezeForExport(noteSeq, channelSetup, TempoSetup.unity(), Region.full());
+        int[] types = MidiSystem.getMidiFileTypes(frozen);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(frozen, fileType, file);
+    }
+
     /** Export using each track's default instrument. */
     public static void exportMidi(Piece piece, File file)
             throws InvalidMidiDataException, IOException {
@@ -632,9 +778,14 @@ public final class MidiPlayer {
     public static long computeLeadingPaddingTicks(Piece piece) {
         long globalMin = Long.MAX_VALUE;
         for (Track track : piece.tracks()) {
-            globalMin = Math.min(globalMin, leadingPaddingForTrack(track));
-            for (Track auxTrack : track.auxTracks()) {
-                globalMin = Math.min(globalMin, leadingPaddingForTrack(auxTrack));
+            globalMin = Math.min(globalMin, leadingPaddingForBars(track.bars()));
+            // Aux voices participate in the pickup-offset calculation:
+            // a piece-wide minimum still gives us the earliest audible
+            // event across primary + aux content.
+            if (track instanceof MelodicTrack mt) {
+                for (var auxBars : mt.auxBars().values()) {
+                    globalMin = Math.min(globalMin, leadingPaddingForBars(auxBars));
+                }
             }
         }
         return globalMin == Long.MAX_VALUE ? 0 : globalMin;
@@ -646,8 +797,12 @@ public final class MidiPlayer {
      * node appears.
      */
     private static long leadingPaddingForTrack(Track track) {
+        return leadingPaddingForBars(track.bars());
+    }
+
+    private static long leadingPaddingForBars(java.util.List<music.notation.phrase.Bar> bars) {
         long padding = 0;
-        for (var bar : track.bars()) {
+        for (var bar : bars) {
             for (PhraseNode node : bar.nodes()) {
                 switch (node) {
                     case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());

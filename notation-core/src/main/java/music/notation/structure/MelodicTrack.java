@@ -5,28 +5,22 @@ import music.notation.phrase.Bar;
 import music.notation.phrase.Phrase;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * A named melodic track holding a {@link Phrase} tree — the
- * structural value object that materialises into a flat
- * {@link List Bar} list on demand via {@link #bars()}.
+ * A named melodic track holding a {@link Phrase} tree.
  *
- * <p>Phase 4d.3a: the underlying storage is now a {@link Phrase}
- * tree (LeafPhrase + JoinedPhrase) preserving authored elision
- * boundaries. {@link #bars()} is lazy — each call invokes
- * {@code phrase.bars()} which resolves the tree freshly. Operation
- * is cheap; sparse callers are expected.</p>
- *
- * <p>Aux tracks remain a separate notion (parallel voices on the same
- * track timeline). Voice overlays were dropped in Phase 4c migration;
- * if needed they re-emerge as a "complex" bar shape later.</p>
+ * <p>Auxiliary parallel voices live on the {@link Phrase} ADT — see
+ * {@link Phrase#auxBars()}. The track simply delegates: aux is part of
+ * the structural value object, so joining a phrase tree composes aux
+ * the same way it composes primary bars.</p>
  */
 public record MelodicTrack(
         String name,
         Instrument defaultInstrument,
-        Phrase phrase,
-        List<MelodicTrack> auxTracks
+        Phrase phrase
 ) implements Track {
+
     public MelodicTrack {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("MelodicTrack name must be non-blank");
@@ -41,7 +35,6 @@ public record MelodicTrack(
         if (phrase == null) {
             throw new IllegalArgumentException("MelodicTrack phrase must not be null");
         }
-        auxTracks = List.copyOf(auxTracks);
     }
 
     /** Resolved bar list. Lazy: {@code phrase.bars()} runs on each call. */
@@ -49,15 +42,20 @@ public record MelodicTrack(
         return phrase.bars();
     }
 
+    /** Dense aux bars per voice name, delegated to the phrase. */
+    public Map<String, List<Bar>> auxBars() {
+        return phrase.auxBars();
+    }
+
     // ── Backwards-compat factories ──────────────────────────────────
 
     /** Wrap a bar list as an anonymous {@link Phrase} on the track. */
     public static MelodicTrack of(String name, Instrument instrument, List<Bar> bars) {
-        return new MelodicTrack(name, instrument, Phrase.of(bars), List.of());
+        return new MelodicTrack(name, instrument, Phrase.of(bars));
     }
 
     /** Wrap bar varargs as an anonymous {@link Phrase} on the track. */
     public static MelodicTrack of(String name, Instrument instrument, Bar... bars) {
-        return new MelodicTrack(name, instrument, Phrase.of(bars), List.of());
+        return new MelodicTrack(name, instrument, Phrase.of(bars));
     }
 }

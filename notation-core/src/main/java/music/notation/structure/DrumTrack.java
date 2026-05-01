@@ -14,11 +14,13 @@ import java.util.List;
  * <p>The kit (e.g. Standard, Jazz, Brush, Power) is implicit at MIDI
  * render time — drum tracks always route to MIDI channel 9 where the
  * GM percussion map applies.</p>
+ *
+ * <p>Aux voices are not supported on drum tracks. Add a separate
+ * drum track if parallel content is needed.</p>
  */
 public record DrumTrack(
         String name,
-        Phrase phrase,
-        List<DrumTrack> auxTracks
+        Phrase phrase
 ) implements Track {
     public DrumTrack {
         if (name == null || name.isBlank()) {
@@ -27,7 +29,6 @@ public record DrumTrack(
         if (phrase == null) {
             throw new IllegalArgumentException("DrumTrack phrase must not be null");
         }
-        auxTracks = List.copyOf(auxTracks);
     }
 
     /** Resolved bar list. Lazy: {@code phrase.bars()} runs on each call. */
@@ -39,11 +40,11 @@ public record DrumTrack(
 
     /** Wrap a bar list as an anonymous {@link Phrase} on the track. */
     public static DrumTrack of(String name, List<Bar> bars) {
-        return new DrumTrack(name, Phrase.of(bars), List.of());
+        return new DrumTrack(name, Phrase.of(bars));
     }
 
     /** Wrap bar varargs as an anonymous {@link Phrase} on the track. */
     public static DrumTrack of(String name, Bar... bars) {
-        return new DrumTrack(name, Phrase.of(bars), List.of());
+        return new DrumTrack(name, Phrase.of(bars));
     }
 }

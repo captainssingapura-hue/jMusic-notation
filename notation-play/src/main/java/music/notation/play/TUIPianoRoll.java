@@ -10,6 +10,7 @@ import music.notation.phrase.RestNode;
 import music.notation.phrase.SimplePitchNode;
 import music.notation.pitch.Pitch;
 import music.notation.structure.DrumTrack;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
 
@@ -122,18 +123,25 @@ public final class TUIPianoRoll {
                     : track.bars().get(0).expectedSixtyFourths();
             barSizes.put(track.name(), barSize);
             if (trackTotal > total) total = trackTotal;
-            for (Track aux : track.auxTracks()) {
-                walkTrack(aux, track.name() + " Aux", hits);
+            // Aux voices share the parent's lane/name.
+            if (track instanceof MelodicTrack mt) {
+                for (var auxBars : mt.auxBars().values()) {
+                    walkBars(auxBars, track.name(), hits, /*drumKit*/ false);
+                }
             }
         }
         return new Roll(List.copyOf(hits), total, barSizes);
     }
 
     private static int walkTrack(Track track, String trackName, List<Hit> out) {
+        return walkBars(track.bars(), trackName, out, track instanceof DrumTrack);
+    }
+
+    private static int walkBars(List<Bar> bars, String trackName, List<Hit> out, boolean drumKit) {
         int sf = 0;
-        for (Bar bar : track.bars()) {
+        for (Bar bar : bars) {
             for (PhraseNode node : bar.nodes()) {
-                sf = walkNode(node, sf, trackName, out, /*drumKit*/ track instanceof DrumTrack);
+                sf = walkNode(node, sf, trackName, out, drumKit);
             }
         }
         return sf;

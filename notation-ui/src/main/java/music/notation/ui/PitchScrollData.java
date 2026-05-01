@@ -11,6 +11,7 @@ import music.notation.phrase.SimplePitchNode;
 import music.notation.pitch.Pitch;
 import music.notation.play.MidiMapper;
 import music.notation.play.MidiPlayer;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
 
@@ -47,9 +48,12 @@ record PitchScrollData(
 
         for (Track track : piece.tracks()) {
             names.add(track.name());
-            extractNoteRects(track, track.name(), rects);
-            for (Track auxTrack : track.auxTracks()) {
-                extractNoteRects(auxTrack, track.name(), rects);
+            extractNoteRects(track.bars(), track.name(), rects);
+            // Aux voices share the parent's lane.
+            if (track instanceof MelodicTrack mt) {
+                for (var auxBars : mt.auxBars().values()) {
+                    extractNoteRects(auxBars, track.name(), rects);
+                }
             }
         }
 
@@ -79,11 +83,63 @@ record PitchScrollData(
         );
     }
 
+    /**
+     * Build visualisation data from an imported MIDI {@link music.notation.performance.MidiImport}.
+     * Notes are projected from ms onto a constant-tempo tick grid driven by
+     * the import's initial bpm — bar lines line up with the time-signature's
+     * downbeats. Tempo changes inside the imported piece skew the grid
+     * relative to wall-clock playback (acceptable for v1; the playback
+     * engine plays the real tempo via the underlying sequencer).
+     */
+    static PitchScrollData fromImport(music.notation.performance.MidiImport imp) {
+        var rects = new ArrayList<NoteRect>();
+        var names = new ArrayList<String>();
+
+        int initialBpm = imp.initialBpm();
+        // ms → tick: tick = ms * PPQ * bpm / 60_000
+        double msToTick = (MidiMapper.TICKS_PER_QUARTER * (double) initialBpm) / 60_000.0;
+
+        for (var track : imp.performance().score().tracks()) {
+            String name = track.id().name();
+            names.add(name);
+            for (var note : track.notes()) {
+                long startTick = Math.round(note.tickMs() * msToTick);
+                long endTick = Math.round((note.tickMs() + note.durationMs()) * msToTick);
+                int midi = (note instanceof music.notation.performance.PitchedNote pn) ? pn.midi()
+                        : (note instanceof music.notation.performance.DrumNote dn) ? dn.piece()
+                        : 60;
+                rects.add(new NoteRect(startTick, endTick, midi, name, 0));
+            }
+        }
+        rects.sort(Comparator.comparingLong(NoteRect::startTick));
+
+        int min = 127, max = 0;
+        for (NoteRect r : rects) {
+            if (r.midiNote() < min) min = r.midiNote();
+            if (r.midiNote() > max) max = r.midiNote();
+        }
+        int minNote = Math.max(0, min - 2);
+        int maxNote = Math.min(127, max + 2);
+        long totalTicks = rects.isEmpty() ? 0 : rects.getLast().endTick();
+        long barTickWidth = (long) imp.timeSig().barSixtyFourths() * MidiMapper.TICKS_PER_QUARTER / 16;
+
+        return new PitchScrollData(
+                List.copyOf(rects),
+                List.of(),
+                List.copyOf(names),
+                imp.performance().score().tracks().size(),
+                minNote, maxNote,
+                totalTicks, barTickWidth,
+                MidiMapper.TICKS_PER_QUARTER,
+                0L
+        );
+    }
+
     // ── Tick-space note-rect walker ────────────────────────────────────
 
-    private static void extractNoteRects(Track track, String trackKey, List<NoteRect> out) {
+    private static void extractNoteRects(List<Bar> bars, String trackKey, List<NoteRect> out) {
         long tick = 0;
-        for (Bar bar : track.bars()) {
+        for (Bar bar : bars) {
             for (PhraseNode node : bar.nodes()) {
                 tick = walkNode(node, tick, trackKey, out);
             }

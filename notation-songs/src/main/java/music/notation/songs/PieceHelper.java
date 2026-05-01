@@ -89,10 +89,18 @@ public final class PieceHelper {
     public static MelodicTrack flattenMelodic(String name, Instrument inst,
                                               List<? extends AuthorPhrase> phrases) {
         var bars = new ArrayList<Bar>();
+        var combinedAux = new java.util.LinkedHashMap<String, java.util.LinkedHashMap<Integer, Bar>>();
         for (AuthorPhrase phrase : phrases) {
+            int offset = bars.size();
             bars.addAll(toLeafBars(phrase, name, inst));
+            for (var e : extractAux(phrase).entrySet()) {
+                var dest = combinedAux.computeIfAbsent(e.getKey(), k -> new java.util.LinkedHashMap<>());
+                for (var ie : e.getValue().entrySet()) {
+                    dest.put(ie.getKey() + offset, ie.getValue());
+                }
+            }
         }
-        return new MelodicTrack(name, inst, Phrase.of(bars), List.of());
+        return new MelodicTrack(name, inst, Phrase.of(bars, freezeAux(combinedAux)));
     }
 
     /**
@@ -111,20 +119,42 @@ public final class PieceHelper {
     public static MelodicTrack joinMelodicPhrases(String name, Instrument inst,
                                                   List<? extends AuthorPhrase> phrases) {
         if (phrases.isEmpty()) {
-            return new MelodicTrack(name, inst, Phrase.of(), List.of());
+            return new MelodicTrack(name, inst, Phrase.of());
         }
 
-        // Left-fold pairwise: acc starts as LeafPhrase(phrase[0].bars()),
-        // then for each subsequent phrase X join(modeBetween, acc, X).
-        Phrase acc = Phrase.of(toLeafBars(phrases.get(0), name, inst));
+        // Left-fold pairwise: acc starts as LeafPhrase(phrase[0].bars(),
+        // phrase[0].aux), then for each subsequent phrase X join(modeBetween,
+        // acc, X). Aux travels with each leaf and JoinedPhrase composes it
+        // length-aligned with primary.
+        Phrase acc = Phrase.of(toLeafBars(phrases.get(0), name, inst),
+                               extractAux(phrases.get(0)));
         for (int i = 1; i < phrases.size(); i++) {
             ConnectingMode mode = modeAfter(phrases.get(i - 1));
-            Phrase next = Phrase.of(toLeafBars(phrases.get(i), name, inst));
+            Phrase next = Phrase.of(toLeafBars(phrases.get(i), name, inst),
+                                    extractAux(phrases.get(i)));
             acc = Phrase.join(mode, acc, next);
         }
         // Store the Phrase TREE directly — no eager .bars() flatten.
         // Track.bars() resolves it lazily on each call.
-        return new MelodicTrack(name, inst, acc, List.of());
+        return new MelodicTrack(name, inst, acc);
+    }
+
+    /** Extract sparse aux (voice → barIndex → Bar) from a MelodicPhrase or LayeredPhrase. */
+    private static java.util.Map<String, java.util.Map<Integer, Bar>> extractAux(AuthorPhrase phrase) {
+        return switch (phrase) {
+            case MelodicPhrase mp -> mp.auxBarsSparse();
+            case LayeredPhrase lp -> lp.resolve().auxBarsSparse();
+            default -> java.util.Map.of();
+        };
+    }
+
+    /** Defensive copy of accumulator into immutable shape. */
+    private static java.util.Map<String, java.util.Map<Integer, Bar>> freezeAux(
+            java.util.Map<String, ? extends java.util.Map<Integer, Bar>> in) {
+        if (in.isEmpty()) return java.util.Map.of();
+        var out = new java.util.LinkedHashMap<String, java.util.Map<Integer, Bar>>(in.size());
+        for (var e : in.entrySet()) out.put(e.getKey(), java.util.Map.copyOf(e.getValue()));
+        return java.util.Map.copyOf(out);
     }
 
     /** Extract bars from any supported phrase type. */

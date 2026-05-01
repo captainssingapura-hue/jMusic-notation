@@ -73,7 +73,7 @@ class TUIPianoRollTest {
                 Phrase.of(lastBar),
                 Phrase.of(pickupBar, nextBar));
 
-        var track = new MelodicTrack("M", Instrument.ACOUSTIC_GRAND_PIANO, phrase, List.of());
+        var track = new MelodicTrack("M", Instrument.ACOUSTIC_GRAND_PIANO, phrase);
         var piece = new Piece("T", "x", C_MAJOR, TS_4_4, TEMPO_120,
                 List.<music.notation.structure.Track>of(track));
 
