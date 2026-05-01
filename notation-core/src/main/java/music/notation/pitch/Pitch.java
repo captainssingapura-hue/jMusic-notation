@@ -5,10 +5,14 @@ package music.notation.pitch;
  *
  * <ul>
  *   <li>{@link StaffPitch} — Western staff notation (note name + accidental + octave)</li>
- *   <li>{@link NumberedPitch} — Numbered notation / 简谱 (tonic + scale degree + octave)</li>
  * </ul>
+ *
+ * <p>Numbered notation (简谱) is preserved as an authoring DSL on
+ * {@code NumberedPhraseBuilder}, but it translates degrees → {@code StaffPitch}
+ * directly at the builder boundary; there is no separate numbered pitch type
+ * in the model.</p>
  */
-public sealed interface Pitch permits StaffPitch, NumberedPitch {
+public sealed interface Pitch permits StaffPitch {
 
     /** Convenience factory for a natural staff pitch. */
     static Pitch of(NoteName noteName, int octave) {

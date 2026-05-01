@@ -1,8 +1,15 @@
 package music.notation.songs;
 
-import music.notation.phrase.*;
+import music.notation.phrase.Bar;
+import music.notation.phrase.GraceNote;
+import music.notation.phrase.PaddingNode;
+import music.notation.phrase.PercussionNote;
+import music.notation.phrase.PhraseNode;
+import music.notation.phrase.PitchNode;
+import music.notation.phrase.RestNode;
 import music.notation.play.MidiMapper;
 import music.notation.pitch.Pitch;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
 import music.notation.structure.PieceContentProvider;
 import music.notation.structure.Track;
@@ -15,10 +22,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Base class for per-piece tests.  Subclasses supply a
+ * Base class for per-piece tests. Subclasses supply a
  * {@link PieceContentProvider} via {@link #provider()}; this class
  * validates the resulting {@link Piece} against a standard set of
  * structural invariants.
+ *
+ * <p>Phase 4d: assertions read the bar list (via {@link Track#bars()})
+ * directly. The legacy phrase pattern-match path is gone.</p>
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class PieceTestBase {
@@ -48,10 +58,10 @@ public abstract class PieceTestBase {
     }
 
     @Test
-    void everyTrackHasAtLeastOnePhrase() {
+    void everyTrackHasAtLeastOneBar() {
         for (final Track track : piece.tracks()) {
-            assertFalse(track.phrases().isEmpty(),
-                    "Track '" + track.name() + "' should have at least one phrase");
+            assertFalse(track.bars().isEmpty(),
+                    "Track '" + track.name() + "' should have at least one bar");
         }
     }
 
@@ -60,8 +70,8 @@ public abstract class PieceTestBase {
         final List<Track> tracks = piece.tracks();
         final int[] durations = new int[tracks.size()];
         for (int i = 0; i < tracks.size(); i++) {
-            durations[i] = tracks.get(i).phrases().stream()
-                    .mapToInt(Bar::phraseSixtyFourths)
+            durations[i] = tracks.get(i).bars().stream()
+                    .mapToInt(Bar::expectedSixtyFourths)
                     .sum();
         }
 
@@ -76,18 +86,17 @@ public abstract class PieceTestBase {
     }
 
     @Test
-    void everyPhraseDurationIsWholeNumberOfBars() {
+    void everyBarMatchesTimeSignature() {
         final int barUnits = piece.timeSig().barSixtyFourths();
         for (final Track track : piece.tracks()) {
-            for (int pi = 0; pi < track.phrases().size(); pi++) {
-                final int idx = pi;
-                final Phrase phrase = track.phrases().get(idx);
-                final int total = Bar.phraseSixtyFourths(phrase);
-                final int remainder = total % barUnits;
-                assertEquals(0, remainder,
-                        () -> "Track '" + track.name() + "', phrase " + (idx + 1)
-                                + ": total " + total + " sixty-fourths is not a whole number of "
-                                + barUnits + "-unit bars (remainder: " + remainder + ")");
+            final List<Bar> bars = track.bars();
+            for (int bi = 0; bi < bars.size(); bi++) {
+                final int idx = bi;
+                final Bar bar = bars.get(idx);
+                assertEquals(barUnits, bar.expectedSixtyFourths(),
+                        () -> "Track '" + track.name() + "', bar " + (idx + 1)
+                                + ": expected " + barUnits + " sixty-fourths, got "
+                                + bar.expectedSixtyFourths());
             }
         }
     }
@@ -95,12 +104,18 @@ public abstract class PieceTestBase {
     @Test
     void allMidiNotesInRange() {
         for (final Track track : piece.tracks()) {
-            for (final Phrase phrase : track.phrases()) {
-                checkMidiRange(track.name(), phrase);
+            for (final Bar bar : track.bars()) {
+                for (final PhraseNode node : bar.nodes()) {
+                    checkNodeMidi(track.name(), node);
+                }
             }
-            for (final Track auxTrack : track.auxTracks()) {
-                for (final Phrase phrase : auxTrack.phrases()) {
-                    checkMidiRange(auxTrack.name(), phrase);
+            if (track instanceof MelodicTrack mt) {
+                for (final var entry : mt.auxBars().entrySet()) {
+                    for (final Bar bar : entry.getValue()) {
+                        for (final PhraseNode node : bar.nodes()) {
+                            checkNodeMidi(track.name() + "/" + entry.getKey(), node);
+                        }
+                    }
                 }
             }
         }
@@ -108,28 +123,9 @@ public abstract class PieceTestBase {
 
     // ── Helpers ─────────────────────────────────────────────────────
 
-    static void checkMidiRange(final String trackName, final Phrase phrase) {
-        switch (phrase) {
-            case MelodicPhrase mp -> mp.nodes().forEach(n -> checkNodeMidi(trackName, n));
-            case DrumPhrase dp -> dp.nodes().forEach(n -> checkNodeMidi(trackName, n));
-            case ChordPhrase cp -> cp.chords().forEach(c -> {
-                for (final Pitch p : c.pitches()) {
-                    final int midi = MidiMapper.toMidiNote(p);
-                    assertTrue(midi >= 0 && midi <= 127,
-                            trackName + ": chord pitch MIDI " + midi + " out of range");
-                }
-            });
-            case RestPhrase rp -> {} // no pitches
-            case VoidPhrase vp -> {} // no pitches
-            case LyricPhrase lp -> {} // no pitches
-            case ShiftedPhrase sp -> checkMidiRange(trackName, sp.source());
-            case LayeredPhrase lp -> checkMidiRange(trackName, lp.resolve());
-        }
-    }
-
     static void checkNodeMidi(final String trackName, final PhraseNode node) {
         switch (node) {
-            case NoteNode n -> {
+            case PitchNode n -> {
                 for (final Pitch p : n.pitches()) {
                     final int midi = MidiMapper.toMidiNote(p);
                     assertTrue(midi >= 0 && midi <= 127,
@@ -148,13 +144,8 @@ public abstract class PieceTestBase {
             }
             case RestNode r -> {}
             case PaddingNode p -> {}
-            case DynamicNode d -> {}
-            case SlurStart s -> {}
-            case SlurEnd s -> {}
-            case SubPhrase sp -> checkMidiRange(trackName, sp.phrase());
-            case TempoChangeNode t -> {}
-            case TempoTransitionStartNode t -> {}
-            case TempoTransitionEndNode t -> {}
+            // Zero-duration markers and dropped legacy nodes — no MIDI to validate.
+            default -> {}
         }
     }
 }

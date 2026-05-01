@@ -32,13 +32,13 @@ import java.util.function.Consumer;
  */
 public final class OverlayBuilder {
 
-    private final Phrase base;
+    private final AuthorPhrase base;
     private final KeySignature key;
     private final TimeSignature ts;
     private final Duration defaultDur;
     private final SortedMap<Integer, Bar> overrides = new TreeMap<>();
 
-    private OverlayBuilder(Phrase base, KeySignature key, TimeSignature ts, Duration defaultDur) {
+    private OverlayBuilder(AuthorPhrase base, KeySignature key, TimeSignature ts, Duration defaultDur) {
         this.base = base;
         this.key = key;
         this.ts = ts;
@@ -46,12 +46,12 @@ public final class OverlayBuilder {
     }
 
     /** Create an overlay builder over the given base phrase. */
-    public static OverlayBuilder over(Phrase base, KeySignature key, TimeSignature ts, Duration defaultDur) {
+    public static OverlayBuilder over(AuthorPhrase base, KeySignature key, TimeSignature ts, Duration defaultDur) {
         return new OverlayBuilder(base, key, ts, defaultDur);
     }
 
     /** Create an overlay builder with no key signature. */
-    public static OverlayBuilder over(Phrase base, TimeSignature ts, Duration defaultDur) {
+    public static OverlayBuilder over(AuthorPhrase base, TimeSignature ts, Duration defaultDur) {
         return new OverlayBuilder(base, null, ts, defaultDur);
     }
 

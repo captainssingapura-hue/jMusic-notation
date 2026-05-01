@@ -200,10 +200,10 @@ class KeySignatureAccidentalsTest {
         var phrase = P.bar().o4(name).r(QUARTER).r(QUARTER).r(QUARTER).done()
                 .build(new PhraseMarking(PhraseConnection.ATTACCA, true));
         return phrase.nodes().stream()
-                .filter(n -> n instanceof NoteNode)
-                .map(n -> (NoteNode) n)
+                .filter(n -> n instanceof PitchNode)
+                .map(n -> (PitchNode) n)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("no NoteNode emitted"))
+                .orElseThrow(() -> new AssertionError("no PitchNode emitted"))
                 .pitch() instanceof StaffPitch sp
                 ? sp
                 : null;

@@ -51,7 +51,7 @@ public final class GraceNoteBuilderTyped<SELF extends NoteAcceptor<SELF>> {
         for (final Note n : ns) {
             pitches.add(parent.resolve(n, oct));
         }
-        parent.current.add(NoteNode.graced(graces, dur, pitches));
+        parent.current.add(PitchNode.graced(graces, dur, pitches));
         return parent;
     }
 }

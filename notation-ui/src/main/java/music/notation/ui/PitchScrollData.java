@@ -1,19 +1,32 @@
 package music.notation.ui;
 
-import music.notation.duration.Duration;
-import music.notation.phrase.*;
+import music.notation.phrase.Bar;
+import music.notation.phrase.GraceNote;
+import music.notation.phrase.PaddingNode;
+import music.notation.phrase.PercussionNote;
+import music.notation.phrase.PhraseNode;
+import music.notation.phrase.PolyPitchNode;
+import music.notation.phrase.RestNode;
+import music.notation.phrase.SimplePitchNode;
+import music.notation.pitch.Pitch;
 import music.notation.play.MidiMapper;
 import music.notation.play.MidiPlayer;
-import music.notation.play.PlayEvent;
-import music.notation.play.PhraseInterpreter;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Pre-computed visualization data for a {@link PitchScroll}.
- * Decouples the scroll renderer from the music domain model.
+ *
+ * <p>Phase 4d cutover: walks the sealed {@link Track}'s bar list directly
+ * — the same value object the {@link music.notation.play.PieceConcretizer}
+ * consumes for audio. UI and audio agree on note positions by construction:
+ * they read identical bars from the same {@link music.notation.phrase.Phrase}
+ * tree resolution.</p>
  */
 record PitchScrollData(
         List<NoteRect> noteRects,
@@ -31,42 +44,20 @@ record PitchScrollData(
     /** Build visualization data from a {@link Piece}. */
     static PitchScrollData fromPiece(Piece piece) {
         var rects = new ArrayList<NoteRect>();
-        var lyrics = new ArrayList<LyricRect>();
         var names = new ArrayList<String>();
 
-        // Partition tracks: control tracks are hidden entirely (they carry
-        // tempo/articulation markers, no pitches); lyrics tracks feed the
-        // lyric timeline; everything else is an audio track on the piano roll.
-        var audioTracks = new ArrayList<Track>();
         for (Track track : piece.tracks()) {
-            if (piece.isControlTrack(track.name())) {
-                continue;
-            }
-            boolean hasLyrics = track.phrases().stream()
-                    .anyMatch(p -> p instanceof LyricPhrase);
-            if (hasLyrics) {
-                extractLyrics(track, lyrics);
-            } else {
-                audioTracks.add(track);
-            }
-        }
-
-        for (int i = 0; i < audioTracks.size(); i++) {
-            Track track = audioTracks.get(i);
             names.add(track.name());
-            // Voice overlays are already carried on each MelodicPhrase and
-            // emitted by the interpreter with a non-zero `voice` index —
-            // one pass over the track is all that's needed.
-            extractNoteRects(track, track.name(), rects);
-            // Legacy auxTracks (cross-instrument parallel voices) — still
-            // rendered at voice 0 under the parent's track key.
-            for (Track auxTrack : track.auxTracks()) {
-                extractNoteRects(auxTrack, track.name(), rects);
+            extractNoteRects(track.bars(), track.name(), rects);
+            // Aux voices share the parent's lane.
+            if (track instanceof MelodicTrack mt) {
+                for (var auxBars : mt.auxBars().values()) {
+                    extractNoteRects(auxBars, track.name(), rects);
+                }
             }
         }
 
         rects.sort(Comparator.comparingLong(NoteRect::startTick));
-        lyrics.sort(Comparator.comparingLong(LyricRect::startTick));
 
         int min = 127, max = 0;
         for (NoteRect r : rects) {
@@ -82,9 +73,9 @@ record PitchScrollData(
 
         return new PitchScrollData(
                 List.copyOf(rects),
-                List.copyOf(lyrics),
+                List.of(),  // lyrics dropped with legacy phrase family
                 List.copyOf(names),
-                audioTracks.size(),
+                piece.tracks().size(),
                 minNote, maxNote,
                 totalTicks, barTickWidth,
                 MidiMapper.TICKS_PER_QUARTER,
@@ -93,63 +84,131 @@ record PitchScrollData(
     }
 
     /**
-     * Extract note rectangles from a track into the given list. Each emitted
-     * event carries its own {@code voice} index (0 = main line, 1..N = voice
-     * overlays); the rect inherits it directly.
+     * Build visualisation data from an imported MIDI {@link music.notation.performance.MidiImport}.
+     * Notes are projected from ms onto a constant-tempo tick grid driven by
+     * the import's initial bpm — bar lines line up with the time-signature's
+     * downbeats. Tempo changes inside the imported piece skew the grid
+     * relative to wall-clock playback (acceptable for v1; the playback
+     * engine plays the real tempo via the underlying sequencer).
      */
-    private static void extractNoteRects(Track track, String trackKey, List<NoteRect> out) {
-        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80, 120);
-        for (Phrase phrase : track.phrases()) {
-            interpreter.interpret(phrase);
-        }
-        // Pending key = (midi << 8) | voice so concurrent notes on the same
-        // pitch but different voices don't collide.
-        var pending = new HashMap<Integer, Long>();
-        for (PlayEvent event : interpreter.getEvents()) {
-            switch (event) {
-                case PlayEvent.NoteOn on ->
-                        pending.put((on.midiNote() << 8) | (on.voice() & 0xFF), on.tick());
-                case PlayEvent.NoteOff off -> {
-                    int key = (off.midiNote() << 8) | (off.voice() & 0xFF);
-                    Long start = pending.remove(key);
-                    if (start != null) {
-                        out.add(new NoteRect(start, off.tick(), off.midiNote(),
-                                trackKey, off.voice()));
-                    }
-                }
-                case PlayEvent.ProgramChange ignored -> {}
-                case PlayEvent.TempoChange ignored -> {}
+    static PitchScrollData fromImport(music.notation.performance.MidiImport imp) {
+        var rects = new ArrayList<NoteRect>();
+        var names = new ArrayList<String>();
+
+        int initialBpm = imp.initialBpm();
+        // ms → tick: tick = ms * PPQ * bpm / 60_000
+        double msToTick = (MidiMapper.TICKS_PER_QUARTER * (double) initialBpm) / 60_000.0;
+
+        for (var track : imp.performance().score().tracks()) {
+            String name = track.id().name();
+            names.add(name);
+            for (var note : track.notes()) {
+                long startTick = Math.round(note.tickMs() * msToTick);
+                long endTick = Math.round((note.tickMs() + note.durationMs()) * msToTick);
+                int midi = (note instanceof music.notation.performance.PitchedNote pn) ? pn.midi()
+                        : (note instanceof music.notation.performance.DrumNote dn) ? dn.piece()
+                        : 60;
+                rects.add(new NoteRect(startTick, endTick, midi, name, 0));
             }
         }
+        rects.sort(Comparator.comparingLong(NoteRect::startTick));
+
+        int min = 127, max = 0;
+        for (NoteRect r : rects) {
+            if (r.midiNote() < min) min = r.midiNote();
+            if (r.midiNote() > max) max = r.midiNote();
+        }
+        int minNote = Math.max(0, min - 2);
+        int maxNote = Math.min(127, max + 2);
+        long totalTicks = rects.isEmpty() ? 0 : rects.getLast().endTick();
+        long barTickWidth = (long) imp.timeSig().barSixtyFourths() * MidiMapper.TICKS_PER_QUARTER / 16;
+
+        return new PitchScrollData(
+                List.copyOf(rects),
+                List.of(),
+                List.copyOf(names),
+                imp.performance().score().tracks().size(),
+                minNote, maxNote,
+                totalTicks, barTickWidth,
+                MidiMapper.TICKS_PER_QUARTER,
+                0L
+        );
     }
 
-    /** Extract timed syllables from a lyrics track. */
-    private static void extractLyrics(Track track, List<LyricRect> out) {
+    // ── Tick-space note-rect walker ────────────────────────────────────
+
+    private static void extractNoteRects(List<Bar> bars, String trackKey, List<NoteRect> out) {
         long tick = 0;
-        for (Phrase phrase : track.phrases()) {
-            if (phrase instanceof LyricPhrase lp) {
-                for (LyricEvent event : lp.syllables()) {
-                    long dur = MidiMapper.toTicks(event.duration());
-                    if (!event.syllable().isEmpty()) {
-                        out.add(new LyricRect(tick, tick + dur, event.syllable()));
-                    }
-                    tick += dur;
-                }
-                tick += boundaryGapTicks(lp.marking());
-            } else {
-                tick += MidiMapper.toTicks(
-                        Duration.ofSixtyFourths(Bar.phraseSixtyFourths(phrase)));
-                tick += boundaryGapTicks(phrase.marking());
+        for (Bar bar : bars) {
+            for (PhraseNode node : bar.nodes()) {
+                tick = walkNode(node, tick, trackKey, out);
             }
         }
     }
 
-    private static long boundaryGapTicks(PhraseMarking marking) {
-        return switch (marking.connection()) {
-            case BREATH  -> MidiMapper.TICKS_PER_QUARTER / 4;
-            case CAESURA -> MidiMapper.TICKS_PER_QUARTER;
-            case ATTACCA -> 0;
-            case ELISION -> 0;
-        };
+    /** Walk a single phrase node; return the tick after it. */
+    private static long walkNode(PhraseNode node, long tick, String trackKey,
+                                 List<NoteRect> out) {
+        switch (node) {
+            case SimplePitchNode pn -> tick = emitPitch(pn, tick, trackKey, out);
+            case PolyPitchNode pn -> tick = emitPoly(pn, tick, trackKey, out);
+            case RestNode r -> tick += MidiMapper.toTicks(r.duration());
+            case PaddingNode p -> tick += MidiMapper.toTicks(p.duration());
+            case PercussionNote pn -> {
+                int midi = pn.sound().midiNote();
+                long dur = MidiMapper.toTicks(pn.duration());
+                out.add(new NoteRect(tick, tick + dur, midi, trackKey, 0));
+                tick += dur;
+            }
+            // Zero-duration markers — no advance, no rect.
+            case music.notation.phrase.DynamicNode d -> {}
+            case music.notation.phrase.TempoChangeNode t -> {}
+            case music.notation.phrase.TempoTransitionStartNode t -> {}
+            case music.notation.phrase.TempoTransitionEndNode t -> {}
+            case music.notation.phrase.SubPhrase sp -> { /* legacy nesting dropped */ }
+        }
+        return tick;
+    }
+
+    private static long emitPitch(SimplePitchNode pn, long tick, String trackKey, List<NoteRect> out) {
+        long dur = MidiMapper.toTicks(pn.duration());
+        long mainDur = dur;
+        if (!pn.graceNotes().isEmpty()) {
+            int slots = pn.graceNotes().size() + 1;
+            long graceDur = pn.equalDivision() ? dur / slots : MidiMapper.GRACE_NOTE_TICK;
+            long graceTotal = 0;
+            for (GraceNote g : pn.graceNotes()) {
+                int gMidi = MidiMapper.toMidiNote(g.pitch());
+                out.add(new NoteRect(tick, tick + graceDur, gMidi, trackKey, 0));
+                tick += graceDur;
+                graceTotal += graceDur;
+            }
+            mainDur = Math.max(dur - graceTotal, MidiMapper.GRACE_NOTE_TICK);
+        }
+        int midi = MidiMapper.toMidiNote(pn.pitch());
+        out.add(new NoteRect(tick, tick + mainDur, midi, trackKey, 0));
+        return tick + mainDur;
+    }
+
+    private static long emitPoly(PolyPitchNode pn, long tick, String trackKey, List<NoteRect> out) {
+        long dur = MidiMapper.toTicks(pn.duration());
+        long mainDur = dur;
+        if (!pn.graceNotes().isEmpty()) {
+            int slots = pn.graceNotes().size() + 1;
+            long graceDur = pn.equalDivision() ? dur / slots : MidiMapper.GRACE_NOTE_TICK;
+            long graceTotal = 0;
+            for (GraceNote g : pn.graceNotes()) {
+                int gMidi = MidiMapper.toMidiNote(g.pitch());
+                out.add(new NoteRect(tick, tick + graceDur, gMidi, trackKey, 0));
+                tick += graceDur;
+                graceTotal += graceDur;
+            }
+            mainDur = Math.max(dur - graceTotal, MidiMapper.GRACE_NOTE_TICK);
+        }
+        for (Pitch p : pn.pitches()) {
+            int midi = MidiMapper.toMidiNote(p);
+            out.add(new NoteRect(tick, tick + mainDur, midi, trackKey, 0));
+        }
+        return tick + mainDur;
     }
 }

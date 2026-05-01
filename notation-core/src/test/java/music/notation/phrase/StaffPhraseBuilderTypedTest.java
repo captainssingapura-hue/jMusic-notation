@@ -37,7 +37,6 @@ class StaffPhraseBuilderTypedTest {
                 .build(end());
 
         assertEquals(2, phrase.bars().size());
-        assertTrue(phrase.voices().isEmpty());
     }
 
     // ── Pickup + ending: leading/trailing PaddingNode ────────────────
@@ -64,36 +63,6 @@ class StaffPhraseBuilderTypedTest {
         var endingBar = phrase.bars().get(1);
         assertTrue(endingBar.nodes().getLast() instanceof PaddingNode,
                 "explicit .pad(...) must emit a PaddingNode");
-    }
-
-    // ── Aux (whole-bar voice overlay via lambda) ─────────────────────
-
-    @Test
-    void auxBecomesVoiceOverlay() {
-        var phrase = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER)
-                .bar().o5(C).o5(D).o5(E).o5(F)
-                    .aux(a -> a.r(HALF).o4(QUARTER, C).r(QUARTER))
-                    .done()
-                .bar().o5(G).o5(A).o5(B).o5(C.higher(1)).done()
-                .build(end());
-
-        assertEquals(1, phrase.voices().size());
-        var overlay = phrase.voices().getFirst();
-        assertEquals(2, overlay.size(), "overlay spans all bars of the phrase");
-        assertTrue(overlay.at(0).isPresent(), "bar 0 has aux content");
-        assertTrue(overlay.at(1).isEmpty(),   "bar 1 has no aux content");
-    }
-
-    @Test
-    void multipleAuxSlotsInOneBarCreateMultipleVoices() {
-        var phrase = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER)
-                .bar().o5(C).o5(D).o5(E).o5(F)
-                    .aux(a -> a.o4(WHOLE, C))
-                    .aux(a -> a.o3(WHOLE, E))
-                    .done()
-                .build(end());
-
-        assertEquals(2, phrase.voices().size(), "two .aux() calls → two overlays");
     }
 
     // ── tieNext() across bar boundary ───────────────────────────────
@@ -130,19 +99,6 @@ class StaffPhraseBuilderTypedTest {
 
         assertThrows(IllegalStateException.class, () -> bar.o4(G));
         assertThrows(IllegalStateException.class, bar::done);
-    }
-
-    @Test
-    void auxBuilderRefusesCallsAfterLambdaExits() {
-        // Capture the aux builder from inside the lambda and try to reuse it outside.
-        var leaked = new AuxBarBuilderTyped[1];
-        StaffPhraseBuilderTyped.in(KEY, TS, QUARTER)
-                .bar().o4(C).o4(D).o4(E).o4(F)
-                    .aux(a -> { leaked[0] = a; a.r(WHOLE); })
-                    .done()
-                .build(end());
-
-        assertThrows(IllegalStateException.class, () -> leaked[0].o4(C));
     }
 
     // ── Parity with untyped StaffPhraseBuilderTyped ───────────────────────

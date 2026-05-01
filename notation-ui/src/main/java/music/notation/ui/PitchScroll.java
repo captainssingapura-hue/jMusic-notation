@@ -1,46 +1,63 @@
 package music.notation.ui;
 
 import javafx.animation.AnimationTimer;
+import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Line;
 import javafx.scene.text.Font;
 import javafx.util.Duration;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.DoubleConsumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * A pitch-grid canvas that renders the full note sequence scaled to fit
- * the available width. Active notes are highlighted during playback.
+ * GarageBand-style coordinator: a frozen left column of per-track
+ * control panels, paired with a horizontally-scrolling right column
+ * containing a single {@link Canvas} drawing the bar-number ruler at
+ * top and all track lanes below it. A global playhead overlay
+ * (single {@link Line}) lives in the same scrollable region so it
+ * scrolls horizontally with the canvas.
  *
- * <p>This component has no knowledge of the music domain model —
- * feed it a {@link PitchScrollData} and a tick source for animation.</p>
+ * <p>Single-canvas approach (post-Phase-5.3): simpler layout, single
+ * redraw path, single hit-test/tooltip. Per-track enable/disable is
+ * handled by tracking disabled track names and skipping their notes
+ * during render.</p>
  */
-final class PitchScroll extends Canvas {
+final class PitchScroll extends HBox {
 
-    private static final double NOTE_HEIGHT = 4.0;
-    private static final double LANE_HEADER = 18.0;
+    // ── Visual constants ──────────────────────────────────────────────
+    private static final double RULER_HEIGHT = 20.0;
+    private static final double LANE_HEIGHT = 130.0;
     private static final double LANE_GAP = 2.0;
-    private static final double FIXED_LANE_HEIGHT = 120.0;
-    private static final double PADDING_LEFT = 40.0;
-    private static final double PADDING_RIGHT = 20.0;
+    private static final double LANE_HEADER = 4.0;     // top inset within a lane
+    private static final double NOTE_HEIGHT = 4.0;
+    private static final double PADDING_LEFT = 8.0;
+    private static final double PADDING_RIGHT = 8.0;
     private static final double DEFAULT_MIN_QUARTER_PX = 4.0;
-    private static final double LYRICS_HEIGHT = 32.0;
+    /** GPU texture-size cap for individual Canvases. */
+    private static final double MAX_CANVAS_DIM = 8192.0;
 
     private static final Color BG = Color.web("#1e1e2e");
-    private static final Color LYRICS_BG = Color.web("#181825");
-    private static final Color LYRICS_ACTIVE = Color.web("#f5c2e7");
-    private static final Color LYRICS_PAST = Color.web("#6c7086");
-    private static final Color LYRICS_FUTURE = Color.web("#a6adc8");
+    private static final Color RULER_BG = Color.web("#181825");
+    private static final Color RULER_TEXT = Color.web("#a6adc8");
     private static final Color LANE_SEPARATOR = Color.web("#45475a");
     private static final Color GRID_LINE = Color.web("#313244");
-    private static final Color CURSOR_COLOR = Color.web("#f5c2e7");
     private static final Color BAR_LINE = Color.web("#585b70");
-    private static final Color LABEL_COLOR = Color.web("#a6adc8");
+    private static final Color CURSOR_COLOR = Color.web("#f5c2e7");
     private static final Color[] TRACK_COLORS = {
             Color.web("#f38ba8"), Color.web("#a6e3a1"), Color.web("#89b4fa"),
             Color.web("#fab387"), Color.web("#cba6f7"), Color.web("#f9e2af"),
@@ -51,93 +68,214 @@ final class PitchScroll extends Canvas {
             "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
     };
 
+    // ── Public callbacks / config ────────────────────────────────────
+    @FunctionalInterface
+    interface ControlPanelFactory {
+        Node create(int trackIndex, String trackName);
+    }
+
     private final LongConsumer onSeek;
     private final DoubleConsumer onCursorMove;
-    private final AnimationTimer timer;
-    private final Tooltip hoverTooltip = new Tooltip();
+    private LongConsumer onCursorTick;
+    private final ControlPanelFactory controlPanelFactory;
+    private final double controlPanelWidth;
 
+    // ── Layout components ────────────────────────────────────────────
+    private final VBox leftColumn;
+    private final Pane rulerSpacer;
+    private final VBox controlPanelsBox;
+    private final Canvas canvas;
+    private final StackPane canvasStack;
+    private final Pane playheadOverlay;
+    private final Line playheadLine;
+    private final ScrollPane laneScrollPane;
+    private final Tooltip hoverTooltip = new Tooltip();
+    private final AnimationTimer timer;
+
+    // ── State ────────────────────────────────────────────────────────
     private PitchScrollData data;
     private LongSupplier tickSource;
     private double minQuarterPx = DEFAULT_MIN_QUARTER_PX;
+    private double pixelsPerTick = 1.0;
+    private long currentTick;
+    private final Set<String> disabledTracks = new HashSet<>();
 
-    PitchScroll(final LongConsumer onSeek, final DoubleConsumer onCursorMove) {
+    PitchScroll(LongConsumer onSeek,
+                DoubleConsumer onCursorMove,
+                ControlPanelFactory controlPanelFactory,
+                double controlPanelWidth) {
         this.onSeek = onSeek;
         this.onCursorMove = onCursorMove;
-        this.timer = new AnimationTimer() {
-            @Override
-            public void handle(final long now) {
-                final long tick = tickSource != null ? tickSource.getAsLong() : 0;
-                render(tick);
-                onCursorMove.accept(PADDING_LEFT + tick * pixelsPerTick());
-            }
-        };
+        this.controlPanelFactory = controlPanelFactory;
+        this.controlPanelWidth = controlPanelWidth;
 
+        setStyle("-fx-background-color: #1e1e2e;");
+        setSpacing(0);
+
+        // ── Left column: ruler-height spacer + frozen control panels.
+        rulerSpacer = new Pane();
+        rulerSpacer.setMinHeight(RULER_HEIGHT);
+        rulerSpacer.setPrefHeight(RULER_HEIGHT);
+        rulerSpacer.setMaxHeight(RULER_HEIGHT);
+        rulerSpacer.setStyle("-fx-background-color: #181825; "
+                + "-fx-border-color: transparent transparent #313244 transparent; -fx-border-width: 1;");
+
+        controlPanelsBox = new VBox(LANE_GAP);
+        controlPanelsBox.setStyle("-fx-background-color: #181825;");
+
+        leftColumn = new VBox(rulerSpacer, controlPanelsBox);
+        leftColumn.setMinWidth(controlPanelWidth);
+        leftColumn.setPrefWidth(controlPanelWidth);
+        leftColumn.setMaxWidth(controlPanelWidth);
+        leftColumn.setStyle("-fx-background-color: #181825;");
+
+        // ── Right column: single Canvas (ruler + all lanes) + playhead overlay.
+        canvas = new Canvas(800, RULER_HEIGHT + LANE_HEIGHT);
+
+        playheadLine = new Line();
+        playheadLine.setStroke(CURSOR_COLOR);
+        playheadLine.setStrokeWidth(1.5);
+        playheadLine.setVisible(false);
+        playheadOverlay = new Pane(playheadLine);
+        playheadOverlay.setMouseTransparent(true);
+        playheadOverlay.setPickOnBounds(false);
+        playheadOverlay.setStyle("-fx-background-color: transparent;");
+
+        canvasStack = new StackPane(canvas, playheadOverlay);
+        canvasStack.setStyle("-fx-background-color: #1e1e2e;");
+        canvasStack.setAlignment(javafx.geometry.Pos.TOP_LEFT);
+
+        laneScrollPane = new ScrollPane(canvasStack);
+        laneScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        laneScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        laneScrollPane.setStyle(
+                "-fx-background: #1e1e2e; -fx-background-color: #1e1e2e;"
+                        + " -fx-padding: 0; -fx-border-width: 0;");
+        HBox.setHgrow(laneScrollPane, Priority.ALWAYS);
+
+        getChildren().setAll(leftColumn, laneScrollPane);
+
+        // ── Hover tooltip + click-to-seek.
         hoverTooltip.setShowDelay(Duration.millis(100));
         hoverTooltip.setHideDelay(Duration.ZERO);
         hoverTooltip.setStyle("-fx-font-size: 12; -fx-background-color: #313244; -fx-text-fill: #cdd6f4;");
 
-        // Click or drag to seek — render immediately for instant visual feedback
-        final javafx.event.EventHandler<javafx.scene.input.MouseEvent> seekFromMouse = event -> {
-            if (data == null) return;
-            final long tick = Math.clamp(
-                    (long) ((event.getX() - PADDING_LEFT) / pixelsPerTick()),
-                    0, data.totalTicks());
-            onSeek.accept(tick);
-            render(tick);
+        var seek = (javafx.event.EventHandler<javafx.scene.input.MouseEvent>) event -> {
+            if (data == null || event.getY() < RULER_HEIGHT) return;
+            long tick = Math.clamp(
+                    (long) ((event.getX() - PADDING_LEFT) / Math.max(pixelsPerTick, 1e-9)),
+                    0L, data.totalTicks());
+            seekTo(tick);
             hoverTooltip.hide();
         };
-        setOnMousePressed(seekFromMouse::handle);
-        setOnMouseDragged(seekFromMouse::handle);
+        canvas.setOnMousePressed(seek::handle);
+        canvas.setOnMouseDragged(seek::handle);
 
-        // Hover: show a tooltip with the exact note name + bar/beat + track
-        setOnMouseMoved(event -> {
-            final NoteRect r = hitTest(event.getX(), event.getY());
+        // Ruler-row click also seeks (no Y-restriction).
+        canvas.setOnMouseClicked(event -> {
+            if (data == null || event.getY() >= RULER_HEIGHT) return;
+            long tick = Math.clamp(
+                    (long) ((event.getX() - PADDING_LEFT) / Math.max(pixelsPerTick, 1e-9)),
+                    0L, data.totalTicks());
+            seekTo(tick);
+        });
+
+        canvas.setOnMouseMoved(event -> {
+            NoteRect r = hitTest(event.getX(), event.getY());
             if (r != null) {
                 hoverTooltip.setText(formatNoteInfo(r));
                 if (hoverTooltip.isShowing()) {
                     hoverTooltip.setX(event.getScreenX() + 12);
                     hoverTooltip.setY(event.getScreenY() + 14);
                 } else {
-                    hoverTooltip.show(this, event.getScreenX() + 12, event.getScreenY() + 14);
+                    hoverTooltip.show(canvas, event.getScreenX() + 12, event.getScreenY() + 14);
                 }
             } else {
                 hoverTooltip.hide();
             }
         });
-        setOnMouseExited(event -> hoverTooltip.hide());
+        canvas.setOnMouseExited(event -> hoverTooltip.hide());
 
-        // Re-render when canvas is resized
-        widthProperty().addListener((obs, o, n) -> render(currentTick()));
-        heightProperty().addListener((obs, o, n) -> render(currentTick()));
+        // ── Animation timer drives the playhead + glow during playback.
+        this.timer = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                long tick = tickSource != null ? tickSource.getAsLong() : 0;
+                currentTick = tick;
+                redraw();
+                updatePlayhead(tick);
+                if (onCursorMove != null) onCursorMove.accept(playheadLine.getStartX());
+                if (onCursorTick != null) onCursorTick.accept(tick);
+            }
+        };
+
+        laneScrollPane.viewportBoundsProperty().addListener((obs, o, n) -> recomputeSizing());
     }
 
-    void load(final PitchScrollData data) {
+    // ── Public API ────────────────────────────────────────────────────
+
+    void load(PitchScrollData data) {
         this.data = data;
-        render(0);
+        rebuildControlPanels();
+        recomputeSizing();
+        currentTick = 0;
+        playheadLine.setVisible(true);
+        redraw();
+        updatePlayhead(0);
+        if (onCursorTick != null) onCursorTick.accept(0);
     }
 
-    void setMinQuarterPx(final double value) {
+    /** Programmatic seek — updates the visible cursor and notifies onSeek/onCursorTick. */
+    void seekTo(long tick) {
+        if (data == null) return;
+        long clamped = Math.clamp(tick, 0L, data.totalTicks());
+        currentTick = clamped;
+        if (onSeek != null) onSeek.accept(clamped);
+        redraw();
+        updatePlayhead(clamped);
+        if (onCursorTick != null) onCursorTick.accept(clamped);
+    }
+
+    void setMinQuarterPx(double value) {
         this.minQuarterPx = value;
+        recomputeSizing();
+        redraw();
     }
 
-    /** Total canvas height required to render all track lanes at fixed height. */
+    void setOnCursorTick(LongConsumer onCursorTick) {
+        this.onCursorTick = onCursorTick;
+    }
+
+    void setTrackEnabled(String trackName, boolean enabled) {
+        if (enabled) disabledTracks.remove(trackName);
+        else disabledTracks.add(trackName);
+        redraw();
+    }
+
     double computeContentHeight() {
         if (data == null || data.trackCount() == 0) return 0;
-        final boolean hasLyrics = !data.lyricRects().isEmpty();
-        final double lyricsOffset = hasLyrics ? LYRICS_HEIGHT : 0;
-        return lyricsOffset + data.trackCount() * FIXED_LANE_HEIGHT + (data.trackCount() - 1) * LANE_GAP;
+        return data.trackCount() * (LANE_HEIGHT + LANE_GAP);
     }
 
-    /** Minimum canvas width so that a quarter note is at least {@code minQuarterPx} wide. */
-    double getMinContentWidth() {
-        if (data == null || data.totalTicks() == 0) return 0;
-        final double minPpt = minQuarterPx / data.ticksPerQuarter();
-        return data.totalTicks() * minPpt + PADDING_LEFT + PADDING_RIGHT;
+    /** @deprecated horizontal scrolling is internal; returns 0. */
+    @Deprecated
+    double getMinContentWidth() { return 0; }
+
+    void hostViewportChanged() {
+        recomputeSizing();
     }
 
-    void startAnimation(final LongSupplier tickSource) {
+    void startAnimation(LongSupplier tickSource) {
         this.tickSource = tickSource;
+        playheadLine.setVisible(true);
         timer.start();
+    }
+
+    /** Force a visible-cursor refresh (e.g. after host repositions the playhead). */
+    void refreshCursor() {
+        redraw();
+        updatePlayhead(currentTick);
+        if (onCursorTick != null) onCursorTick.accept(currentTick);
     }
 
     void stopAnimation() {
@@ -145,167 +283,216 @@ final class PitchScroll extends Canvas {
         this.tickSource = null;
     }
 
-    private long currentTick() {
+    long currentTick() {
         return tickSource != null ? tickSource.getAsLong() : 0;
     }
 
-    /** Scale factor: pixels per tick so the entire song fits the available width. */
-    private double pixelsPerTick() {
-        if (data == null || data.totalTicks() == 0) return 1.0;
-        return (getWidth() - PADDING_LEFT - PADDING_RIGHT) / data.totalTicks();
+    double getLaneScrollHvalue() {
+        return laneScrollPane.getHvalue();
     }
 
-    private void render(final long currentTick) {
-        if (data == null) return;
-        final double w = getWidth();
-        final double h = getHeight();
-        if (w <= 0 || h <= 0 || data.trackCount() == 0) return;
+    void setLaneScrollHvalue(double v) {
+        laneScrollPane.setHvalue(v);
+    }
 
-        final GraphicsContext gc = getGraphicsContext2D();
+    double getLaneViewportWidth() {
+        var b = laneScrollPane.getViewportBounds();
+        return b == null ? 0 : b.getWidth();
+    }
+
+    double getLaneContentWidth() {
+        return canvas.getWidth();
+    }
+
+    // ── Internals ─────────────────────────────────────────────────────
+
+    private void rebuildControlPanels() {
+        controlPanelsBox.getChildren().clear();
+        if (data == null) return;
+        for (int t = 0; t < data.trackCount(); t++) {
+            String name = data.trackNames().get(t);
+            Node panel = controlPanelFactory != null
+                    ? controlPanelFactory.create(t, name)
+                    : new Pane();
+            if (panel instanceof Region r) {
+                r.setMinWidth(controlPanelWidth);
+                r.setPrefWidth(controlPanelWidth);
+                r.setMaxWidth(controlPanelWidth);
+                r.setMinHeight(LANE_HEIGHT);
+                r.setPrefHeight(LANE_HEIGHT);
+                r.setMaxHeight(LANE_HEIGHT);
+            }
+            controlPanelsBox.getChildren().add(panel);
+        }
+    }
+
+    private void recomputeSizing() {
+        if (data == null) return;
+        double viewportW = getLaneViewportWidth();
+        if (viewportW <= 0) viewportW = 800;
+        double minPpt = data.totalTicks() == 0 ? 1.0 : minQuarterPx / data.ticksPerQuarter();
+        double minLaneW = data.totalTicks() == 0
+                ? viewportW
+                : data.totalTicks() * minPpt + PADDING_LEFT + PADDING_RIGHT;
+        double laneWidth = Math.min(MAX_CANVAS_DIM, Math.max(viewportW, minLaneW));
+
+        double canvasH = RULER_HEIGHT + computeContentHeight();
+        canvas.setWidth(laneWidth);
+        canvas.setHeight(canvasH);
+        canvasStack.setMinWidth(laneWidth);
+        canvasStack.setPrefWidth(laneWidth);
+        canvasStack.setMinHeight(canvasH);
+        canvasStack.setPrefHeight(canvasH);
+        playheadOverlay.setPrefWidth(laneWidth);
+        playheadOverlay.setPrefHeight(canvasH);
+
+        if (data.totalTicks() > 0) {
+            pixelsPerTick = (laneWidth - PADDING_LEFT - PADDING_RIGHT) / data.totalTicks();
+        } else {
+            pixelsPerTick = 1.0;
+        }
+
+        // Match overall PitchScroll height so the host's vertical scroll has correct content size.
+        double overallH = canvasH;
+        setMinHeight(overallH);
+        setPrefHeight(overallH);
+
+        redraw();
+        updatePlayhead(currentTick);
+    }
+
+    private void redraw() {
+        if (data == null) return;
+        double w = canvas.getWidth();
+        double h = canvas.getHeight();
+        if (w <= 0 || h <= 0) return;
+
+        GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.setFill(BG);
         gc.fillRect(0, 0, w, h);
 
-        final double ppt = pixelsPerTick();
-        final boolean hasLyrics = !data.lyricRects().isEmpty();
-        final double lyricsOffset = hasLyrics ? LYRICS_HEIGHT : 0;
-
-        // ── Lyrics strip ──
-        if (hasLyrics) {
-            gc.setFill(LYRICS_BG);
-            gc.fillRect(0, 0, w, LYRICS_HEIGHT);
-
-            gc.setFont(Font.font("System", 16));
-            for (final LyricRect lr : data.lyricRects()) {
-                final double x = PADDING_LEFT + lr.startTick() * ppt;
-                final boolean active = currentTick >= lr.startTick()
-                        && currentTick < lr.endTick();
-                final boolean past = currentTick >= lr.endTick();
-
-                gc.setFill(active ? LYRICS_ACTIVE : past ? LYRICS_PAST : LYRICS_FUTURE);
-                gc.fillText(lr.syllable(), x, LYRICS_HEIGHT - 10);
-            }
-
-            // Separator below lyrics
+        // ── Bar-number ruler at top.
+        gc.setFill(RULER_BG);
+        gc.fillRect(0, 0, w, RULER_HEIGHT);
+        long barTickWidth = data.barTickWidth();
+        if (barTickWidth > 0) {
+            boolean hasPickup = data.pickupOffsetTicks() > 0;
+            gc.setFont(Font.font("System", 10));
             gc.setStroke(LANE_SEPARATOR);
-            gc.setLineWidth(1);
-            gc.strokeLine(0, LYRICS_HEIGHT, w, LYRICS_HEIGHT);
+            gc.setLineWidth(0.5);
+            long bar = 0;
+            for (long tick = 0; tick <= data.totalTicks(); tick += barTickWidth, bar++) {
+                double bx = PADDING_LEFT + tick * pixelsPerTick;
+                gc.strokeLine(bx, RULER_HEIGHT - 4, bx, RULER_HEIGHT);
+                String label = (hasPickup && bar == 0)
+                        ? "↟"
+                        : String.valueOf(hasPickup ? bar : bar + 1);
+                gc.setFill(RULER_TEXT);
+                gc.fillText(label, bx + 3, RULER_HEIGHT - 6);
+            }
         }
+        gc.setStroke(GRID_LINE);
+        gc.setLineWidth(0.5);
+        gc.strokeLine(0, RULER_HEIGHT - 0.5, w, RULER_HEIGHT - 0.5);
 
-        // ── Track lanes ──
-        final int trackCount = data.trackCount();
-        final double laneHeight = FIXED_LANE_HEIGHT;
-        final int noteRange = data.maxNote() - data.minNote() + 1;
-        final List<NoteRect> noteRects = data.noteRects();
+        // ── Track lanes.
+        int trackCount = data.trackCount();
+        int noteRange = Math.max(1, data.maxNote() - data.minNote() + 1);
+        List<NoteRect> noteRects = data.noteRects();
 
         for (int t = 0; t < trackCount; t++) {
-            final double laneY = lyricsOffset + t * (laneHeight + LANE_GAP);
-            final Color trackColor = TRACK_COLORS[t % TRACK_COLORS.length];
-            final double notePixelHeight = (laneHeight - LANE_HEADER) / noteRange;
-            final String trackKey = data.trackNames().get(t);
+            double laneY = RULER_HEIGHT + t * (LANE_HEIGHT + LANE_GAP);
+            String trackKey = data.trackNames().get(t);
+            Color trackColor = TRACK_COLORS[t % TRACK_COLORS.length];
+            double notePixelHeight = (LANE_HEIGHT - LANE_HEADER) / noteRange;
+            boolean disabled = disabledTracks.contains(trackKey);
 
-            // Pitch grid lines (every octave C)
+            // Pitch grid (every octave C).
             gc.setStroke(GRID_LINE);
             gc.setLineWidth(0.5);
+            gc.setFont(Font.font(9));
             for (int note = data.minNote(); note <= data.maxNote(); note++) {
                 if (note % 12 == 0) {
-                    final double ny = laneY + LANE_HEADER + (data.maxNote() - note) * notePixelHeight;
+                    double ny = laneY + LANE_HEADER + (data.maxNote() - note) * notePixelHeight;
                     gc.strokeLine(0, ny, w, ny);
                     gc.setFill(GRID_LINE.brighter());
-                    gc.setFont(Font.font(9));
                     gc.fillText("C" + (note / 12 - 1), 2, ny - 1);
                 }
             }
 
-            // Bar lines — aligned to absolute bar boundaries (multiples of barWidth
-            // from tick 0). When a piece has a pickup, the first bar [0, barWidth)
-            // is the pickup/anacrusis bar; the first "true" music bar starts at
-            // tick == barWidth. Drawing lines from tick 0 gives the exact staff
-            // layout: the pickup audible content sits to the RIGHT of the first
-            // bar line, and the downbeat of bar 1 lands precisely on the second.
-            final long barTickWidth = data.barTickWidth();
+            // Bar lines.
             if (barTickWidth > 0) {
                 gc.setStroke(BAR_LINE);
                 gc.setLineWidth(0.5);
                 for (long tick = 0; tick <= data.totalTicks(); tick += barTickWidth) {
-                    final double bx = PADDING_LEFT + tick * ppt;
-                    gc.strokeLine(bx, laneY + LANE_HEADER, bx, laneY + laneHeight);
+                    double bx = PADDING_LEFT + tick * pixelsPerTick;
+                    gc.strokeLine(bx, laneY, bx, laneY + LANE_HEIGHT);
                 }
             }
 
-            // Notes
-            final Color auxColor = trackColor.deriveColor(30, 0.55, 1.15, 1.0);
-            for (final NoteRect r : noteRects) {
+            // Notes for this track.
+            Color auxColor = trackColor.deriveColor(30, 0.55, 1.15, 1.0);
+            for (NoteRect r : noteRects) {
                 if (!r.trackKey().equals(trackKey)) continue;
-
-                final double x = PADDING_LEFT + r.startTick() * ppt;
-                final double rw = (r.endTick() - r.startTick()) * ppt;
-                final double y = laneY + LANE_HEADER + (data.maxNote() - r.midiNote()) * notePixelHeight;
-
-                final boolean active = currentTick >= r.startTick() && currentTick < r.endTick();
-                final Color base = r.isAux() ? auxColor : trackColor;
-                gc.setFill(active ? base : base.deriveColor(0, 1, 1, 0.6));
+                double x = PADDING_LEFT + r.startTick() * pixelsPerTick;
+                double rw = (r.endTick() - r.startTick()) * pixelsPerTick;
+                double y = laneY + LANE_HEADER + (data.maxNote() - r.midiNote()) * notePixelHeight;
+                boolean active = currentTick >= r.startTick() && currentTick < r.endTick();
+                Color base = r.isAux() ? auxColor : trackColor;
+                Color fill = active ? base : base.deriveColor(0, 1, 1, 0.6);
+                if (disabled) fill = fill.deriveColor(0, 0.3, 0.6, 0.4);
+                gc.setFill(fill);
                 gc.fillRoundRect(x, y - NOTE_HEIGHT / 2, Math.max(rw, 2), NOTE_HEIGHT, 2, 2);
             }
 
-            // Lane separator
+            // Lane separator.
             if (t > 0) {
                 gc.setStroke(LANE_SEPARATOR);
                 gc.setLineWidth(1);
                 gc.strokeLine(0, laneY - LANE_GAP / 2, w, laneY - LANE_GAP / 2);
             }
-
-            // Track label
-            gc.setFill(LABEL_COLOR);
-            gc.setFont(Font.font("System", 12));
-            gc.fillText(data.trackNames().get(t), 4, laneY + 14);
         }
-
-        // Playback cursor
-        final double cursorX = PADDING_LEFT + currentTick * ppt;
-        gc.setStroke(CURSOR_COLOR);
-        gc.setLineWidth(1.5);
-        gc.strokeLine(cursorX, 0, cursorX, h);
     }
 
-    /**
-     * Find the {@link NoteRect} under the given canvas-local position, if any.
-     * Returns the closest match within a small vertical tolerance (so thin
-     * {@code NOTE_HEIGHT}=4 rectangles are still easy to target with a mouse).
-     */
-    private NoteRect hitTest(final double x, final double y) {
-        if (data == null || data.trackCount() == 0) return null;
-        final double ppt = pixelsPerTick();
-        if (ppt <= 0) return null;
+    private void updatePlayhead(long tick) {
+        if (data == null) {
+            playheadLine.setVisible(false);
+            return;
+        }
+        double x = PADDING_LEFT + tick * pixelsPerTick;
+        playheadLine.setStartX(x);
+        playheadLine.setEndX(x);
+        playheadLine.setStartY(0);
+        playheadLine.setEndY(canvas.getHeight());
+    }
 
-        final boolean hasLyrics = !data.lyricRects().isEmpty();
-        final double lyricsOffset = hasLyrics ? LYRICS_HEIGHT : 0;
-        final double laneHeight = FIXED_LANE_HEIGHT;
-        final int trackCount = data.trackCount();
-        final int noteRange = data.maxNote() - data.minNote() + 1;
+    // ── Hit-test + tooltip helpers ───────────────────────────────────
 
-        // Which lane is the cursor in?
-        final double yInLanes = y - lyricsOffset;
-        if (yInLanes < 0) return null;
-        final int trackIdx = (int) (yInLanes / (laneHeight + LANE_GAP));
+    private NoteRect hitTest(double x, double y) {
+        if (data == null) return null;
+        if (pixelsPerTick <= 0) return null;
+        if (y < RULER_HEIGHT) return null;
+
+        int trackCount = data.trackCount();
+        double yInLanes = y - RULER_HEIGHT;
+        int trackIdx = (int) (yInLanes / (LANE_HEIGHT + LANE_GAP));
         if (trackIdx < 0 || trackIdx >= trackCount) return null;
 
-        final double laneY = lyricsOffset + trackIdx * (laneHeight + LANE_GAP);
-        final double notePixelHeight = (laneHeight - LANE_HEADER) / noteRange;
-        final String trackKey = data.trackNames().get(trackIdx);
-
-        // Vertical tolerance: note rects are only 4px tall — give the hit-test ±4px.
-        final double tolerance = NOTE_HEIGHT;
+        double laneY = RULER_HEIGHT + trackIdx * (LANE_HEIGHT + LANE_GAP);
+        int noteRange = Math.max(1, data.maxNote() - data.minNote() + 1);
+        double notePixelHeight = (LANE_HEIGHT - LANE_HEADER) / noteRange;
+        String trackKey = data.trackNames().get(trackIdx);
+        double tolerance = NOTE_HEIGHT;
 
         NoteRect best = null;
         double bestDy = Double.POSITIVE_INFINITY;
-        for (final NoteRect r : data.noteRects()) {
+        for (NoteRect r : data.noteRects()) {
             if (!r.trackKey().equals(trackKey)) continue;
-            final double rx = PADDING_LEFT + r.startTick() * ppt;
-            final double rw = Math.max((r.endTick() - r.startTick()) * ppt, 2);
+            double rx = PADDING_LEFT + r.startTick() * pixelsPerTick;
+            double rw = Math.max((r.endTick() - r.startTick()) * pixelsPerTick, 2);
             if (x < rx || x > rx + rw) continue;
-
-            final double ry = laneY + LANE_HEADER + (data.maxNote() - r.midiNote()) * notePixelHeight;
-            final double dy = Math.abs(y - ry);
+            double ry = laneY + LANE_HEADER + (data.maxNote() - r.midiNote()) * notePixelHeight;
+            double dy = Math.abs(y - ry);
             if (dy <= tolerance && dy < bestDy) {
                 best = r;
                 bestDy = dy;
@@ -314,39 +501,30 @@ final class PitchScroll extends Canvas {
         return best;
     }
 
-    /** Format "C#5 · bar 3 beat 2 · Track Name" for the hover tooltip. */
-    private String formatNoteInfo(final NoteRect r) {
-        final StringBuilder sb = new StringBuilder();
+    private String formatNoteInfo(NoteRect r) {
+        StringBuilder sb = new StringBuilder();
         sb.append(noteName(r.midiNote()));
-
-        // Bar/beat derived from absolute tick position. Bar boundaries are
-        // multiples of barWidth from tick 0; when the piece has a pickup, the
-        // first bar [0, barWidth) is the anacrusis ("pickup" / bar 0) and the
-        // first full music bar is bar 1. Without a pickup, we shift to 1-index
-        // the opening bar as bar 1.
-        if (data != null && data.barTickWidth() > 0 && data.ticksPerQuarter() > 0) {
-            final long barWidth = data.barTickWidth();
-            final boolean hasPickup = data.pickupOffsetTicks() > 0;
-            final long rawBar = r.startTick() / barWidth;
-            final long tickInBar = r.startTick() % barWidth;
-            final long beat = tickInBar / data.ticksPerQuarter() + 1;
+        if (data.barTickWidth() > 0 && data.ticksPerQuarter() > 0) {
+            long barWidth = data.barTickWidth();
+            boolean hasPickup = data.pickupOffsetTicks() > 0;
+            long rawBar = r.startTick() / barWidth;
+            long tickInBar = r.startTick() % barWidth;
+            long beat = tickInBar / data.ticksPerQuarter() + 1;
             sb.append("  ·  ");
             if (hasPickup && rawBar == 0) {
                 sb.append("pickup beat ").append(beat);
             } else {
-                final long barIdx = hasPickup ? rawBar : rawBar + 1;
+                long barIdx = hasPickup ? rawBar : rawBar + 1;
                 sb.append("bar ").append(barIdx).append(" beat ").append(beat);
             }
         }
-
         sb.append("  ·  ").append(r.trackKey());
         if (r.isAux()) sb.append(" (voice ").append(r.voice()).append(')');
         return sb.toString();
     }
 
-    /** Convert a MIDI note number (0-127) to scientific pitch notation (e.g. 60 → "C4"). */
-    private static String noteName(final int midi) {
-        final int octave = midi / 12 - 1;
+    private static String noteName(int midi) {
+        int octave = midi / 12 - 1;
         return NOTE_NAMES[((midi % 12) + 12) % 12] + octave;
     }
 }

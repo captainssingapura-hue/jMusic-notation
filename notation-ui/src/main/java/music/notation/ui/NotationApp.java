@@ -2,7 +2,6 @@ package music.notation.ui;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -10,42 +9,45 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import music.notation.event.Instrument;
-import music.notation.phrase.Phrase;
-import music.notation.phrase.ShiftedPhrase;
-import music.notation.pitch.Accidental;
-import music.notation.pitch.NoteName;
+import music.notation.play.ChannelSetup;
 import music.notation.play.MidiPlayer;
+import music.notation.play.SwingSetup;
+import music.notation.play.TempoSetup;
 import music.notation.songs.PieceLibrary;
 import music.notation.structure.*;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.Consumer;
 
+/**
+ * Composition root. Wires composable panels (TransportBar,
+ * ControlsPanel, PitchScroll, bottom Keyboard/Guitar tabs) into the
+ * scene graph and routes their events into model state on
+ * {@link MidiPlayer}.
+ */
 public class NotationApp extends Application {
 
     private final MidiPlayer player = new MidiPlayer();
     private Piece currentPiece;
+    private Piece originalPiece;
+    private String currentPieceTitle;
+    /** Set when a session-only MIDI import is loaded; mutually exclusive with currentPiece. */
+    private music.notation.performance.MidiImport currentImport;
+    /** Currently-staged swing (used at next play, and as the "previous" value for cancel-revert). */
+    private SwingSetup currentSwing = SwingSetup.OFF;
 
-    private ComboBox<String> pieceSelector;
-    private ComboBox<PieceContentProvider<?>> providerSelector;
-    private VBox trackControlsBox;
-    private Button playButton;
-    private Button pauseButton;
-    private Button stopButton;
-    private Button exportButton;
-    private Label statusLabel;
-    private Label pieceInfoLabel;
+    private TransportBar transportBar;
+    private ControlsPanel controls;
+
     private PitchScroll pitchScroll;
     private ScrollPane pianoRollScrollPane;
     private KeyboardDisplay keyboardDisplay;
     private GuitarTabDisplay guitarTabDisplay;
 
-    // Lazy bottom-tab state
     private Pane kbHolder;
     private Pane gtHolder;
     private Tab keyboardTab;
@@ -60,251 +62,102 @@ public class NotationApp extends Application {
     private int guitarMaxFret = 15;
     private final boolean[] guitarStringEnabled = new boolean[GuitarTabDisplay.STRING_COUNT];
 
-    // Scale adjustment controls
-    private ComboBox<String> rootNoteCombo;
-    private ComboBox<Mode> modeCombo;
-    private Piece originalPiece; // piece before transposition / tempo override
-
-    // Tempo adjustment controls
-    private Slider bpmSlider;
-    private Label bpmValueLabel;
-
-    /** Per-track list of instrument combos (outer = track index, inner = instrument slots). */
-    private final List<List<ComboBox<Instrument>>> trackInstrumentCombos = new ArrayList<>();
-    /** Per-track list of volume sliders, parallel to trackInstrumentCombos. */
-    private final List<List<Slider>> trackVolumeSliders = new ArrayList<>();
+    /** Per-track selected instrument (single-instrument-per-track post-Phase-5). */
+    private final List<Instrument> selectedInstruments = new ArrayList<>();
+    /** Per-track selected volume level 0–127. */
+    private final List<Integer> selectedVolumes = new ArrayList<>();
+    /** Per-track selected pan 0–127 (64 = center). */
+    private final List<Integer> selectedPans = new ArrayList<>();
+    /** Per-track instrument button (label updated when selection changes). */
+    private final List<Button> instrumentButtons = new ArrayList<>();
+    /** The host stage — passed to InstrumentPickerDialog as modal owner. */
+    private Stage hostStage;
 
     @Override
     public void start(Stage stage) {
+        this.hostStage = stage;
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #1e1e2e;");
 
-        // === Playback controls (icon-only; placed inside the Library panel below) ===
-        playButton   = iconButton("▶", "Play (Space)");
-        pauseButton  = iconButton("⏸", "Pause");
-        stopButton   = iconButton("⏹", "Stop");
-        exportButton = iconButton("⬇", "Export MIDI…");
-        playButton.setOnAction(e -> onPlay());
-        pauseButton.setOnAction(e -> onPause());
-        stopButton.setOnAction(e -> onStop());
-        exportButton.setOnAction(e -> onExport(stage));
-        playButton.setDisable(true);
-        pauseButton.setDisable(true);
-        stopButton.setDisable(true);
-        exportButton.setDisable(true);
+        // ── Composable panels ───────────────────────────────────────
+        transportBar = new TransportBar();
+        controls = new ControlsPanel();
+        // Note: ControlsPanel is built but NOT mounted in the scene graph
+        // for Phase 7.0. Phase 7.1 will mount it inside a right-edge
+        // drawer toggled by the gear button.
 
-        statusLabel = new Label("Select a piece to begin");
-        statusLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
+        transportBar.playButton().setOnAction(e -> onPlayPause());
+        transportBar.stopButton().setOnAction(e -> onStop());
+        transportBar.exportButton().setOnAction(e -> onExport(stage));
+        transportBar.pieceButton().setOnAction(e -> openPiecePicker());
+        // Drawer wired below once the centre StackPane exists.
 
-        // === 2x2 SplitPane workspace ===
+        controls.setOnProviderSelected(p -> onProviderSelected());
+        controls.setOnScaleChanged(this::rebuildPiece);
+        controls.setOnBpmReleased(this::onBpmReleased);
+        controls.setOnSwingChanged(this::onSwingChanged);
 
-        // -- Top-left: Library --
-        VBox libraryContent = new VBox(10);
-        libraryContent.setPadding(new Insets(10));
-        libraryContent.setStyle("-fx-background-color: #1e1e2e;");
-
-        HBox selectorRow = new HBox(10);
-        selectorRow.setAlignment(Pos.CENTER_LEFT);
-        Label selectLabel = styledLabel("Piece:");
-        pieceSelector = new ComboBox<>(FXCollections.observableArrayList(PieceLibrary.titles()));
-        pieceSelector.setStyle(comboStyle());
-        styleComboBoxCells(pieceSelector);
-        pieceSelector.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(pieceSelector, Priority.ALWAYS);
-        pieceSelector.setOnAction(e -> onPieceSelected());
-        selectorRow.getChildren().addAll(selectLabel, pieceSelector);
-
-        HBox providerRow = new HBox(10);
-        providerRow.setAlignment(Pos.CENTER_LEFT);
-        Label providerLabel = styledLabel("Arrangement:");
-        providerSelector = new ComboBox<>();
-        providerSelector.setStyle(comboStyle());
-        providerSelector.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(providerSelector, Priority.ALWAYS);
-        providerSelector.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(PieceContentProvider<?> item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.subtitle());
-                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
-            }
-        });
-        providerSelector.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(PieceContentProvider<?> item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.subtitle());
-                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
-            }
-        });
-        providerSelector.setOnAction(e -> onProviderSelected());
-        providerRow.getChildren().addAll(providerLabel, providerSelector);
-
-        // -- Scale adjustment row --
-        HBox scaleRow = new HBox(10);
-        scaleRow.setAlignment(Pos.CENTER_LEFT);
-        Label scaleLabel = styledLabel("Scale:");
-
-        // Root note: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
-        rootNoteCombo = new ComboBox<>(FXCollections.observableArrayList(
-                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"));
-        rootNoteCombo.setStyle(comboStyle());
-        styleComboBoxCells(rootNoteCombo);
-        rootNoteCombo.setOnAction(e -> onScaleChanged());
-
-        modeCombo = new ComboBox<>(FXCollections.observableArrayList(Mode.values()));
-        modeCombo.setStyle(comboStyle());
-        modeCombo.setCellFactory(lv -> new ListCell<>() {
-            @Override protected void updateItem(Mode item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : modeName(item));
-                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
-            }
-        });
-        modeCombo.setButtonCell(new ListCell<>() {
-            @Override protected void updateItem(Mode item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : modeName(item));
-                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
-            }
-        });
-        modeCombo.setOnAction(e -> onScaleChanged());
-
-        scaleRow.getChildren().addAll(scaleLabel, rootNoteCombo, modeCombo);
-
-        // -- BPM adjustment row --
-        HBox bpmRow = new HBox(10);
-        bpmRow.setAlignment(Pos.CENTER_LEFT);
-        Label bpmLabel = styledLabel("Tempo:");
-
-        bpmSlider = new Slider(40, 240, 120);
-        bpmSlider.setBlockIncrement(1);
-        bpmSlider.setMajorTickUnit(40);
-        bpmSlider.setMinorTickCount(3);
-        bpmSlider.setShowTickMarks(true);
-        bpmSlider.setStyle("-fx-control-inner-background: #313244;");
-        HBox.setHgrow(bpmSlider, Priority.ALWAYS);
-        bpmSlider.setMaxWidth(Double.MAX_VALUE);
-
-        bpmValueLabel = new Label("120 BPM");
-        bpmValueLabel.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12; -fx-min-width: 70;");
-
-        // Live BPM label update; rebuild piece only when user releases the slider
-        bpmSlider.valueProperty().addListener((obs, oldV, newV) ->
-                bpmValueLabel.setText(((int) newV.doubleValue()) + " BPM"));
-        bpmSlider.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
-            if (!isChanging) onBpmChanged();
-        });
-        // Fallback: keyboard-driven changes (arrow keys) don't flip valueChanging
-        bpmSlider.setOnKeyReleased(e -> onBpmChanged());
-
-        bpmRow.getChildren().addAll(bpmLabel, bpmSlider, bpmValueLabel);
-
-        pieceInfoLabel = new Label("");
-        pieceInfoLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
-        pieceInfoLabel.setWrapText(true);
-
-        // -- Playback row: icon-only transport + export, equal-width flex --
-        HBox playbackRow = new HBox(8);
-        playbackRow.setAlignment(Pos.CENTER_LEFT);
-        for (Button btn : new Button[] {playButton, pauseButton, stopButton, exportButton}) {
-            HBox.setHgrow(btn, Priority.ALWAYS);
-            btn.setMaxWidth(Double.MAX_VALUE);
-        }
-        playbackRow.getChildren().addAll(playButton, pauseButton, stopButton, exportButton);
-
-        libraryContent.getChildren().addAll(
-                selectorRow, providerRow, scaleRow, bpmRow, playbackRow, statusLabel, pieceInfoLabel);
-
-        // -- Top-right: Tracks --
-        trackControlsBox = new VBox(8);
-        trackControlsBox.setPadding(new Insets(10));
-        trackControlsBox.setStyle("-fx-background-color: #1e1e2e;");
-        ScrollPane trackScroll = new ScrollPane(trackControlsBox);
-        trackScroll.setFitToWidth(true);
-        trackScroll.setStyle("-fx-background: #1e1e2e; -fx-background-color: #1e1e2e;");
-
-        // -- Bottom-left: Piano Roll --
-        final ScrollPane[] scrollPaneRef = {null}; // forward reference for the callback
+        // ── Piano roll (centre) ─────────────────────────────────────
+        final double CONTROL_PANEL_WIDTH = 180;
         pitchScroll = new PitchScroll(
                 tick -> player.setTickPosition(tick),
-                cursorX -> {
-                    // Auto-scroll: when cursor enters the rightmost 30% of the viewport,
-                    // scroll to keep it at that boundary.
-                    final ScrollPane sp = scrollPaneRef[0];
-                    if (sp == null || sp.getViewportBounds() == null) return;
-                    final double contentWidth = pitchScroll.getWidth();
-                    final double vpWidth = sp.getViewportBounds().getWidth();
-                    if (contentWidth <= vpWidth) return;
-
-                    final double scrollable = contentWidth - vpWidth;
-                    final double scrollOffset = sp.getHvalue() * scrollable;
-                    final double cursorInViewport = cursorX - scrollOffset;
-                    final double threshold = vpWidth * 0.7;
-
-                    if (cursorInViewport > threshold) {
-                        final double targetOffset = cursorX - threshold;
-                        sp.setHvalue(Math.clamp(targetOffset / scrollable, 0, 1));
-                    }
-                }
+                this::onPianoRollCursorMoved,
+                this::buildTrackRowControlPanel,
+                CONTROL_PANEL_WIDTH
         );
-        final Pane canvasHolder = new Pane(pitchScroll);
-        canvasHolder.setStyle("-fx-background-color: #1e1e2e;");
-        pianoRollScrollPane = new ScrollPane(canvasHolder);
-        scrollPaneRef[0] = pianoRollScrollPane;
-        pianoRollScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        pianoRollScrollPane = new ScrollPane(pitchScroll);
+        pianoRollScrollPane.setFitToWidth(true);
+        pianoRollScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         pianoRollScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         pianoRollScrollPane.setStyle("-fx-background: #1e1e2e; -fx-background-color: #1e1e2e;");
+        pianoRollScrollPane.viewportBoundsProperty().addListener((obs, o, n) -> pitchScroll.hostViewportChanged());
 
-        // JavaFX Canvas backed by GPU textures — cap to avoid allocation failure
-        final double MAX_CANVAS_DIM = 8192;
-        final Runnable updateCanvasSize = () -> {
-            if (pianoRollScrollPane.getViewportBounds() == null) return;
-            final double vpw = pianoRollScrollPane.getViewportBounds().getWidth();
-            final double effectiveWidth = Math.min(Math.max(vpw, pitchScroll.getMinContentWidth()), MAX_CANVAS_DIM);
-            pitchScroll.setWidth(effectiveWidth);
-            canvasHolder.setMinWidth(effectiveWidth);
-            canvasHolder.setPrefWidth(effectiveWidth);
+        // Cursor-readout strip on top of the piano roll.
+        Button skipStartBtn = new Button("⏮");
+        skipStartBtn.setTooltip(new Tooltip("Seek to start"));
+        skipStartBtn.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4; -fx-font-size: 11;");
+        skipStartBtn.setOnAction(e -> {
+            pitchScroll.seekTo(0);
+            pitchScroll.setLaneScrollHvalue(0);
+        });
+        Label cursorReadout = new Label("Bar – · Beat –");
+        cursorReadout.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12; -fx-font-family: monospace;");
+        pitchScroll.setOnCursorTick(tick -> {
+            if (currentScrollData == null) {
+                cursorReadout.setText("Bar – · Beat –");
+                return;
+            }
+            cursorReadout.setText(formatCursorReadout(tick, currentScrollData));
+        });
+        HBox cursorBar = new HBox(10, skipStartBtn, cursorReadout);
+        cursorBar.setAlignment(Pos.CENTER_LEFT);
+        cursorBar.setPadding(new Insets(4, 8, 4, 8));
+        cursorBar.setStyle("-fx-background-color: #181825;");
 
-            final double vpH = pianoRollScrollPane.getViewportBounds().getHeight();
-            final double contentH = pitchScroll.computeContentHeight();
-            final double effectiveH = Math.min(Math.max(contentH, vpH), MAX_CANVAS_DIM);
-            pitchScroll.setHeight(effectiveH);
-            canvasHolder.setMinHeight(effectiveH);
-            canvasHolder.setPrefHeight(effectiveH);
-        };
-        pianoRollScrollPane.viewportBoundsProperty().addListener((obs, o, n) -> updateCanvasSize.run());
-
-        // Zoom slider: controls minimum pixels per quarter note (1–20, default 2)
+        // Zoom slider footer.
         final Label zoomLabel = styledLabel("Zoom:");
         final Slider zoomSlider = new Slider(2, 80, 4);
         zoomSlider.setMaxWidth(120);
-        zoomSlider.valueProperty().addListener((obs, o, n) -> {
-            pitchScroll.setMinQuarterPx(n.doubleValue());
-            updateCanvasSize.run();
-        });
-
+        zoomSlider.valueProperty().addListener((obs, o, n) -> pitchScroll.setMinQuarterPx(n.doubleValue()));
         final HBox zoomBar = new HBox(8, zoomLabel, zoomSlider);
         zoomBar.setAlignment(Pos.CENTER_RIGHT);
         zoomBar.setPadding(new Insets(2, 8, 2, 8));
         zoomBar.setStyle("-fx-background-color: #181825;");
 
-        final VBox pianoRollBox = new VBox(pianoRollScrollPane, zoomBar);
+        final VBox pianoRollBox = new VBox(cursorBar, pianoRollScrollPane, zoomBar);
         VBox.setVgrow(pianoRollScrollPane, Priority.ALWAYS);
 
-        // -- Bottom: Keyboard holder (canvas created lazily) --
+        // ── Bottom: Keyboard | Guitar tabs ─────────────────────────
         kbHolder = new Pane();
         kbHolder.setStyle("-fx-background-color: #1e1e2e;");
         VBox keyboardBox = new VBox(kbHolder);
         keyboardBox.setStyle("-fx-background-color: #1e1e2e;");
         VBox.setVgrow(kbHolder, Priority.ALWAYS);
 
-        // -- Bottom: Guitar tab holder (canvas created lazily) --
         gtHolder = new Pane();
         gtHolder.setStyle("-fx-background-color: #1e1e2e;");
         Arrays.fill(guitarStringEnabled, true);
 
-        // Guitar filter controls
         HBox gtFilters = new HBox(12);
         gtFilters.setAlignment(Pos.CENTER_LEFT);
         gtFilters.setPadding(new Insets(4, 8, 4, 8));
@@ -346,34 +199,73 @@ public class NotationApp extends Application {
         guitarBox.setStyle("-fx-background-color: #1e1e2e;");
         VBox.setVgrow(gtHolder, Priority.ALWAYS);
 
-        // === Assemble: Top (Library | Tracks) / Middle (Piano Roll) / Bottom (Keyboard | Guitar) ===
-        TabPane topLeftTabs = createTabPane(tab("Library", libraryContent));
-        TabPane topRightTabs = createTabPane(tab("Tracks", trackScroll));
-        TabPane middleTabs = createTabPane(tab("Piano Roll", pianoRollBox));
+        // ── Assembly ────────────────────────────────────────────────
         keyboardTab = tab("Keyboard", keyboardBox);
         guitarTab = tab("Guitar", guitarBox);
         bottomTabs = createTabPane(keyboardTab, guitarTab);
 
-        // Lazy: create display for initially visible tab, destroy on switch
         bottomTabs.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             tearDownBottomDisplay(oldTab);
             setUpBottomDisplay(newTab);
         });
-        // Create the initial display (keyboard is first tab)
         setUpBottomDisplay(keyboardTab);
 
-        SplitPane topSplit = new SplitPane(topLeftTabs, topRightTabs);
-        topSplit.setDividerPositions(0.45);
-        styleSplitPane(topSplit);
-
-        SplitPane mainSplit = new SplitPane(topSplit, middleTabs, bottomTabs);
+        // Two-row layout: piano roll (top, dominant) + bottom tabs.
+        // The piano roll is the focal surface — no tab-pane wrapper.
+        SplitPane mainSplit = new SplitPane(pianoRollBox, bottomTabs);
         mainSplit.setOrientation(Orientation.VERTICAL);
-        mainSplit.setDividerPositions(0.25, 0.82);
+        mainSplit.setDividerPositions(0.78);
         styleSplitPane(mainSplit);
 
-        root.setCenter(mainSplit);
+        // Right-edge drawer hosting the ControlsPanel. Sits above the
+        // mainSplit in a StackPane so it floats over the piano roll
+        // without resizing it. Toggled by the ⚙ button; ESC closes it.
+        Button drawerClose = new Button("×");
+        drawerClose.setStyle("-fx-background-color: transparent; -fx-text-fill: #cdd6f4; "
+                + "-fx-font-size: 16; -fx-padding: 0 6 0 6;");
+        Region drawerSpacer = new Region();
+        HBox.setHgrow(drawerSpacer, Priority.ALWAYS);
+        Label drawerTitle = new Label("Controls");
+        drawerTitle.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 13; -fx-font-weight: bold;");
+        HBox drawerHeader = new HBox(8, drawerTitle, drawerSpacer, drawerClose);
+        drawerHeader.setAlignment(Pos.CENTER_LEFT);
+        drawerHeader.setPadding(new Insets(6, 8, 6, 10));
+        drawerHeader.setStyle("-fx-background-color: #181825; "
+                + "-fx-border-color: transparent transparent #313244 transparent; -fx-border-width: 1;");
+
+        VBox drawer = new VBox(drawerHeader, controls.getRoot());
+        drawer.setPrefWidth(280);
+        drawer.setMinWidth(280);
+        drawer.setMaxWidth(280);
+        drawer.setStyle("-fx-background-color: #1e1e2e; "
+                + "-fx-border-color: transparent transparent transparent #313244; -fx-border-width: 1;");
+        drawer.setVisible(false);
+        drawer.setManaged(false);
+        StackPane.setAlignment(drawer, Pos.TOP_RIGHT);
+
+        StackPane centerStack = new StackPane(mainSplit, drawer);
+        Runnable toggleDrawer = () -> {
+            boolean show = !drawer.isVisible();
+            drawer.setVisible(show);
+            drawer.setManaged(show);
+        };
+        transportBar.settingsButton().setOnAction(e -> toggleDrawer.run());
+        drawerClose.setOnAction(e -> {
+            drawer.setVisible(false);
+            drawer.setManaged(false);
+        });
+
+        root.setTop(transportBar.getRoot());
+        root.setCenter(centerStack);
 
         Scene scene = new Scene(root, 1100, 720);
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE && drawer.isVisible()) {
+                drawer.setVisible(false);
+                drawer.setManaged(false);
+                e.consume();
+            }
+        });
         scene.getStylesheets().add(getClass().getResource("/dark-theme.css").toExternalForm());
         stage.setTitle("Music Notation Player");
         stage.setScene(scene);
@@ -383,55 +275,173 @@ public class NotationApp extends Application {
         });
         stage.show();
 
-        // Auto-select first piece
         if (!PieceLibrary.titles().isEmpty()) {
-            pieceSelector.getSelectionModel().selectFirst();
-            onPieceSelected();
+            selectPieceTitle(PieceLibrary.titles().get(0));
         }
     }
 
-    private void onPieceSelected() {
-        final String selected = pieceSelector.getValue();
-        if (selected == null) return;
+    // ── Piano-roll auto-scroll callback ─────────────────────────────
+
+    private void onPianoRollCursorMoved(double cursorX) {
+        if (pitchScroll == null) return;
+        double vpW = pitchScroll.getLaneViewportWidth();
+        double contentW = pitchScroll.getLaneContentWidth();
+        if (vpW <= 0 || contentW <= vpW) return;
+        double scrollable = contentW - vpW;
+        double scrollOffset = pitchScroll.getLaneScrollHvalue() * scrollable;
+        double cursorInViewport = cursorX - scrollOffset;
+        double threshold = vpW * 0.7;
+        if (cursorInViewport > threshold) {
+            double targetOffset = cursorX - threshold;
+            pitchScroll.setLaneScrollHvalue(Math.clamp(targetOffset / scrollable, 0, 1));
+        }
+    }
+
+    // ── Piece selection ──────────────────────────────────────────────
+
+    private void openPiecePicker() {
+        PiecePickerDialog.show(hostStage, "Choose Piece", currentPieceTitle)
+                .ifPresent(choice -> {
+                    if (choice instanceof PieceChoice.Library lib) {
+                        selectPieceTitle(lib.title());
+                    } else if (choice instanceof PieceChoice.Imported imp) {
+                        loadImport(imp.imp());
+                    }
+                });
+    }
+
+    /** Switch to a freshly-loaded MIDI import. Drops any current Piece. */
+    private void loadImport(music.notation.performance.MidiImport imp) {
+        onStop();
+        currentPiece = null;
+        originalPiece = null;
+        currentPieceTitle = null;
+        currentImport = imp;
+        transportBar.setPieceLabel("▾  " + imp.displayName() + "   —   imported");
+
+        // Disable Piece-only controls (scale combo / arrangement combo).
+        controls.setProviders(java.util.List.of());
+
+        // Reset per-track state — the new lane factory will repopulate.
+        selectedInstruments.clear();
+        selectedVolumes.clear();
+        selectedPans.clear();
+        instrumentButtons.clear();
+
+        currentScrollData = PitchScrollData.fromImport(imp);
+        disabledVisualizerTracks.clear();
+        pitchScroll.load(currentScrollData);
+        if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
+        if (guitarTabDisplay != null) guitarTabDisplay.load(currentScrollData);
+
+        controls.setBpm(imp.initialBpm());
+        controls.setSwing(SwingSetup.OFF);
+        currentSwing = SwingSetup.OFF;
+        controls.setPieceInfo(String.format(
+                "%s — imported\n%d/%d  |  %d BPM",
+                imp.displayName(),
+                imp.timeSig().beats(), imp.timeSig().beatValue(),
+                imp.initialBpm()));
+        controls.setStatus("Imported · " + imp.performance().score().tracks().size() + " tracks");
+        transportBar.playButton().setDisable(false);
+        transportBar.exportButton().setDisable(false);
+    }
+
+    private void selectPieceTitle(final String title) {
+        if (title == null) return;
+        currentPieceTitle = title;
+        currentImport = null;     // mutually exclusive with library piece
+        String label = title;
+        for (var p : PieceLibrary.pieces()) {
+            if (p.title().equals(title)) {
+                label = "▾  " + title + "   —   " + p.composer();
+                break;
+            }
+        }
+        transportBar.setPieceLabel(label);
 
         onStop();
-
-        // Populate provider selector
-        final List<PieceContentProvider<?>> providers = PieceLibrary.providers(selected);
-        providerSelector.setItems(FXCollections.observableArrayList(providers));
-        if (!providers.isEmpty()) {
-            providerSelector.getSelectionModel().selectFirst();
-        }
-        providerSelector.setVisible(providers.size() > 1);
-        providerSelector.setManaged(providers.size() > 1);
-
+        controls.setProviders(PieceLibrary.providers(title));
         loadFromSelectedProvider();
     }
 
     private void onProviderSelected() {
-        if (providerSelector.getValue() == null) return;
+        if (controls.getSelectedProvider() == null) return;
         onStop();
         loadFromSelectedProvider();
     }
 
     // ── Scale & tempo adjustments ────────────────────────────────────
 
-    private void onScaleChanged() { rebuildPiece(); }
+    /**
+     * BPM release applies a {@link TempoSetup} live — no piece rebuild,
+     * no playback restart.
+     */
+    /**
+     * Swing changed in the Controls drawer. When playback is stopped we
+     * just stage the new value for the next play. When playing, prompt
+     * the user for a restart anchor (beginning vs current bar) and apply
+     * via {@link MidiPlayer#applySwing}; on cancel, revert the combo.
+     */
+    private void onSwingChanged(SwingSetup picked) {
+        if (picked == null) return;
+        if (!player.isPlaying() && !player.isPaused()) {
+            currentSwing = picked;
+            return;
+        }
+        var prev = currentSwing;
+        var choice = SwingRestartDialog.show(hostStage, "Apply Swing");
+        if (choice.isEmpty()) {
+            // Cancel — revert combo.
+            controls.setSwing(prev);
+            return;
+        }
+        long resumeTick = switch (choice.get()) {
+            case FROM_START -> 0L;
+            case FROM_BAR   -> snapToCurrentBar(player.getTickPosition());
+        };
+        try {
+            player.applySwing(picked, resumeTick);
+            currentSwing = picked;
+            // Re-bind the playhead animation against the (re-loaded) sequencer.
+            pitchScroll.stopAnimation();
+            pitchScroll.startAnimation(player::getTickPosition);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            controls.setSwing(prev);
+        }
+    }
 
-    private void onBpmChanged() { rebuildPiece(); }
+    /** Snap a tick to the start of the bar that contains it. */
+    private long snapToCurrentBar(long tick) {
+        if (currentScrollData == null || currentScrollData.barTickWidth() <= 0) return 0L;
+        long bw = currentScrollData.barTickWidth();
+        return (tick / bw) * bw;
+    }
+
+    private void onBpmReleased() {
+        int authoredBpm = (currentImport != null)
+                ? currentImport.initialBpm()
+                : (originalPiece != null ? originalPiece.tempo().bpm() : 0);
+        if (authoredBpm <= 0) return;
+        int targetBpm = controls.getSelectedBpm();
+        player.applyTempo(TempoSetup.atBpm(targetBpm, authoredBpm));
+    }
 
     /**
      * Apply scale transposition and tempo override to {@link #originalPiece},
-     * assigning the result to {@link #currentPiece} and reloading the UI.
+     * reloading the UI. (Tempo via this path causes a reload; for live tempo,
+     * the BPM slider's own listener calls {@link #onBpmReleased()} instead.)
      */
     private void rebuildPiece() {
-        if (originalPiece == null || rootNoteCombo.getValue() == null || modeCombo.getValue() == null) return;
+        // Imports don't have a Piece to rebuild — scale change is a no-op.
+        if (currentImport != null) return;
+        if (originalPiece == null || controls.getSelectedKey() == null) return;
         onStop();
 
         Piece p = originalPiece;
 
-        // --- Scale transposition ---
-        KeySignature targetKey = parseKeyFromUI();
+        KeySignature targetKey = controls.getSelectedKey();
         KeySignature sourceKey = originalPiece.key();
         boolean sameKey = targetKey.tonic() == sourceKey.tonic()
                 && targetKey.accidental() == sourceKey.accidental()
@@ -440,8 +450,7 @@ public class NotationApp extends Application {
             p = transposePiece(p, sourceKey, targetKey);
         }
 
-        // --- Tempo override ---
-        int targetBpm = (int) Math.round(bpmSlider.getValue());
+        int targetBpm = controls.getSelectedBpm();
         if (targetBpm != originalPiece.tempo().bpm()) {
             p = new Piece(p.title(), p.composer(), p.key(), p.timeSig(),
                     new Tempo(targetBpm, p.tempo().beatUnit()),
@@ -453,101 +462,89 @@ public class NotationApp extends Application {
     }
 
     /**
-     * Build a new Piece with all melodic phrases wrapped in {@link ShiftedPhrase}.
-     * Drum tracks are left unchanged.
+     * Phase 4d transitional: transposition is currently a no-op. Will be
+     * reimplemented as a Bar-level pitch transform once the bar
+     * abstract-note shape stabilises.
      */
     private static Piece transposePiece(Piece source, KeySignature sourceKey, KeySignature targetKey) {
-        List<Track> transposedTracks = new ArrayList<>();
-        for (Track track : source.tracks()) {
-            transposedTracks.add(transposeTrack(track, sourceKey, targetKey));
-        }
-        return new Piece(source.title(), source.composer(), targetKey,
-                source.timeSig(), source.tempo(), transposedTracks);
+        return source;
     }
 
-    private static Track transposeTrack(Track track, KeySignature sourceKey, KeySignature targetKey) {
-        if (track.defaultInstrument() == Instrument.DRUM_KIT) {
-            return track; // drums are not pitched
-        }
-        var factory = new ShiftedPhrase.Factory(sourceKey, targetKey);
-        List<Phrase> shifted = track.phrases().stream()
-                .map(factory::apply)
-                .map(p -> (Phrase) p)
-                .toList();
-        List<Track> auxShifted = track.auxTracks().stream()
-                .map(aux -> transposeTrack(aux, sourceKey, targetKey))
-                .toList();
-        return new Track(track.name(), track.defaultInstrument(), shifted, auxShifted);
+    private Instrument defaultInstrumentForImportTrack(int idx) {
+        if (currentImport == null) return Instrument.ACOUSTIC_GRAND_PIANO;
+        var t = currentImport.performance().score().tracks().get(idx);
+        return t.kind() == music.notation.performance.TrackKind.DRUM
+                ? Instrument.DRUM_KIT : Instrument.ACOUSTIC_GRAND_PIANO;
     }
 
-    // ── Key label helpers ────────────────────────────────────────────
-
-    private KeySignature parseKeyFromUI() {
-        String rootLabel = rootNoteCombo.getValue();
-        NoteName tonic;
-        Accidental acc = Accidental.NATURAL;
-        if (rootLabel.endsWith("#")) {
-            tonic = NoteName.valueOf(rootLabel.substring(0, 1));
-            acc = Accidental.SHARP;
-        } else {
-            tonic = NoteName.valueOf(rootLabel);
-        }
-        return new KeySignature(tonic, acc, modeCombo.getValue());
-    }
-
-    private static String keySignatureToRootLabel(KeySignature key) {
-        String root = key.tonic().name();
-        if (key.accidental() == Accidental.SHARP) root += "#";
-        else if (key.accidental() == Accidental.FLAT) {
-            // Map flats to their sharp equivalents for the UI combo
-            root = switch (key.tonic()) {
-                case D -> "C#"; case E -> "D#"; case G -> "F#";
-                case A -> "G#"; case B -> "A#";
-                default -> root;
-            };
-        }
-        return root;
-    }
-
-    private static String modeName(Mode mode) {
-        return switch (mode) {
-            case MAJOR -> "Major (Ionian)";
-            case MINOR -> "Minor (Aeolian)";
-            case DORIAN -> "Dorian";
-            case PHRYGIAN -> "Phrygian";
-            case LYDIAN -> "Lydian";
-            case MIXOLYDIAN -> "Mixolydian";
-            case AEOLIAN -> "Aeolian";
-            case LOCRIAN -> "Locrian";
+    private static Instrument defaultInstrumentOf(Track track) {
+        return switch (track) {
+            case MelodicTrack mt -> mt.defaultInstrument();
+            case DrumTrack dt -> Instrument.DRUM_KIT;
         };
     }
 
+    /**
+     * Rebuild the {@link ChannelSetup} from the current per-track UI
+     * selections and push it to the player. Idempotent.
+     */
+    private void applyChannelSetupLive() {
+        try {
+            ChannelSetup setup = buildChannelSetup();
+            if (setup != null) player.applySetup(setup);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    /** Build a ChannelSetup from current UI state, branching on Piece vs Import. */
+    private ChannelSetup buildChannelSetup() {
+        if (currentImport != null) {
+            return ChannelSetup.fromPerformanceTracks(
+                    currentImport.performance().score().tracks(),
+                    selectedInstruments, selectedVolumes, selectedPans);
+        }
+        if (currentPiece != null) {
+            return ChannelSetup.from(currentPiece,
+                    selectedInstruments, selectedVolumes, selectedPans);
+        }
+        return null;
+    }
+
+    /** Format "Bar X · Beat Y · tick T" for the cursor readout label. */
+    private static String formatCursorReadout(long tick, PitchScrollData data) {
+        long barWidth = data.barTickWidth();
+        if (barWidth <= 0 || data.ticksPerQuarter() <= 0) {
+            return "tick " + tick;
+        }
+        boolean hasPickup = data.pickupOffsetTicks() > 0;
+        long rawBar = tick / barWidth;
+        long tickInBar = tick % barWidth;
+        long beat = tickInBar / data.ticksPerQuarter() + 1;
+        long barIdx = hasPickup ? rawBar : rawBar + 1;
+        if (hasPickup && rawBar == 0) {
+            return String.format("Pickup · Beat %d · tick %d", beat, tick);
+        }
+        return String.format("Bar %d · Beat %d · tick %d", barIdx, beat, tick);
+    }
+
     private void loadFromSelectedProvider() {
-        final PieceContentProvider<?> provider = providerSelector.getValue();
+        final PieceContentProvider<?> provider = controls.getSelectedProvider();
         if (provider == null) return;
 
         originalPiece = provider.create();
 
-        // Initialize scale selectors to piece's original key (suppress handler)
-        final KeySignature origKey = originalPiece.key();
-        rootNoteCombo.setOnAction(null);
-        modeCombo.setOnAction(null);
-        rootNoteCombo.setValue(keySignatureToRootLabel(origKey));
-        modeCombo.setValue(origKey.mode());
-        rootNoteCombo.setOnAction(e -> onScaleChanged());
-        modeCombo.setOnAction(e -> onScaleChanged());
-
-        // Initialize BPM slider to piece's original tempo (suppress handler)
-        final int origBpm = originalPiece.tempo().bpm();
-        bpmSlider.setValue(origBpm);
-        bpmValueLabel.setText(origBpm + " BPM");
+        controls.setKey(originalPiece.key());
+        controls.setBpm(originalPiece.tempo().bpm());
+        controls.setSwing(SwingSetup.OFF);
+        currentSwing = SwingSetup.OFF;
 
         currentPiece = originalPiece;
         loadPiece();
     }
 
     private void loadPiece() {
-        pieceInfoLabel.setText(String.format("%s by %s\n%s  |  %d/%d  |  %d BPM",
+        controls.setPieceInfo(String.format("%s by %s\n%s  |  %d/%d  |  %d BPM",
                 currentPiece.title(), currentPiece.composer(),
                 currentPiece.key().tonic() + " " + currentPiece.key().mode(),
                 currentPiece.timeSig().beats(), currentPiece.timeSig().beatValue(),
@@ -555,153 +552,177 @@ public class NotationApp extends Application {
 
         currentScrollData = PitchScrollData.fromPiece(currentPiece);
         disabledVisualizerTracks.clear();
+        // Reset per-track state BEFORE rebuilding lanes — the lane factory
+        // grows these lists and bakes the indices into button listeners.
+        selectedInstruments.clear();
+        selectedVolumes.clear();
+        selectedPans.clear();
+        instrumentButtons.clear();
         pitchScroll.load(currentScrollData);
         if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
         if (guitarTabDisplay != null) guitarTabDisplay.load(currentScrollData);
-        buildTrackControls();
-        playButton.setDisable(false);
-        exportButton.setDisable(false);
-        statusLabel.setText("Ready");
+        transportBar.playButton().setDisable(false);
+        transportBar.exportButton().setDisable(false);
+        controls.setStatus("Ready");
     }
 
-    // ── Track controls with dynamic instrument slots ──────────────────────
+    // ── Per-track row control panel (GarageBand-style) ─────────────────
 
-    private void buildTrackControls() {
-        trackControlsBox.getChildren().clear();
-        trackInstrumentCombos.clear();
-        trackVolumeSliders.clear();
-
-        List<Track> tracks = currentPiece.tracks();
-        for (int i = 0; i < tracks.size(); i++) {
-            Track track = tracks.get(i);
-            int trackIndex = i;
-            boolean isAudio = track.phrases().stream()
-                    .noneMatch(p -> p instanceof music.notation.phrase.LyricPhrase);
-
-            // Per-track container: label + instrument rows + add button
-            VBox trackBox = new VBox(4);
-            trackBox.setPadding(new Insets(4, 0, 4, 0));
-
-            // Track header row: name + "+" button
-            HBox headerRow = new HBox(8);
-            headerRow.setAlignment(Pos.CENTER_LEFT);
-            Label trackLabel = styledLabel(track.name());
-            trackLabel.setMinWidth(80);
-            trackLabel.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 13; -fx-font-weight: bold;");
-
-            headerRow.getChildren().add(trackLabel);
-
-            // Keyboard/guitar toggle checkbox (audio tracks only)
-            if (isAudio) {
-                CheckBox kbToggle = new CheckBox("KB");
-                kbToggle.setSelected(true);
-                kbToggle.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11;");
-                String trackKey = track.name();
-                kbToggle.selectedProperty().addListener((obs, o, n) -> {
-                    if (n) disabledVisualizerTracks.remove(trackKey);
-                    else   disabledVisualizerTracks.add(trackKey);
-                    if (keyboardDisplay != null) keyboardDisplay.setTrackEnabled(trackKey, n);
-                    if (guitarTabDisplay != null) guitarTabDisplay.setTrackEnabled(trackKey, n);
-                });
-                headerRow.getChildren().add(kbToggle);
-            }
-
-            Button addBtn = smallButton("+");
-            addBtn.setOnAction(e -> addInstrumentSlot(trackIndex, trackBox, track.defaultInstrument()));
-
-            headerRow.getChildren().add(addBtn);
-            trackBox.getChildren().add(headerRow);
-
-            // Instrument combo list and volume slider list for this track
-            var combos = new ArrayList<ComboBox<Instrument>>();
-            var sliders = new ArrayList<Slider>();
-            trackInstrumentCombos.add(combos);
-            trackVolumeSliders.add(sliders);
-
-            // Start with one slot showing the default instrument
-            addInstrumentRow(trackIndex, trackBox, combos, sliders, track.defaultInstrument(), false);
-
-            // Separator
-            var sep = new Separator();
-            sep.setStyle("-fx-background-color: #313244;");
-
-            trackControlsBox.getChildren().addAll(trackBox, sep);
+    /**
+     * Build the control panel that sits to the LEFT of each piano-roll
+     * lane: track name + instrument-picker button + volume slider + KB
+     * visualizer toggle. Called by {@link PitchScroll} during lane rebuild.
+     */
+    private Node buildTrackRowControlPanel(int trackIndex, String trackName) {
+        Instrument defaultIns;
+        if (currentImport != null) {
+            var t = currentImport.performance().score().tracks().get(trackIndex);
+            defaultIns = (t.kind() == music.notation.performance.TrackKind.DRUM)
+                    ? Instrument.DRUM_KIT : Instrument.ACOUSTIC_GRAND_PIANO;
+        } else {
+            Track track = currentPiece.tracks().get(trackIndex);
+            defaultIns = defaultInstrumentOf(track);
         }
-    }
 
-    /** Add a new instrument slot to a track (called by "+" button). */
-    private void addInstrumentSlot(int trackIndex, VBox trackBox, Instrument defaultValue) {
-        var combos = trackInstrumentCombos.get(trackIndex);
-        var sliders = trackVolumeSliders.get(trackIndex);
-        addInstrumentRow(trackIndex, trackBox, combos, sliders, defaultValue, true);
-    }
+        while (selectedInstruments.size() <= trackIndex) selectedInstruments.add(null);
+        while (selectedVolumes.size() <= trackIndex) selectedVolumes.add(null);
+        while (selectedPans.size() <= trackIndex) selectedPans.add(null);
+        while (instrumentButtons.size() <= trackIndex) instrumentButtons.add(null);
+        if (selectedInstruments.get(trackIndex) == null) selectedInstruments.set(trackIndex, defaultIns);
+        if (selectedVolumes.get(trackIndex) == null) selectedVolumes.set(trackIndex, 100);
+        if (selectedPans.get(trackIndex) == null) selectedPans.set(trackIndex, 64);
 
-    /** Create one instrument combo row with volume slider inside a track box. */
-    private void addInstrumentRow(int trackIndex, VBox trackBox,
-                                  List<ComboBox<Instrument>> combos,
-                                  List<Slider> sliders,
-                                  Instrument value, boolean removable) {
-        HBox row = new HBox(6);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(1, 0, 1, 16)); // indent under track name
+        Label nameLabel = new Label(trackName);
+        nameLabel.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12; -fx-font-weight: bold;");
+        nameLabel.setMaxWidth(Double.MAX_VALUE);
 
-        ComboBox<Instrument> combo = new ComboBox<>(
-                FXCollections.observableArrayList(Instrument.values()));
-        combo.setValue(value);
-        combo.setStyle(comboStyle());
-        styleComboBoxCells(combo);
-        combo.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(combo, Priority.ALWAYS);
+        Button instrButton = new Button(InstrumentPickerDialog.displayName(selectedInstruments.get(trackIndex)));
+        instrButton.setMaxWidth(Double.MAX_VALUE);
+        instrButton.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4; -fx-font-size: 11;");
+        instrButton.setOnAction(e -> {
+            Instrument current = selectedInstruments.get(trackIndex);
+            Consumer<Instrument> preview = picked -> {
+                selectedInstruments.set(trackIndex, picked);
+                applyChannelSetupLive();
+            };
+            var chosen = InstrumentPickerDialog.show(
+                    hostStage, "Instrument · " + trackName, current, preview);
+            if (chosen.isPresent()) {
+                instrButton.setText(InstrumentPickerDialog.displayName(chosen.get()));
+            } else {
+                instrButton.setText(InstrumentPickerDialog.displayName(current));
+            }
+        });
+        instrumentButtons.set(trackIndex, instrButton);
 
-        // Volume slider (0–127, default 100)
-        Slider volSlider = new Slider(0, 127, 100);
-        volSlider.setPrefWidth(80);
+        Slider volSlider = new Slider(0, 127, selectedVolumes.get(trackIndex));
         volSlider.setBlockIncrement(1);
         volSlider.setStyle("-fx-control-inner-background: #313244;");
+        Label volLabel = new Label(String.valueOf(selectedVolumes.get(trackIndex)));
+        volLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11; -fx-min-width: 28;");
+        volSlider.valueProperty().addListener((obs, oldV, newV) -> {
+            int v = newV.intValue();
+            volLabel.setText(String.valueOf(v));
+            selectedVolumes.set(trackIndex, v);
+            applyChannelSetupLive();
+        });
+        HBox volRow = new HBox(4, volSlider, volLabel);
+        volRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(volSlider, Priority.ALWAYS);
 
-        Label volLabel = styledLabel(String.valueOf((int) volSlider.getValue()));
-        volLabel.setMinWidth(28);
-        volLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11;");
-        volSlider.valueProperty().addListener((obs, oldVal, newVal) ->
-                volLabel.setText(String.valueOf(newVal.intValue())));
+        // Pan slider — 0=hard-L, 64=C, 127=hard-R; double-click resets to 64.
+        Slider panSlider = new Slider(0, 127, selectedPans.get(trackIndex));
+        panSlider.setBlockIncrement(1);
+        panSlider.setMajorTickUnit(64);
+        panSlider.setStyle("-fx-control-inner-background: #313244;");
+        Label panLabel = new Label(panText(selectedPans.get(trackIndex)));
+        panLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11; -fx-min-width: 28;");
+        panSlider.valueProperty().addListener((obs, oldV, newV) -> {
+            int v = newV.intValue();
+            panLabel.setText(panText(v));
+            selectedPans.set(trackIndex, v);
+            applyChannelSetupLive();
+        });
+        // Double-click anywhere on the slider to recentre.
+        panSlider.setOnMouseClicked(ev -> {
+            if (ev.getClickCount() == 2) panSlider.setValue(64);
+        });
+        HBox panRow = new HBox(4, panSlider, panLabel);
+        panRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(panSlider, Priority.ALWAYS);
 
-        combos.add(combo);
-        sliders.add(volSlider);
-        row.getChildren().addAll(combo, volSlider, volLabel);
+        CheckBox kbToggle = new CheckBox("KB");
+        kbToggle.setSelected(true);
+        kbToggle.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11;");
+        kbToggle.selectedProperty().addListener((obs, o, n) -> {
+            if (n) disabledVisualizerTracks.remove(trackName);
+            else disabledVisualizerTracks.add(trackName);
+            if (keyboardDisplay != null) keyboardDisplay.setTrackEnabled(trackName, n);
+            if (guitarTabDisplay != null) guitarTabDisplay.setTrackEnabled(trackName, n);
+            pitchScroll.setTrackEnabled(trackName, n);
+        });
 
-        if (removable) {
-            Button removeBtn = smallButton("\u2212"); // minus sign
-            removeBtn.setOnAction(e -> {
-                combos.remove(combo);
-                sliders.remove(volSlider);
-                trackBox.getChildren().remove(row);
-            });
-            row.getChildren().add(removeBtn);
-        }
+        // Compact "Vol"/"Pan" prefix labels.
+        Label volPrefix = mini("Vol");
+        Label panPrefix = mini("Pan");
+        HBox volRowFull = new HBox(4, volPrefix, volRow);
+        volRowFull.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(volRow, Priority.ALWAYS);
+        HBox panRowFull = new HBox(4, panPrefix, panRow);
+        panRowFull.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(panRow, Priority.ALWAYS);
 
-        // Insert before the separator (which is in the parent, not trackBox)
-        trackBox.getChildren().add(row);
+        VBox panel = new VBox(3, nameLabel, instrButton, volRowFull, panRowFull, kbToggle);
+        panel.setPadding(new Insets(4, 6, 4, 6));
+        panel.setStyle("-fx-background-color: #181825; -fx-border-color: transparent #313244 transparent transparent; -fx-border-width: 1;");
+        return panel;
     }
 
     // ── Playback ──────────────────────────────────────────────────────────
 
     private void onPlay() {
-        if (currentPiece == null) return;
+        if (currentPiece == null && currentImport == null) return;
 
-        var assignments = collectInstrumentAssignments();
-        var volumes = collectVolumeAssignments();
+        int trackCount = (currentImport != null)
+                ? currentImport.performance().score().tracks().size()
+                : currentPiece.tracks().size();
+        ChannelSetup channelSetup = (currentImport != null)
+                ? ChannelSetup.fromPerformanceTracks(
+                        currentImport.performance().score().tracks(),
+                        flatList(selectedInstruments, trackCount,
+                                i -> defaultInstrumentForImportTrack(i)),
+                        flatIntList(selectedVolumes, trackCount, 100),
+                        flatIntList(selectedPans, trackCount, 64))
+                : ChannelSetup.from(currentPiece,
+                        flatList(selectedInstruments, trackCount,
+                                i -> defaultInstrumentOf(currentPiece.tracks().get(i))),
+                        flatIntList(selectedVolumes, trackCount, 100),
+                        flatIntList(selectedPans, trackCount, 64));
 
-        playButton.setDisable(true);
-        pauseButton.setDisable(false);
-        pauseButton.setText("Pause");
-        stopButton.setDisable(false);
-        pieceSelector.setDisable(true);
-        statusLabel.setText("Playing...");
-        pianoRollScrollPane.setHvalue(0);
+        int authoredBpm = (currentImport != null)
+                ? currentImport.initialBpm()
+                : (originalPiece != null ? originalPiece.tempo().bpm() : currentPiece.tempo().bpm());
+        int targetBpm = controls.getSelectedBpm();
+        var tempoSetup = (authoredBpm > 0 && targetBpm != authoredBpm)
+                ? TempoSetup.atBpm(targetBpm, authoredBpm)
+                : TempoSetup.unity();
 
+        transportBar.setPlayGlyph("⏸");
+        transportBar.stopButton().setDisable(false);
+        transportBar.setPieceEnabled(false);
+        controls.setStatus("Playing...");
+        pitchScroll.setLaneScrollHvalue(0);
+
+        SwingSetup swingAtStart = currentSwing;
+        var importAtStart = currentImport;
+        var pieceAtStart = currentPiece;
         Thread playThread = new Thread(() -> {
             try {
-                player.start(currentPiece, assignments, volumes);
+                if (importAtStart != null) {
+                    player.start(importAtStart.performance(), channelSetup, tempoSetup, swingAtStart);
+                } else {
+                    player.start(pieceAtStart, channelSetup, tempoSetup, swingAtStart);
+                }
                 Platform.runLater(() -> {
                     animating = true;
                     pitchScroll.startAnimation(player::getTickPosition);
@@ -719,12 +740,11 @@ public class NotationApp extends Application {
                     animating = false;
                     pitchScroll.stopAnimation();
                     stopActiveBottomDisplay();
-                    playButton.setDisable(false);
-                    pauseButton.setDisable(true);
-                    pauseButton.setText("Pause");
-                    stopButton.setDisable(true);
-                    pieceSelector.setDisable(false);
-                    statusLabel.setText("Finished");
+                    transportBar.setPlayGlyph("▶");
+                    transportBar.playButton().setDisable(false);
+                    transportBar.stopButton().setDisable(true);
+                    transportBar.setPieceEnabled(true);
+                    controls.setStatus("Finished");
                 });
             }
         });
@@ -732,21 +752,23 @@ public class NotationApp extends Application {
         playThread.start();
     }
 
-    private void onPause() {
+    private void onPlayPause() {
         if (player.isPaused()) {
             player.resume();
-            pauseButton.setText("Pause");
-            statusLabel.setText("Playing...");
+            transportBar.setPlayGlyph("⏸");
+            controls.setStatus("Playing...");
             animating = true;
             pitchScroll.startAnimation(player::getTickPosition);
             startActiveBottomDisplay();
-        } else {
+        } else if (player.isPlaying()) {
             player.pause();
-            pauseButton.setText("Resume");
-            statusLabel.setText("Paused");
+            transportBar.setPlayGlyph("▶");
+            controls.setStatus("Paused");
             animating = false;
             pitchScroll.stopAnimation();
             stopActiveBottomDisplay();
+        } else {
+            onPlay();
         }
     }
 
@@ -755,19 +777,20 @@ public class NotationApp extends Application {
         pitchScroll.stopAnimation();
         stopActiveBottomDisplay();
         player.stop();
-        playButton.setDisable(currentPiece == null);
-        pauseButton.setDisable(true);
-        pauseButton.setText("Pause");
-        stopButton.setDisable(true);
-        pieceSelector.setDisable(false);
-        statusLabel.setText("Stopped");
+        transportBar.setPlayGlyph("▶");
+        transportBar.playButton().setDisable(currentPiece == null && currentImport == null);
+        transportBar.stopButton().setDisable(true);
+        transportBar.setPieceEnabled(true);
+        controls.setStatus("Stopped");
     }
 
     private void onExport(Stage stage) {
-        if (currentPiece == null) return;
+        if (currentPiece == null && currentImport == null) return;
 
-        // Suggest filename from piece title
-        String safeName = currentPiece.title()
+        String baseName = (currentImport != null)
+                ? currentImport.displayName()
+                : currentPiece.title();
+        String safeName = baseName
                 .replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fff _-]", "")
                 .replace(' ', '_');
 
@@ -779,53 +802,38 @@ public class NotationApp extends Application {
         File file = chooser.showSaveDialog(stage);
         if (file == null) return;
 
-        // Collect instrument and volume assignments from the UI
-        var assignments = collectInstrumentAssignments();
-        var volumes = collectVolumeAssignments();
-
+        ChannelSetup channelSetup = buildChannelSetup();
         try {
-            MidiPlayer.exportMidi(currentPiece, assignments, volumes, file);
-            statusLabel.setText("Exported: " + file.getName());
+            if (currentImport != null) {
+                MidiPlayer.exportMidi(currentImport.performance(), channelSetup, file);
+            } else {
+                MidiPlayer.exportMidi(currentPiece, channelSetup, file);
+            }
+            controls.setStatus("Exported: " + file.getName());
         } catch (Exception ex) {
-            statusLabel.setText("Export failed: " + ex.getMessage());
+            controls.setStatus("Export failed: " + ex.getMessage());
             ex.printStackTrace();
         }
     }
 
-    /** Collect the current instrument assignments from all track combos. */
-    private List<List<Instrument>> collectInstrumentAssignments() {
-        var assignments = new ArrayList<List<Instrument>>();
-        for (int t = 0; t < trackInstrumentCombos.size(); t++) {
-            var combos = trackInstrumentCombos.get(t);
-            var instruments = new ArrayList<Instrument>();
-            for (var combo : combos) {
-                if (combo.getValue() != null) {
-                    instruments.add(combo.getValue());
-                }
-            }
-            if (instruments.isEmpty()) {
-                instruments.add(currentPiece.tracks().get(t).defaultInstrument());
-            }
-            assignments.add(instruments);
+    /** Pad/coerce a per-track value list to the track count, falling back to {@code defaultFor}. */
+    private static List<Instrument> flatList(List<Instrument> src, int n,
+                                             java.util.function.IntFunction<Instrument> defaultFor) {
+        var out = new ArrayList<Instrument>(n);
+        for (int i = 0; i < n; i++) {
+            Instrument v = (src != null && i < src.size()) ? src.get(i) : null;
+            out.add(v != null ? v : defaultFor.apply(i));
         }
-        return assignments;
+        return out;
     }
 
-    /** Collect the current volume settings from all track sliders. */
-    private List<List<Integer>> collectVolumeAssignments() {
-        var volumes = new ArrayList<List<Integer>>();
-        for (int t = 0; t < trackVolumeSliders.size(); t++) {
-            var sliders = trackVolumeSliders.get(t);
-            var trackVols = new ArrayList<Integer>();
-            for (var slider : sliders) {
-                trackVols.add((int) slider.getValue());
-            }
-            if (trackVols.isEmpty()) {
-                trackVols.add(100);
-            }
-            volumes.add(trackVols);
+    private static List<Integer> flatIntList(List<Integer> src, int n, int defaultV) {
+        var out = new ArrayList<Integer>(n);
+        for (int i = 0; i < n; i++) {
+            Integer v = (src != null && i < src.size()) ? src.get(i) : null;
+            out.add(v != null ? v : defaultV);
         }
-        return volumes;
+        return out;
     }
 
     // ── Lazy bottom-display lifecycle ───────────────────────────────────
@@ -884,7 +892,7 @@ public class NotationApp extends Application {
         if (guitarTabDisplay != null) guitarTabDisplay.stopAnimation();
     }
 
-    // --- UI helpers ---
+    // ── Local widget helpers (small enough to leave inline) ────────────
 
     private static Tab tab(String title, Node content) {
         Tab t = new Tab(title, content);
@@ -895,9 +903,7 @@ public class NotationApp extends Application {
     private static TabPane createTabPane(Tab... tabs) {
         TabPane tp = new TabPane(tabs);
         tp.setTabMinWidth(60);
-        tp.setStyle(
-                "-fx-background-color: #1e1e2e; " +
-                "-fx-tab-min-height: 28;");
+        tp.setStyle("-fx-background-color: #1e1e2e; -fx-tab-min-height: 28;");
         tp.getStyleClass().add("dark-tabs");
         return tp;
     }
@@ -912,65 +918,17 @@ public class NotationApp extends Application {
         return l;
     }
 
-    private static Button styledButton(String text) {
-        Button b = new Button(text);
-        b.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 13; -fx-padding: 6 18; -fx-background-radius: 6;");
-        b.setOnMouseEntered(e -> b.setStyle("-fx-background-color: #585b70; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 13; -fx-padding: 6 18; -fx-background-radius: 6;"));
-        b.setOnMouseExited(e -> b.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 13; -fx-padding: 6 18; -fx-background-radius: 6;"));
-        return b;
+    private static Label mini(String text) {
+        Label l = new Label(text);
+        l.setStyle("-fx-text-fill: #6c7086; -fx-font-size: 10; -fx-min-width: 22;");
+        return l;
     }
 
-    /**
-     * Icon-only playback button. Uses a Unicode glyph as the button "icon" —
-     * no icon font dependency needed. Tooltip carries the textual meaning so
-     * keyboard/screen-reader users still get the action name.
-     */
-    private static Button iconButton(String icon, String tooltipText) {
-        Button b = new Button(icon);
-        final String base = "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 18; -fx-padding: 6 10; -fx-background-radius: 6;";
-        final String hover = "-fx-background-color: #585b70; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 18; -fx-padding: 6 10; -fx-background-radius: 6;";
-        b.setStyle(base);
-        b.setOnMouseEntered(e -> b.setStyle(hover));
-        b.setOnMouseExited(e -> b.setStyle(base));
-        Tooltip tip = new Tooltip(tooltipText);
-        tip.setShowDelay(javafx.util.Duration.millis(300));
-        tip.setStyle("-fx-font-size: 12; -fx-background-color: #313244; -fx-text-fill: #cdd6f4;");
-        Tooltip.install(b, tip);
-        return b;
-    }
-
-    private static Button smallButton(String text) {
-        Button b = new Button(text);
-        b.setStyle("-fx-background-color: #45475a; -fx-text-fill: #a6e3a1; "
-                + "-fx-font-size: 13; -fx-padding: 2 8; -fx-background-radius: 4; -fx-font-weight: bold;");
-        b.setOnMouseEntered(e -> b.setStyle("-fx-background-color: #585b70; -fx-text-fill: #a6e3a1; "
-                + "-fx-font-size: 13; -fx-padding: 2 8; -fx-background-radius: 4; -fx-font-weight: bold;"));
-        b.setOnMouseExited(e -> b.setStyle("-fx-background-color: #45475a; -fx-text-fill: #a6e3a1; "
-                + "-fx-font-size: 13; -fx-padding: 2 8; -fx-background-radius: 4; -fx-font-weight: bold;"));
-        return b;
-    }
-
-    private static String comboStyle() {
-        return "-fx-background-color: #313244; -fx-text-fill: #cdd6f4; "
-                + "-fx-font-size: 12; -fx-background-radius: 4;";
-    }
-
-    private static <T> void styleComboBoxCells(ComboBox<T> combo) {
-        javafx.util.Callback<ListView<T>, ListCell<T>> cellFactory = lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(T item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.toString());
-                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
-            }
-        };
-        combo.setCellFactory(cellFactory);
-        combo.setButtonCell(cellFactory.call(null));
+    /** GarageBand-style pan readout: "L42", "C", "R30". */
+    private static String panText(int v) {
+        if (v == 64) return "C";
+        if (v < 64) return "L" + (64 - v);
+        return "R" + (v - 64);
     }
 
     public static void main(String[] args) {

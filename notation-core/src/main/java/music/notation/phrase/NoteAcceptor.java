@@ -132,22 +132,6 @@ abstract class NoteAcceptor<SELF extends NoteAcceptor<SELF>> {
     public SELF ff()  { return dyn(Dynamic.FF); }
     public SELF fff() { return dyn(Dynamic.FFF); }
 
-    // ── Slur ─────────────────────────────────────────────────────
-
-    public SELF slurStart() {
-        requireNotConsumed();
-        current.add(new SlurStart());
-        return self();
-    }
-
-    public SELF slurEnd() {
-        requireNotConsumed();
-        current.add(new SlurEnd());
-        return self();
-    }
-
-    public SELF slur() { return slurStart(); }
-
     // ── Tie (self-closing; chains naturally) ────────────────────
 
     /**
@@ -161,7 +145,7 @@ abstract class NoteAcceptor<SELF extends NoteAcceptor<SELF>> {
         }
         int last = current.size() - 1;
         PhraseNode prev = current.get(last);
-        if (!(prev instanceof NoteNode note)) {
+        if (!(prev instanceof PitchNode note)) {
             throw new IllegalStateException(
                     "tieNext() requires a preceding note, but found "
                             + prev.getClass().getSimpleName());
@@ -211,7 +195,7 @@ abstract class NoteAcceptor<SELF extends NoteAcceptor<SELF>> {
                 new GraceNote(resolve(note1, oct), false),
                 new GraceNote(resolve(note2, oct), false)
         );
-        current.add(NoteNode.tuplet(graces, dur, List.of(resolve(note3, oct))));
+        current.add(PitchNode.tuplet(graces, dur, List.of(resolve(note3, oct))));
         return self();
     }
 
@@ -261,13 +245,13 @@ abstract class NoteAcceptor<SELF extends NoteAcceptor<SELF>> {
         for (final Note n : ns) {
             pitches.add(resolve(n, oct));
         }
-        current.add(NoteNode.poly(dur, pitches));
+        current.add(PitchNode.poly(dur, pitches));
         return self();
     }
 
     private SELF orn(Note n, int oct, BaseValue dur, Ornament ornament) {
         requireNotConsumed();
-        current.add(NoteNode.ornamented(resolve(n, oct), Duration.of(dur), ornament));
+        current.add(PitchNode.ornamented(resolve(n, oct), Duration.of(dur), ornament));
         return self();
     }
 }

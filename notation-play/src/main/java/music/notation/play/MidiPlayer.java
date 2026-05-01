@@ -1,15 +1,28 @@
 package music.notation.play;
 
 import music.notation.event.Instrument;
+import music.notation.performance.InstrumentControl;
+import music.notation.performance.Instrumentation;
+import music.notation.performance.MidiCodec;
+import music.notation.performance.Performance;
+import music.notation.performance.TrackId;
+import music.notation.performance.Volume;
+import music.notation.performance.VolumeControl;
 import music.notation.phrase.*;
+import music.notation.structure.DrumTrack;
+import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
 import music.notation.structure.Track;
 
 import javax.sound.midi.*;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public final class MidiPlayer {
 
@@ -21,101 +34,435 @@ public final class MidiPlayer {
 
     /**
      * Build a MIDI Sequence using each track's default instrument.
-     * Convenience for tests and simple playback.
+     *
+     * <p>Phase 3a: this single-argument overload routes through the new
+     * {@link PieceConcretizer} + {@link MidiCodec} pipeline. The
+     * override-bearing overloads ({@link #buildSequence(Piece, List)} and
+     * {@link #buildSequence(Piece, List, List)}) still use
+     * {@link PhraseInterpreter} for now; Phase 3b will migrate them
+     * once the multi-instrument-per-track translation lands on the new
+     * path.</p>
      */
-    public static Sequence buildSequence(Piece piece) throws InvalidMidiDataException {
-        var defaults = new ArrayList<List<Instrument>>();
-        for (Track track : piece.tracks()) {
-            defaults.add(List.of(track.defaultInstrument()));
+    /**
+     * Build a "note-only" {@link Sequence} for the piece — same pitches,
+     * drums, and tempo events as {@link #buildSequence(Piece)} but with
+     * all program-change and CC #7 (volume) events stripped.
+     *
+     * <p>Phase 5.1: pure projection. Pair with a {@link ChannelSetup}
+     * applied directly to a {@link Synthesizer} for live control.
+     * For self-contained file export, recombine via
+     * {@link #freezeForExport(Sequence, ChannelSetup, TempoSetup, Region)}.</p>
+     */
+    public static Sequence buildNoteSequence(Piece piece) throws InvalidMidiDataException {
+        Sequence seq = buildSequence(piece);
+        stripChannelControlEvents(seq);
+        return seq;
+    }
+
+    /**
+     * Note-only sequence built from an imported {@link music.notation.performance.Performance}.
+     * Re-encodes via {@link MidiCodec#toMidi} (lossless for the supported feature set)
+     * and strips channel-control events so the live {@link ChannelSetup}
+     * fully owns program / volume / pan.
+     */
+    public static Sequence buildNoteSequence(music.notation.performance.Performance performance)
+            throws InvalidMidiDataException {
+        try {
+            byte[] bytes = MidiCodec.toMidi(performance);
+            Sequence seq = MidiSystem.getSequence(new ByteArrayInputStream(bytes));
+            stripChannelControlEvents(seq);
+            return seq;
+        } catch (IOException e) {
+            throw new InvalidMidiDataException("Failed to materialise Performance into Sequence: " + e.getMessage());
         }
-        return buildSequence(piece, defaults);
+    }
+
+    /**
+     * Freeze a note-only sequence + channel setup + tempo setup into a
+     * self-contained {@link Sequence} suitable for file export. Pure
+     * combinator — caller passes in the note sequence and the setups,
+     * and gets back a new Sequence with PC/CC events baked at tick 0
+     * and the tempo curve scaled per the {@link TempoSetup} factor.
+     *
+     * <p>If {@code region} is bounded (not {@link Region#full()}),
+     * only events whose tick lies in {@code [region.startTick,
+     * region.endTick)} are copied, shifted by {@code -region.startTick}
+     * so the exported file starts at tick 0. Strict-policy boundary
+     * handling: notes spanning the region edge are clipped (both
+     * NOTE_ON and NOTE_OFF are dropped if either falls outside the
+     * region). For the most-recent tempo before the region start,
+     * we emit a tempo meta event at output tick 0 so partial exports
+     * play at the correct tempo from beat 1.</p>
+     *
+     * @param noteSeq      a sequence built by
+     *                     {@link #buildNoteSequence(Piece)} (or any
+     *                     sequence without PC/CC events)
+     * @param channelSetup channel programs and volumes
+     * @param tempoSetup   tempo factor (1.0 = unchanged)
+     * @param region       region to export (use {@link Region#full()}
+     *                     for the whole sequence)
+     */
+    public static Sequence freezeForExport(Sequence noteSeq,
+                                           ChannelSetup channelSetup,
+                                           TempoSetup tempoSetup,
+                                           Region region)
+            throws InvalidMidiDataException {
+        Sequence out = new Sequence(noteSeq.getDivisionType(), noteSeq.getResolution());
+        long start = region.startTick();
+        long end = region.endTick();
+        long noteSeqLen = noteSeq.getTickLength();
+        long effectiveEnd = Math.min(end, Math.max(start + 1, noteSeqLen + 1));
+
+        // Bake channel setup at tick 0 of the first output track for each
+        // channel. We add one output track per input track to preserve
+        // multi-track structure; PC/CC events are placed on the track
+        // whose channel matches.
+        for (int ti = 0; ti < noteSeq.getTracks().length; ti++) {
+            javax.sound.midi.Track inTrack = noteSeq.getTracks()[ti];
+            javax.sound.midi.Track outTrack = out.createTrack();
+
+            int channel = detectChannel(inTrack);
+
+            // Tempo carry-over: if this is the first track and region
+            // starts mid-piece, emit the latest tempo BEFORE region.start
+            // at output tick 0.
+            if (ti == 0 && start > 0) {
+                MetaMessage carriedTempo = findLatestTempoBefore(noteSeq, start);
+                if (carriedTempo != null) {
+                    outTrack.add(new MidiEvent(scaleTempo(carriedTempo, tempoSetup), 0));
+                }
+            }
+
+            // Bake channel setup at tick 0 if a channel is detected.
+            if (channel >= 0) {
+                Integer prog = channelSetup.programs().get(channel);
+                Integer vol = channelSetup.volumes().get(channel);
+                if (prog != null) {
+                    ShortMessage pc = new ShortMessage();
+                    pc.setMessage(ShortMessage.PROGRAM_CHANGE, channel, prog, 0);
+                    outTrack.add(new MidiEvent(pc, 0));
+                }
+                if (vol != null) {
+                    ShortMessage cc = new ShortMessage();
+                    cc.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #7*/ 7, vol);
+                    outTrack.add(new MidiEvent(cc, 0));
+                }
+                Integer pan = channelSetup.pans().get(channel);
+                if (pan != null) {
+                    ShortMessage cc = new ShortMessage();
+                    cc.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #10*/ 10, pan);
+                    outTrack.add(new MidiEvent(cc, 0));
+                }
+            }
+
+            // Copy events in [start, effectiveEnd), shifted to [0, end-start).
+            for (int i = 0; i < inTrack.size(); i++) {
+                MidiEvent ev = inTrack.get(i);
+                long tick = ev.getTick();
+                if (tick < start || tick >= effectiveEnd) continue;
+                MidiMessage msg = ev.getMessage();
+                if (msg instanceof MetaMessage mm && mm.getType() == 0x51) {
+                    msg = scaleTempo(mm, tempoSetup);
+                }
+                outTrack.add(new MidiEvent(msg, tick - start));
+            }
+        }
+        return out;
+    }
+
+    /** Pick the MIDI channel of the first short message on this track. -1 if none. */
+    private static int detectChannel(javax.sound.midi.Track track) {
+        for (int i = 0; i < track.size(); i++) {
+            if (track.get(i).getMessage() instanceof ShortMessage sm) {
+                return sm.getChannel();
+            }
+        }
+        return -1;
+    }
+
+    /** Latest tempo meta event with tick &lt; cutoff, across all tracks. Null if none. */
+    private static MetaMessage findLatestTempoBefore(Sequence seq, long cutoff) {
+        MetaMessage best = null;
+        long bestTick = -1;
+        for (javax.sound.midi.Track track : seq.getTracks()) {
+            for (int i = 0; i < track.size(); i++) {
+                MidiEvent ev = track.get(i);
+                if (ev.getTick() >= cutoff) break; // tracks are tick-ordered
+                if (ev.getMessage() instanceof MetaMessage mm && mm.getType() == 0x51) {
+                    if (ev.getTick() > bestTick) {
+                        best = mm;
+                        bestTick = ev.getTick();
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Scale a tempo meta event's microseconds-per-quarter by 1/factor (faster = lower μs/quarter). */
+    private static MetaMessage scaleTempo(MetaMessage src, TempoSetup setup)
+            throws InvalidMidiDataException {
+        if (setup.bpmFactor() == 1.0) return src;
+        byte[] data = src.getData();
+        if (data.length != 3) return src;
+        int microsPerQuarter = ((data[0] & 0xff) << 16) | ((data[1] & 0xff) << 8) | (data[2] & 0xff);
+        int scaled = Math.max(1, (int) Math.round(microsPerQuarter / setup.bpmFactor()));
+        byte[] out = new byte[] {
+                (byte) ((scaled >> 16) & 0xff),
+                (byte) ((scaled >> 8) & 0xff),
+                (byte) (scaled & 0xff)
+        };
+        MetaMessage mm = new MetaMessage();
+        mm.setMessage(0x51, out, out.length);
+        return mm;
+    }
+
+    /** Remove all PROGRAM_CHANGE and CC #7 events from every track in-place. */
+    private static void stripChannelControlEvents(Sequence seq) {
+        for (javax.sound.midi.Track track : seq.getTracks()) {
+            // Collect events to remove first (avoids index shifting during walk).
+            var toRemove = new ArrayList<MidiEvent>();
+            for (int i = 0; i < track.size(); i++) {
+                MidiEvent ev = track.get(i);
+                if (ev.getMessage() instanceof ShortMessage sm) {
+                    int cmd = sm.getCommand();
+                    if (cmd == ShortMessage.PROGRAM_CHANGE) {
+                        toRemove.add(ev);
+                    } else if (cmd == ShortMessage.CONTROL_CHANGE && sm.getData1() == 7) {
+                        toRemove.add(ev);
+                    }
+                }
+            }
+            for (MidiEvent ev : toRemove) track.remove(ev);
+        }
+    }
+
+    public static Sequence buildSequence(Piece piece) throws InvalidMidiDataException {
+        try {
+            Performance perf = PieceConcretizer.concretize(piece);
+            byte[] bytes = MidiCodec.toMidi(perf);
+            return MidiSystem.getSequence(new ByteArrayInputStream(bytes));
+        } catch (IOException e) {
+            throw new InvalidMidiDataException("buildSequence(Piece) failed: " + e.getMessage());
+        }
     }
 
     /**
      * Build a MIDI Sequence with explicit instrument assignments per track.
      *
+     * <p>Phase 3b: routes through the new {@link PieceConcretizer} +
+     * {@link MidiCodec} pipeline. Per-track instrument overrides are
+     * applied to the concretized {@link Performance}'s
+     * {@link Instrumentation} side-channel before serialisation.</p>
+     *
+     * <p><b>Multi-instrument-per-track regression</b>: today's API allows
+     * {@code trackInstruments.get(t).size() > 1}, which previously
+     * duplicated the track onto N MIDI channels (one per instrument).
+     * The new pipeline currently uses only the FIRST instrument; additional
+     * slots are silently ignored. A future phase may restore this by
+     * splitting Performance Tracks at concretization time.</p>
+     *
      * @param piece            the piece to render
-     * @param trackInstruments per-track list of instruments; each track's phrases are
-     *                         interpreted once, then duplicated onto a separate MIDI
-     *                         channel for every instrument in that track's list
+     * @param trackInstruments per-track list of instruments
      */
     public static Sequence buildSequence(Piece piece, List<List<Instrument>> trackInstruments)
             throws InvalidMidiDataException {
-        // Default all volumes to 100 (out of 127)
-        var defaultVolumes = new ArrayList<List<Integer>>();
-        for (var instruments : trackInstruments) {
-            defaultVolumes.add(instruments.stream().map(i -> 100).toList());
-        }
-        return buildSequence(piece, trackInstruments, defaultVolumes);
+        return buildSequence(piece, trackInstruments, /*trackVolumes=*/ null);
     }
 
     /**
      * Build a MIDI Sequence with explicit instrument and volume assignments per track.
      *
-     * @param trackInstruments per-track list of instruments
-     * @param trackVolumes     per-track list of volumes (0–127), parallel to trackInstruments
+     * <p>Instrument overrides are applied to the concretized
+     * {@link Performance}'s {@link Instrumentation}. Volume overrides
+     * (in MIDI CC #7 range, 0–127) are applied to its {@link Volume}
+     * side-channel; the codec emits CC #7 events on each track's MIDI
+     * channel at tick 0.</p>
+     *
+     * @param trackInstruments per-track list of instruments (only the first
+     *                         element is used; multi-instrument-per-track is
+     *                         a deferred regression)
+     * @param trackVolumes     per-track list of volume levels 0–127 (only
+     *                         the first element is used)
      */
     public static Sequence buildSequence(Piece piece, List<List<Instrument>> trackInstruments,
                                          List<List<Integer>> trackVolumes)
             throws InvalidMidiDataException {
-        Sequence sequence = new Sequence(Sequence.PPQ, MidiMapper.TICKS_PER_QUARTER);
+        try {
+            Performance perf = PieceConcretizer.concretize(piece);
+            Performance withInstruments = applyInstrumentOverrides(perf, piece, trackInstruments);
+            Performance withVolumes = applyVolumeOverrides(withInstruments, piece, trackVolumes);
+            byte[] bytes = MidiCodec.toMidi(withVolumes);
+            return MidiSystem.getSequence(new ByteArrayInputStream(bytes));
+        } catch (IOException e) {
+            throw new InvalidMidiDataException("buildSequence(...) failed: " + e.getMessage());
+        }
+    }
 
-        int[] nextChannel = {0};
-        boolean[] tempoAdded = {false};
-        List<Track> tracks = piece.tracks();
+    /**
+     * Apply per-piece-track instrument overrides to a concretized
+     * {@link Performance}. Aux tracks belonging to a piece track inherit
+     * the same override (matching the legacy {@code renderTrack}
+     * semantics where aux tracks use the parent's instrument list).
+     *
+     * <p>If a piece track has multiple instruments listed, only the
+     * first is applied — see class-level note on the multi-instrument
+     * regression.</p>
+     */
+    private static Performance applyInstrumentOverrides(
+            Performance base, Piece piece, List<List<Instrument>> trackInstruments) {
+        if (trackInstruments == null) return base;
 
-        // Pass 1 — control tracks emit tempo events into their own MIDI tracks.
-        // Marking tempoAdded[0] = true here prevents music-track fallback below
-        // from duplicating tempo on the first music track.
-        for (Track track : tracks) {
-            if (piece.isControlTrack(track.name())) {
-                renderControlTrack(sequence, track, tempoAdded, piece);
+        // Build piece-track name -> override program (first instrument only).
+        Map<String, Integer> programByPieceName = new LinkedHashMap<>();
+        List<Track> pieceTracks = piece.tracks();
+        for (int t = 0; t < pieceTracks.size() && t < trackInstruments.size(); t++) {
+            List<Instrument> insList = trackInstruments.get(t);
+            if (insList == null || insList.isEmpty()) continue;
+            programByPieceName.put(pieceTracks.get(t).name(), insList.get(0).program());
+        }
+        Set<String> pieceNames = programByPieceName.keySet();
+
+        // Walk Performance tracks; map each TrackId back to a piece track name
+        // (direct match, or strip " Aux N" suffix for aux Performance Tracks).
+        Map<TrackId, InstrumentControl> newInstr = new LinkedHashMap<>();
+        for (var pt : base.score().tracks()) {
+            String perfName = pt.id().name();
+            String pieceName = resolvePieceTrackName(perfName, pieceNames);
+            Integer overrideProgram = pieceName == null ? null : programByPieceName.get(pieceName);
+            if (overrideProgram != null) {
+                newInstr.put(pt.id(), InstrumentControl.constant(overrideProgram));
+            } else {
+                InstrumentControl baseIc = base.instruments().byTrack().get(pt.id());
+                if (baseIc != null) newInstr.put(pt.id(), baseIc);
             }
         }
 
-        // Pass 2 — music tracks. Skips control tracks. First music track still
-        // emits an initial tempo event if no control track has (backward-compat
-        // for flat-constructed pieces that don't use control tracks at all).
-        for (int t = 0; t < tracks.size(); t++) {
-            Track track = tracks.get(t);
-            if (piece.isControlTrack(track.name())) continue;
+        return new Performance(base.score(), base.tempo(),
+                new Instrumentation(newInstr), base.volume(), base.articulations());
+    }
 
-            List<Instrument> instruments = trackInstruments.get(t);
-            List<Integer> volumes = trackVolumes.get(t);
+    /**
+     * Apply per-piece-track volume overrides to a concretized
+     * {@link Performance}. Like {@link #applyInstrumentOverrides}, only
+     * the first volume slot per piece track is used; aux Performance
+     * tracks ("&lt;name&gt; Aux N") inherit the parent's volume.
+     *
+     * <p>Levels are clamped to MIDI CC #7 range 0–127. A null or empty
+     * override list is a no-op.</p>
+     */
+    private static Performance applyVolumeOverrides(
+            Performance base, Piece piece, List<List<Integer>> trackVolumes) {
+        if (trackVolumes == null) return base;
 
-            renderTrack(sequence, track, instruments, volumes, nextChannel, tempoAdded, piece);
+        Map<String, Integer> levelByPieceName = new LinkedHashMap<>();
+        List<Track> pieceTracks = piece.tracks();
+        for (int t = 0; t < pieceTracks.size() && t < trackVolumes.size(); t++) {
+            List<Integer> volList = trackVolumes.get(t);
+            if (volList == null || volList.isEmpty()) continue;
+            int level = Math.max(0, Math.min(127, volList.get(0)));
+            levelByPieceName.put(pieceTracks.get(t).name(), level);
+        }
+        if (levelByPieceName.isEmpty()) return base;
+        Set<String> pieceNames = levelByPieceName.keySet();
 
-            for (Track auxTrack : track.auxTracks()) {
-                renderTrack(sequence, auxTrack, instruments, volumes,
-                        nextChannel, tempoAdded, piece);
+        Map<TrackId, VolumeControl> newVol = new LinkedHashMap<>(base.volume().byTrack());
+        for (var pt : base.score().tracks()) {
+            String perfName = pt.id().name();
+            String pieceName = resolvePieceTrackName(perfName, pieceNames);
+            Integer overrideLevel = pieceName == null ? null : levelByPieceName.get(pieceName);
+            if (overrideLevel != null) {
+                newVol.put(pt.id(), VolumeControl.constant(overrideLevel));
             }
         }
-        return sequence;
+
+        return new Performance(base.score(), base.tempo(),
+                base.instruments(), new Volume(newVol), base.articulations());
+    }
+
+    /** Resolve a Performance Track name to its parent piece-track name. */
+    private static String resolvePieceTrackName(String performanceTrackName, Set<String> pieceNames) {
+        if (pieceNames.contains(performanceTrackName)) return performanceTrackName;
+        // PieceConcretizer names aux tracks "<base> Aux N"
+        int auxMarker = performanceTrackName.lastIndexOf(" Aux ");
+        if (auxMarker > 0) {
+            String baseName = performanceTrackName.substring(0, auxMarker);
+            if (pieceNames.contains(baseName)) return baseName;
+        }
+        return null;
+    }
+
+    // ── Phase 5.1: ChannelSetup + TempoSetup live-control surface ──
+
+    /** The note-only sequence currently loaded (held for export). */
+    private Sequence currentNoteSequence;
+    /** The most-recently applied channel setup (held for export + reapply on stop/start). */
+    private ChannelSetup currentSetup;
+    /** The most-recently applied tempo setup (held for export). */
+    private TempoSetup currentTempo = TempoSetup.unity();
+    /** The most-recently applied swing setup (held for restart-at-tick). */
+    private SwingSetup currentSwing = SwingSetup.OFF;
+    /** The piece currently loaded (held for leading-pad lookup). */
+    private Piece currentPiece;
+    /**
+     * Note-sequence factory bound at start() time. Lets restartAt / applySwing
+     * rebuild the underlying note sequence regardless of whether the source
+     * was a {@link Piece} or an imported {@link music.notation.performance.Performance}.
+     */
+    private NoteSequenceFactory baseFactory;
+
+    @FunctionalInterface
+    private interface NoteSequenceFactory {
+        Sequence build() throws Exception;
     }
 
     /** Start playback with default instruments. */
     public void start(Piece piece) throws Exception {
-        var defaults = new ArrayList<List<Instrument>>();
-        for (Track track : piece.tracks()) {
-            defaults.add(List.of(track.defaultInstrument()));
-        }
-        start(piece, defaults);
+        start(piece, ChannelSetup.from(piece, null, null), TempoSetup.unity());
     }
 
-    /** Start playback with explicit instrument assignments. Non-blocking. */
+    /**
+     * Backwards-compat overload: per-track instrument lists. Internally
+     * derives a {@link ChannelSetup} (uses each list's first element).
+     */
     public void start(Piece piece, List<List<Instrument>> trackInstruments) throws Exception {
         start(piece, trackInstruments, null);
     }
 
-    /** Start playback with explicit instrument and volume assignments. Non-blocking. */
+    /**
+     * Backwards-compat overload: per-track instrument + volume lists.
+     * Internally derives a {@link ChannelSetup}.
+     */
     public void start(Piece piece, List<List<Instrument>> trackInstruments,
                       List<List<Integer>> trackVolumes) throws Exception {
+        var ins = firstOf(trackInstruments);
+        var vol = firstOf(trackVolumes);
+        start(piece, ChannelSetup.from(piece, ins, vol), TempoSetup.unity());
+    }
+
+    /**
+     * Phase 5.1 functional entry point: start playback driven by a
+     * {@link ChannelSetup} (programs + volumes) and {@link TempoSetup}
+     * (tempo factor). The Sequencer is loaded with a note-only Sequence
+     * (no PC/CC); the setup is applied directly to the Synthesizer
+     * channels. Subsequent live changes go through {@link #applySetup}
+     * and {@link #applyTempo}.
+     */
+    public void start(Piece piece, ChannelSetup channelSetup, TempoSetup tempoSetup) throws Exception {
+        start(piece, channelSetup, tempoSetup, SwingSetup.OFF);
+    }
+
+    /**
+     * Phase 7.2: start playback with swing applied to the note sequence.
+     * Subsequent live swing changes go through {@link #applySwing}, which
+     * rebuilds the sequence and resumes at the requested tick.
+     */
+    public void start(Piece piece, ChannelSetup channelSetup,
+                      TempoSetup tempoSetup, SwingSetup swingSetup) throws Exception {
         stop();
         paused = false;
 
-        Sequence sequence = trackVolumes != null
-                ? buildSequence(piece, trackInstruments, trackVolumes)
-                : buildSequence(piece, trackInstruments);
+        Sequence sequence = swingSetup.apply(buildNoteSequence(piece));
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
@@ -123,13 +470,127 @@ public final class MidiPlayer {
         sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
         sequencer.setSequence(sequence);
 
-        // Skip leading padding so pickup bars don't produce silence
+        currentNoteSequence = sequence;
+        currentPiece = piece;
+        currentSetup = channelSetup;
+        currentTempo = tempoSetup;
+        currentSwing = swingSetup;
+        baseFactory = () -> buildNoteSequence(piece);
+
+        channelSetup.apply(synthesizer);
+        tempoSetup.apply(sequencer);
+
         long paddingOffset = computeLeadingPaddingTicks(piece);
         if (paddingOffset > 0) {
-            sequencer.setTickPosition(paddingOffset);
+            sequencer.setTickPosition(swingSetup.mapTick(paddingOffset, sequence.getResolution()));
         }
-
         sequencer.start();
+    }
+
+    /**
+     * Start playback for an imported {@link music.notation.performance.Performance}.
+     * Pure shim: re-encodes the Performance to a note-only Sequence, then
+     * proceeds exactly as the Piece-based path. {@link #currentPiece} is
+     * left null — Piece-only operations (scale rebuild, leading-padding
+     * pickup) are not relevant for imports.
+     */
+    public void start(music.notation.performance.Performance performance,
+                      ChannelSetup channelSetup, TempoSetup tempoSetup,
+                      SwingSetup swingSetup) throws Exception {
+        stop();
+        paused = false;
+
+        Sequence sequence = swingSetup.apply(buildNoteSequence(performance));
+        sequencer = MidiSystem.getSequencer(false);
+        synthesizer = MidiSystem.getSynthesizer();
+        synthesizer.open();
+        sequencer.open();
+        sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
+        sequencer.setSequence(sequence);
+
+        currentNoteSequence = sequence;
+        currentPiece = null;
+        currentSetup = channelSetup;
+        currentTempo = tempoSetup;
+        currentSwing = swingSetup;
+        baseFactory = () -> buildNoteSequence(performance);
+
+        channelSetup.apply(synthesizer);
+        tempoSetup.apply(sequencer);
+        sequencer.start();
+    }
+
+    /**
+     * Reusable restart primitive: stop the running sequencer, rebuild the
+     * note sequence under {@code swingSetup}, re-apply channel/tempo, and
+     * resume at {@code resumeTick}. {@code resumeTick} is interpreted in
+     * the new (swung) tick space — bar/beat-aligned ticks are stable across
+     * swing ratios so callers can pass them directly. No-op if not running.
+     */
+    public void restartAt(long resumeTick, ChannelSetup channelSetup,
+                          TempoSetup tempoSetup, SwingSetup swingSetup) throws Exception {
+        if (sequencer == null || baseFactory == null) return;
+        sequencer.stop();
+        Sequence seq = swingSetup.apply(baseFactory.build());
+        sequencer.setSequence(seq);
+        currentNoteSequence = seq;
+        currentSetup = channelSetup;
+        currentTempo = tempoSetup;
+        currentSwing = swingSetup;
+        channelSetup.apply(synthesizer);
+        tempoSetup.apply(sequencer);
+        long bound = Math.max(0, Math.min(resumeTick, seq.getTickLength()));
+        sequencer.setTickPosition(bound);
+        sequencer.start();
+    }
+
+    /**
+     * Live swing change. Stops, rebuilds with new swing, resumes at the
+     * given tick (typically the current playhead, snapped to a bar, or 0).
+     */
+    public void applySwing(SwingSetup swingSetup, long resumeTick) throws Exception {
+        if (swingSetup == null) return;
+        if (sequencer == null) {
+            currentSwing = swingSetup;
+            return;
+        }
+        restartAt(resumeTick, currentSetup, currentTempo, swingSetup);
+    }
+
+    /**
+     * Live channel-control change: re-apply a {@link ChannelSetup}.
+     * Idempotent — call any time. No-op if not running.
+     */
+    public void applySetup(ChannelSetup setup) {
+        if (setup == null) return;
+        currentSetup = setup;
+        if (synthesizer != null && synthesizer.isOpen()) {
+            setup.apply(synthesizer);
+        }
+    }
+
+    /**
+     * Live tempo change: re-apply a {@link TempoSetup}. Idempotent.
+     * No-op if not running.
+     */
+    public void applyTempo(TempoSetup tempo) {
+        if (tempo == null) return;
+        currentTempo = tempo;
+        if (sequencer != null && sequencer.isOpen()) {
+            tempo.apply(sequencer);
+        }
+    }
+
+    public ChannelSetup currentSetup() { return currentSetup; }
+    public TempoSetup currentTempo() { return currentTempo; }
+
+    private static <T> List<T> firstOf(List<List<T>> nested) {
+        if (nested == null) return null;
+        var out = new ArrayList<T>(nested.size());
+        for (var lst : nested) {
+            out.add(lst != null && !lst.isEmpty() ? lst.get(0) : null);
+        }
+        return out;
     }
 
     /** Stop playback and release resources. */
@@ -209,6 +670,33 @@ public final class MidiPlayer {
         MidiSystem.write(sequence, fileType, file);
     }
 
+    /**
+     * Export the currently-loaded piece (started via
+     * {@link #start(Piece, ChannelSetup, TempoSetup)} or any of its
+     * overloads) as a self-contained MIDI file. Reflects whatever
+     * live setup has been applied via {@link #applySetup} /
+     * {@link #applyTempo}.
+     *
+     * <p>Use {@link Region#full()} for whole-song export, or a
+     * bounded {@link Region} for partial export.</p>
+     */
+    public void exportTo(File file, Region region)
+            throws InvalidMidiDataException, IOException {
+        if (currentNoteSequence == null || currentSetup == null) {
+            throw new IllegalStateException(
+                    "Nothing to export — start(...) the player first.");
+        }
+        Sequence frozen = freezeForExport(currentNoteSequence, currentSetup, currentTempo, region);
+        int[] types = MidiSystem.getMidiFileTypes(frozen);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(frozen, fileType, file);
+    }
+
+    /** Whole-song export. Equivalent to {@code exportTo(file, Region.full())}. */
+    public void exportTo(File file) throws InvalidMidiDataException, IOException {
+        exportTo(file, Region.full());
+    }
+
     public static void exportMidi(Piece piece, List<List<Instrument>> trackInstruments, File file)
             throws InvalidMidiDataException, IOException {
         Sequence sequence = buildSequence(piece, trackInstruments);
@@ -217,12 +705,42 @@ public final class MidiPlayer {
         MidiSystem.write(sequence, fileType, file);
     }
 
+    /**
+     * Export a piece using a {@link ChannelSetup} (programs + volumes +
+     * pans). Builds a note-only sequence and freezes the setup at tick
+     * 0 — the same code path live playback uses, so an exported file
+     * matches what would be heard.
+     */
+    public static void exportMidi(Piece piece, ChannelSetup channelSetup, File file)
+            throws InvalidMidiDataException, IOException {
+        Sequence noteSeq = buildNoteSequence(piece);
+        Sequence frozen = freezeForExport(noteSeq, channelSetup, TempoSetup.unity(), Region.full());
+        int[] types = MidiSystem.getMidiFileTypes(frozen);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(frozen, fileType, file);
+    }
+
+    /**
+     * Export an imported {@link music.notation.performance.Performance}
+     * with current per-track instrument / volume / pan applied. Used by
+     * the UI's export button when the loaded source is an import.
+     */
+    public static void exportMidi(music.notation.performance.Performance performance,
+                                  ChannelSetup channelSetup, File file)
+            throws InvalidMidiDataException, IOException {
+        Sequence noteSeq = buildNoteSequence(performance);
+        Sequence frozen = freezeForExport(noteSeq, channelSetup, TempoSetup.unity(), Region.full());
+        int[] types = MidiSystem.getMidiFileTypes(frozen);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(frozen, fileType, file);
+    }
+
     /** Export using each track's default instrument. */
     public static void exportMidi(Piece piece, File file)
             throws InvalidMidiDataException, IOException {
         var defaults = new ArrayList<List<Instrument>>();
         for (Track track : piece.tracks()) {
-            defaults.add(List.of(track.defaultInstrument()));
+            defaults.add(List.of(defaultInstrumentOf(track)));
         }
         exportMidi(piece, defaults, file);
     }
@@ -249,191 +767,54 @@ public final class MidiPlayer {
      * is encountered. The global offset is the minimum across all tracks.
      * If a track has no leading padding, the offset is 0.</p>
      */
+    /** Default instrument inferred from a sealed Track variant. */
+    private static Instrument defaultInstrumentOf(Track track) {
+        return switch (track) {
+            case MelodicTrack mt -> mt.defaultInstrument();
+            case DrumTrack dt -> Instrument.DRUM_KIT;
+        };
+    }
+
     public static long computeLeadingPaddingTicks(Piece piece) {
         long globalMin = Long.MAX_VALUE;
         for (Track track : piece.tracks()) {
-            // Control tracks carry only tempo markers inside VoidPhrase-shaped
-            // content; their "leading padding" would be the entire piece and
-            // would clobber the audible minimum. Skip them.
-            if (piece.isControlTrack(track.name())) continue;
-            globalMin = Math.min(globalMin, leadingPaddingForTrack(track));
-            for (Track auxTrack : track.auxTracks()) {
-                globalMin = Math.min(globalMin, leadingPaddingForTrack(auxTrack));
+            globalMin = Math.min(globalMin, leadingPaddingForBars(track.bars()));
+            // Aux voices participate in the pickup-offset calculation:
+            // a piece-wide minimum still gives us the earliest audible
+            // event across primary + aux content.
+            if (track instanceof MelodicTrack mt) {
+                for (var auxBars : mt.auxBars().values()) {
+                    globalMin = Math.min(globalMin, leadingPaddingForBars(auxBars));
+                }
             }
         }
         return globalMin == Long.MAX_VALUE ? 0 : globalMin;
     }
 
+    /**
+     * Sum the leading {@link PaddingNode}/zero-duration-marker chain
+     * across the track's bars until an audible (or other duration-taking)
+     * node appears.
+     */
     private static long leadingPaddingForTrack(Track track) {
+        return leadingPaddingForBars(track.bars());
+    }
+
+    private static long leadingPaddingForBars(java.util.List<music.notation.phrase.Bar> bars) {
         long padding = 0;
-        for (Phrase phrase : track.phrases()) {
-            long[] result = leadingPaddingForPhrase(phrase);
-            padding += result[0];
-            if (result[1] == 0) {
-                // Hit a non-padding node — done
-                return padding;
+        for (var bar : bars) {
+            for (PhraseNode node : bar.nodes()) {
+                switch (node) {
+                    case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
+                    case DynamicNode d -> {}
+                    case TempoChangeNode t -> {}
+                    case TempoTransitionStartNode t -> {}
+                    case TempoTransitionEndNode t -> {}
+                    default -> { return padding; } // hit audible / RestNode
+                }
             }
-            // result[1] == 1 means entire phrase was padding, continue
         }
         return padding;
     }
 
-    /**
-     * Returns [paddingTicks, allPadding] where allPadding is 1 if the
-     * entire phrase consisted of only padding (and zero-duration markers).
-     */
-    private static long[] leadingPaddingForPhrase(Phrase phrase) {
-        return switch (phrase) {
-            case MelodicPhrase mp -> leadingPaddingForNodes(mp.nodes());
-            case DrumPhrase dp -> leadingPaddingForNodes(dp.nodes());
-            case ChordPhrase cp -> new long[]{0, cp.chords().isEmpty() ? 1 : 0};
-            case RestPhrase rp -> new long[]{0, 0}; // rest is real content
-            case VoidPhrase vp -> new long[]{0, 0}; // void is real (silent) content
-            case LyricPhrase lp -> new long[]{0, 0}; // lyrics are real content
-            case ShiftedPhrase sp -> leadingPaddingForPhrase(sp.source());
-            case LayeredPhrase lp -> leadingPaddingForPhrase(lp.resolve());
-        };
-    }
-
-    private static long[] leadingPaddingForNodes(List<PhraseNode> nodes) {
-        long padding = 0;
-        for (PhraseNode node : nodes) {
-            switch (node) {
-                case PaddingNode p -> padding += MidiMapper.toTicks(p.duration());
-                case DynamicNode d -> {} // zero duration, skip
-                case SlurStart s -> {}
-                case SlurEnd s -> {}
-                case TempoChangeNode t -> {}
-                case TempoTransitionStartNode t -> {}
-                case TempoTransitionEndNode t -> {}
-                default -> { return new long[]{padding, 0}; } // NoteNode, RestNode, etc.
-            }
-        }
-        return new long[]{padding, 1}; // all padding
-    }
-
-    /**
-     * Render a control track: emit its tempo events (and an initial tempo at
-     * tick 0 if none was declared) into a dedicated MIDI track. No channel,
-     * no program change, no note events. Marks {@code tempoAdded[0] = true}
-     * so music tracks skip fallback tempo emission.
-     */
-    private static void renderControlTrack(Sequence sequence, Track track,
-                                           boolean[] tempoAdded, Piece piece)
-            throws InvalidMidiDataException {
-        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80, piece.tempo().bpm());
-        for (Phrase phrase : track.phrases()) {
-            interpreter.interpret(phrase);
-        }
-        List<PlayEvent.TempoChange> tempoEvents = interpreter.getEvents().stream()
-                .filter(e -> e instanceof PlayEvent.TempoChange)
-                .map(e -> (PlayEvent.TempoChange) e)
-                .toList();
-
-        javax.sound.midi.Track midiTrack = sequence.createTrack();
-
-        if (!tempoAdded[0]) {
-            boolean hasTempoAtZero = tempoEvents.stream().anyMatch(t -> t.tick() == 0);
-            if (!hasTempoAtZero) {
-                addTempoEvent(midiTrack, 0, piece.tempo().bpm());
-            }
-            for (PlayEvent.TempoChange tc : tempoEvents) {
-                addTempoEvent(midiTrack, tc.tick(), tc.bpm());
-            }
-            tempoAdded[0] = true;
-        } else {
-            // Unexpected — another control track already claimed tempo. Still
-            // emit this track's tempo events onto its own MIDI track (MIDI
-            // readers merge tempo events across tracks), but without the
-            // initial-tempo fallback.
-            for (PlayEvent.TempoChange tc : tempoEvents) {
-                addTempoEvent(midiTrack, tc.tick(), tc.bpm());
-            }
-        }
-    }
-
-    private static void renderTrack(Sequence sequence, Track track, List<Instrument> instruments,
-                                     List<Integer> volumes, int[] nextChannel,
-                                     boolean[] tempoAdded, Piece piece)
-            throws InvalidMidiDataException {
-        PhraseInterpreter interpreter = new PhraseInterpreter(0, 80, piece.tempo().bpm());
-        for (Phrase phrase : track.phrases()) {
-            interpreter.interpret(phrase);
-        }
-        List<PlayEvent> allEvents = interpreter.getEvents();
-        List<PlayEvent> noteEvents = allEvents.stream()
-                .filter(e -> !(e instanceof PlayEvent.ProgramChange)
-                        && !(e instanceof PlayEvent.TempoChange))
-                .toList();
-        List<PlayEvent.TempoChange> tempoEvents = allEvents.stream()
-                .filter(e -> e instanceof PlayEvent.TempoChange)
-                .map(e -> (PlayEvent.TempoChange) e)
-                .toList();
-
-        for (int idx = 0; idx < instruments.size(); idx++) {
-            Instrument instrument = instruments.get(idx);
-            int volume = idx < volumes.size() ? volumes.get(idx) : 100;
-
-            javax.sound.midi.Track midiTrack = sequence.createTrack();
-
-            boolean isDrum = instrument == Instrument.DRUM_KIT;
-            int channel = isDrum ? 9 : nextChannel[0]++;
-            if (!isDrum && channel == 9) {
-                channel = nextChannel[0]++;
-            }
-
-            if (!tempoAdded[0]) {
-                boolean hasTempoAtZero = tempoEvents.stream().anyMatch(t -> t.tick() == 0);
-                if (!hasTempoAtZero) {
-                    addTempoEvent(midiTrack, 0, piece.tempo().bpm());
-                }
-                for (PlayEvent.TempoChange tc : tempoEvents) {
-                    addTempoEvent(midiTrack, tc.tick(), tc.bpm());
-                }
-                tempoAdded[0] = true;
-            }
-
-            if (!isDrum) {
-                ShortMessage pcMsg = new ShortMessage();
-                pcMsg.setMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument.program(), 0);
-                midiTrack.add(new MidiEvent(pcMsg, 0));
-            }
-
-            // Set channel volume (MIDI CC #7)
-            ShortMessage volMsg = new ShortMessage();
-            volMsg.setMessage(ShortMessage.CONTROL_CHANGE, channel, 7,
-                    Math.clamp(volume, 0, 127));
-            midiTrack.add(new MidiEvent(volMsg, 0));
-
-            for (PlayEvent event : noteEvents) {
-                switch (event) {
-                    case PlayEvent.NoteOn on -> {
-                        ShortMessage msg = new ShortMessage();
-                        msg.setMessage(ShortMessage.NOTE_ON, channel, on.midiNote(), on.velocity());
-                        midiTrack.add(new MidiEvent(msg, on.tick()));
-                    }
-                    case PlayEvent.NoteOff off -> {
-                        ShortMessage msg = new ShortMessage();
-                        msg.setMessage(ShortMessage.NOTE_OFF, channel, off.midiNote(), 0);
-                        midiTrack.add(new MidiEvent(msg, off.tick()));
-                    }
-                    case PlayEvent.ProgramChange pc -> {} // handled above
-                    case PlayEvent.TempoChange tc -> {} // handled above, per-track
-                }
-            }
-        }
-    }
-
-    private static void addTempoEvent(javax.sound.midi.Track track, long tick, int bpm)
-            throws InvalidMidiDataException {
-        int mpq = 60_000_000 / bpm;
-        byte[] data = new byte[]{
-                (byte) ((mpq >> 16) & 0xFF),
-                (byte) ((mpq >> 8) & 0xFF),
-                (byte) (mpq & 0xFF)
-        };
-        MetaMessage tempo = new MetaMessage();
-        tempo.setMessage(0x51, data, 3);
-        track.add(new MidiEvent(tempo, tick));
-    }
 }

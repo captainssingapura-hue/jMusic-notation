@@ -49,6 +49,9 @@ public final class StaffPhraseBuilderTyped {
 
     private final BuilderContext ctx;
     private final List<Bar> bars = new ArrayList<>();
+    /** Accumulated aux: voice name → bar index → aux bar. Sparse. */
+    private final java.util.LinkedHashMap<String, java.util.LinkedHashMap<Integer, Bar>> auxAcc
+            = new java.util.LinkedHashMap<>();
     private boolean consumed;
 
     private StaffPhraseBuilderTyped(BuilderContext ctx) {
@@ -105,13 +108,29 @@ public final class StaffPhraseBuilderTyped {
     public MelodicPhrase build(PhraseMarking marking) {
         requireNotConsumed();
         consumed = true;
-        return MelodicPhrase.fromBars(ctx.ts(), marking, bars.toArray(Bar[]::new));
+        return MelodicPhrase.fromBars(ctx.ts(), marking, snapshotAux(), bars.toArray(Bar[]::new));
     }
 
-    // ── Package-private callback from BarBuilderTyped.done() ────
+    private Map<String, Map<Integer, Bar>> snapshotAux() {
+        if (auxAcc.isEmpty()) return Map.of();
+        var out = new java.util.LinkedHashMap<String, Map<Integer, Bar>>(auxAcc.size());
+        for (var e : auxAcc.entrySet()) out.put(e.getKey(), Map.copyOf(e.getValue()));
+        return Map.copyOf(out);
+    }
+
+    // ── Package-private callbacks from BarBuilderTyped.done() ───
 
     void appendBar(Bar bar) {
+        appendBar(bar, Map.of());
+    }
+
+    void appendBar(Bar bar, Map<String, Bar> auxForBar) {
+        int idx = bars.size();
         bars.add(bar);
+        for (var e : auxForBar.entrySet()) {
+            auxAcc.computeIfAbsent(e.getKey(), k -> new java.util.LinkedHashMap<>())
+                    .put(idx, e.getValue());
+        }
     }
 
     // ── One-shot guard ───────────────────────────────────────────

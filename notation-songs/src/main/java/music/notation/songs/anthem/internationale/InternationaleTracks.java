@@ -22,7 +22,7 @@ final class InternationaleTracks {
 
     // ── Melody ────────────────────────────────────────────────────
 
-    static Phrase melodyPhrase() {
+    static AuthorPhrase melodyPhrase() {
         var P = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
 
         var phrase = P
@@ -99,7 +99,7 @@ final class InternationaleTracks {
 
     // ── Harmony (with aux voice) ──────────────────────────────────
 
-    static Phrase harmonyPhrase() {
+    static AuthorPhrase harmonyPhrase() {
         var P = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
 
         var main = P
@@ -175,7 +175,7 @@ final class InternationaleTracks {
 
     // ── Chords (with aux voice) ───────────────────────────────────
 
-    static Phrase chordsPhrase() {
+    static AuthorPhrase chordsPhrase() {
         var P = StaffPhraseBuilderTyped.in(KEY, TS, EIGHTH);
 
         var main = P

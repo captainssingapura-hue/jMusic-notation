@@ -2,19 +2,14 @@ package music.notation.phrase;
 
 import music.notation.duration.Duration;
 
+import java.util.ArrayList;
+
 /**
- * Whole-bar aux (voice overlay) sub-builder, used exclusively through a lambda
- * on {@link BarBuilderTyped#aux(java.util.function.Consumer)}.
- *
- * <p>Emits a single {@link AuxBar} matching its parent bar's duration. Lambda
- * scope guarantees the instance cannot escape — by the time the lambda returns,
- * the parent bar has captured the aux content and the builder is unreachable.
- * There is no {@code done()} or {@code aux()} here: aux slots cannot nest,
- * and termination is implicit at lambda exit.</p>
- *
- * <p>If the aux content totals less than one bar, trailing {@link RestNode}
- * is appended by {@link MelodicPhrase#fromBars} when the parent phrase is
- * constructed. Over-long aux content throws at phrase construction time.</p>
+ * Whole-bar aux (voice overlay) sub-builder used inside a lambda from
+ * {@link BarBuilderTyped#aux(java.util.function.Consumer)}. The
+ * collected nodes form a single aux {@link Bar} matching the parent's
+ * bar size; if the content is shorter than the bar a trailing
+ * {@link RestNode} is appended to fill, longer content throws.
  */
 public final class AuxBarBuilderTyped extends NoteAcceptor<AuxBarBuilderTyped> {
 
@@ -22,9 +17,21 @@ public final class AuxBarBuilderTyped extends NoteAcceptor<AuxBarBuilderTyped> {
         super(ctx, activeDur);
     }
 
-    /** Freeze the collected nodes into an {@link AuxBar}. */
-    AuxBar toAuxBar() {
+    /** Freeze the collected nodes into a {@link Bar} sized to {@code barSize}. */
+    Bar toBar(int barSize) {
         consumed = true;
-        return new AuxBar(current);
+        int total = 0;
+        for (PhraseNode n : current) total += Bar.nodeSixtyFourths(n);
+        if (total > barSize) {
+            throw new IllegalArgumentException(
+                    "Aux content totals " + total + "/64 but bar is only "
+                            + barSize + "/64");
+        }
+        if (total < barSize) {
+            var padded = new ArrayList<>(current);
+            padded.add(new RestNode(Duration.ofSixtyFourths(barSize - total)));
+            return new Bar(barSize, padded);
+        }
+        return new Bar(barSize, current);
     }
 }

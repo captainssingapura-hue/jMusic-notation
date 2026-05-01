@@ -1,6 +1,5 @@
 package music.notation.songs.classical.furelise;
 
-import music.notation.duration.Duration;
 import music.notation.phrase.*;
 import music.notation.play.PlayPiece;
 import music.notation.structure.*;
@@ -31,55 +30,44 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
     public Piece create() {
         final var id = new FurElise();
 
-        final var trackDecls = List.<TrackDecl>of(
-                new TrackDecl.MusicTrackDecl("Right Hand", ACOUSTIC_GRAND_PIANO),
-                new TrackDecl.MusicTrackDecl("Left Hand",  ACOUSTIC_GRAND_PIANO)
-        );
+        // Phase 4c.2 migration: flatten the rondo phrase list per hand
+        // into a single bar-list MelodicTrack. AuthorPhrase markings
+        // (elision/attacca/end) are dropped; the resulting playback
+        // loses inter-phrase pickup overlap but bars and pickup-bar
+        // padding survive. LayeredPhrase overrides resolve via the
+        // helper.
+        final var rhTrack = joinMelodicPhrases("Right Hand", ACOUSTIC_GRAND_PIANO,
+                rightHandPhrases());
+        final var lhTrack = joinMelodicPhrases("Left Hand",  ACOUSTIC_GRAND_PIANO,
+                leftHandPhrases());
 
-        final var rhPhrases = rightHandPhrases();
-        final var lhPhrases = leftHandPhrases();
-
-        int total = 0;
-        for (Phrase p : rhPhrases) total += Bar.phraseSixtyFourths(p);
-        final Duration SONG_DURATION = Duration.ofSixtyFourths(total);
-
-        // Five-part rondo A-B-A-C-A + coda rolled into a single section:
-        // the phrase-level PhraseMarking on each boundary still drives
-        // elision/attacca; sectioning is just about structural grouping.
-        final var song = Section.named("Rondo")
-                .duration(SONG_DURATION)
-                .timeSignature(TS)
-                .track("Right Hand", rhPhrases)
-                .track("Left Hand",  lhPhrases)
-                .build();
-
-        return Piece.ofSections(id.title(), id.composer(),
+        return Piece.ofTrackKinds(id.title(), id.composer(),
                 KEY, TS,
                 new Tempo(76, QUARTER),
-                trackDecls,
-                List.of(song));
+                List.of(rhTrack, lhTrack),
+                List.of());
     }
 
     // ── Track assembly (ABACA + Coda) ──
 
-    List<Phrase> rightHandPhrases() {
+    List<AuthorPhrase> rightHandPhrases() {
         var a = rhSectionA();
-        var b = List.<Phrase>of(buildRHSectionB(), buildRHSectionABase(), buildRHSectionAAnswer(), buildRHSectionABase());
-        var c = List.<Phrase>of(buildRHSectionC());
-        var coda = List.<Phrase>of(buildRHSectionABase(), buildRHSectionAAnswer(), buildRHCoda());
+        var b = List.<AuthorPhrase>of(buildRHSectionB(), buildRHSectionABase(), buildRHSectionAAnswer(), buildRHSectionABase());
+        var c = List.<AuthorPhrase>of(buildRHSectionC());
+        var coda = List.<AuthorPhrase>of(buildRHSectionABase(), buildRHSectionAAnswer(), buildRHCoda());
         return concat(a,b,c,coda);
     }
 
-    List<Phrase> leftHandPhrases() {
+    List<AuthorPhrase> leftHandPhrases() {
         var a = lhSectionA();
-        var b = List.<Phrase>of(buildLHSectionB(), buildLHSectionA(), buildLHSectionAAnswer(), buildLHSectionABeforeSectionC());
-        var c = List.<Phrase>of(buildLHSectionC());
-        var coda = List.<Phrase>of(buildLHSectionA(), buildLHSectionAAnswer(), buildLHCoda());
+        var b = List.<AuthorPhrase>of(buildLHSectionB(), buildLHSectionA(), buildLHSectionAAnswer(), buildLHSectionABeforeSectionC());
+        var c = List.<AuthorPhrase>of(buildLHSectionC());
+        var coda = List.<AuthorPhrase>of(buildLHSectionA(), buildLHSectionAAnswer(), buildLHCoda());
         return concat(a,b,c,coda);
     }
 
     @SafeVarargs
-    private static List<Phrase> concat(List<Phrase>... lists) {
+    private static List<AuthorPhrase> concat(List<AuthorPhrase>... lists) {
         return Stream.of(lists).flatMap(List::stream).toList();
     }
 
@@ -87,7 +75,7 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
     //  Section A — Right Hand (motif-based, ~18 bars)
     // ══════════════════════════════════════════════════════════════
 
-    private List<Phrase> rhSectionA() {
+    private List<AuthorPhrase> rhSectionA() {
         return List.of(
             pickUpSectionA(), buildRHSectionABase(), pickUpSectionA(), buildRHSectionABase(), buildRHSectionAAnswer(), buildRHSectionABase(),
                 buildRHSectionAAnswer(), buildRHSectionABase()
@@ -110,24 +98,24 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .bar(SIXTEENTH).o4(EIGHTH,B).r().o4(E).o4(G.s()).o4(B).done()
                 .bar(SIXTEENTH).o5(EIGHTH,C).r(SIXTEENTH).o4(E).o5(E).o5(D.s()).done() //Bar 4
                 .bar(SIXTEENTH).o5(E).o5(D.s()).o5(E).o4(B).o5(D).o5(C).done()
-                .bar(SIXTEENTH).o4(EIGHTH,A).r().o4(C).o4(E).o4(A).slurStart().done()
-                .bar(SIXTEENTH).o4(EIGHTH,B).slurEnd().r().o4(E).slurStart().o5(C).o4(B).done()
-                .bar(EIGHTH).o4(A).slurEnd().pad(QUARTER).done()//.r(EIGHTH).o5(E).o5(D.s()) //Bar 8
+                .bar(SIXTEENTH).o4(EIGHTH,A).r().o4(C).o4(E).o4(A).done()
+                .bar(SIXTEENTH).o4(EIGHTH,B).r().o4(E).o5(C).o4(B).done()
+                .bar(EIGHTH).o4(A).pad(QUARTER).done()//.r(EIGHTH).o5(E).o5(D.s()) //Bar 8
                 .build(elision());
     }
 
-    Phrase buildRHSectionAContinuation(){
+    AuthorPhrase buildRHSectionAContinuation(){
         return OverlayBuilder.over(buildRHSectionABase(), KEY, TS, EIGHTH)
-                .at(7, SIXTEENTH, b -> b.o4(EIGHTH,A).slurEnd().r(SIXTEENTH).o4(B).o5(C).o5(D))
+                .at(7, SIXTEENTH, b -> b.o4(EIGHTH,A).r(SIXTEENTH).o4(B).o5(C).o5(D))
                 .build(attacca());
     }
 
-    Phrase buildRHSectionAAnswer(){
+    AuthorPhrase buildRHSectionAAnswer(){
         return newBuilder()
                 .pickup(SIXTEENTH).o4(B).o5(C).o5(D).done()
-                .bar(SIXTEENTH).o5(EIGHTH.dot(),E).o4(G).slurStart().o5(F).o5(E).done()
-                .bar(SIXTEENTH).o5(EIGHTH.dot(),D).slurEnd().o4(F).slurStart().o5(E).o5(D).done()
-                .bar(SIXTEENTH).o5(EIGHTH.dot(),C).slurEnd().o4(E).slurStart().o5(D).o5(C).done()
+                .bar(SIXTEENTH).o5(EIGHTH.dot(),E).o4(G).o5(F).o5(E).done()
+                .bar(SIXTEENTH).o5(EIGHTH.dot(),D).o4(F).o5(E).o5(D).done()
+                .bar(SIXTEENTH).o5(EIGHTH.dot(),C).o4(E).o5(D).o5(C).done()
                 .bar(SIXTEENTH).o4(EIGHTH,B).r(SIXTEENTH).o4(E).o5(E).r().done()
                 .bar(SIXTEENTH).r().o5(E).o6(E).r().r().o5(D.s()).done()
                 .bar(SIXTEENTH).o5(E).r().r().o5(D.s()).o5(E).o5(D.s()).done()
@@ -142,7 +130,7 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
     //  Section A — Left Hand (matching motifs)
     // ══════════════════════════════════════════════════════════════
 
-    private List<Phrase> lhSectionA() {
+    private List<AuthorPhrase> lhSectionA() {
         final var sectionABase = buildLHSectionA();
         return List.of(
             pickupLHSectionA(), sectionABase, pickupLHSectionA(), sectionABase, buildLHSectionAAnswer(),
@@ -170,14 +158,14 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .build(elision());
     }
 
-    Phrase buildLHSectionABeforeSectionC() {
+    AuthorPhrase buildLHSectionABeforeSectionC() {
         // TODO: fill in left hand — bass under opening motif
         return OverlayBuilder.over(buildLHSectionA(), KEY, TS, EIGHTH)
                 .at(7, SIXTEENTH, b -> b.o2(A).o2(A).o2(A).pad(EIGHTH.dot())) //8 to be overridden for 2nd repeat
                 .build(elision());
     }
 
-    Phrase buildLHSectionAAnswer(){
+    AuthorPhrase buildLHSectionAAnswer(){
         return newBuilder()
                 .pickup(EIGHTH).r().done()
                 .bar(SIXTEENTH).o3(C).o3(G).o4(A).r().r(EIGHTH).done()
@@ -224,15 +212,15 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .build(attacca());
     }
 
-    Phrase overrideLHAnswer1(Phrase answer) {
+    AuthorPhrase overrideLHAnswer1(AuthorPhrase answer) {
         return OverlayBuilder.over(answer, KEY, TS, EIGHTH).build(attacca());
     }
 
-    Phrase overrideLHExtCadence(Phrase ext) {
+    AuthorPhrase overrideLHExtCadence(AuthorPhrase ext) {
         return OverlayBuilder.over(ext, KEY, TS, EIGHTH).build(attacca());
     }
 
-    Phrase overrideLHAnswer2(Phrase answer) {
+    AuthorPhrase overrideLHAnswer2(AuthorPhrase answer) {
         return OverlayBuilder.over(answer, KEY, TS, EIGHTH).build(attacca());
     }
 
@@ -289,8 +277,8 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .bar(EIGHTH).o4(C,E,G).o3(F,A).o3(G,B).done()
                 .bar(EIGHTH).o3(G.s(),B).r().r().done()
                 .bar().r(QUARTER.dot()).done()
-                .bar(SIXTEENTH).r(QUARTER).r(SIXTEENTH).o5(D.s()).slurStart().done()
-                .bar(SIXTEENTH).o5(E).slurEnd().r().r().o5(D.s()).o5(E).r().done()
+                .bar(SIXTEENTH).r(QUARTER).r(SIXTEENTH).o5(D.s()).done()
+                .bar(SIXTEENTH).o5(E).r().r().o5(D.s()).o5(E).r().done()
                 .build(attacca());
     }
 
@@ -352,10 +340,10 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
                 .bar(SIXTEENTH).o2(B).o2(B).o2(B).o2(B).o2(B).o2(B).done()
                 .bar(EIGHTH).o3(QUARTER,C).r().done()
                 .bar(EIGHTH).o3(E,G.s()).r().r().done()
-                .bar(EIGHTH).o2(A.lower(1)).r().o4(A.lower(1),C,E).slurStart().done()
-                .bar(EIGHTH).o4(A.lower(1),C,E).slurEnd().r().o4(A.lower(1),C,E).slurStart().done()
-                .bar(EIGHTH).o4(A.lower(1),C,E).slurEnd().r().o4(A.lower(1),C,E).slurStart().done()
-                .bar(EIGHTH).o4(A.lower(1),C,E).slurEnd().r().r().done()
+                .bar(EIGHTH).o2(A.lower(1)).r().o4(A.lower(1),C,E).done()
+                .bar(EIGHTH).o4(A.lower(1),C,E).r().o4(A.lower(1),C,E).done()
+                .bar(EIGHTH).o4(A.lower(1),C,E).r().o4(A.lower(1),C,E).done()
+                .bar(EIGHTH).o4(A.lower(1),C,E).r().r().done()
                 .bar().r(QUARTER.dot()).done()
                 .build(attacca());
     }
@@ -365,14 +353,14 @@ public final class ManualFurElise implements PieceContentProvider<FurElise> {
     // ══════════════════════════════════════════════════════════════
 
     /** RH Coda: concluding A minor cadence. */
-    Phrase buildRHCoda() {
+    AuthorPhrase buildRHCoda() {
         return OverlayBuilder.over(buildRHSectionABase(), KEY, TS, EIGHTH)
                 .at(7, QUARTER, b -> b.o4(C, A).r(EIGHTH)) //8 to be overridden for 2nd repeat
                 .build(end());
     }
 
     /** LH Coda: final bass cadence E→A. */
-    Phrase buildLHCoda() {
+    AuthorPhrase buildLHCoda() {
         return OverlayBuilder.over(buildLHSectionA(), KEY, TS, EIGHTH)
                 .at(7, QUARTER, b -> b.o2(A.lower(1), A).r(EIGHTH)) //8 to be overridden for 2nd repeat
                 .build(end());
