@@ -145,4 +145,45 @@ class ChannelSetupTest {
         var b = ChannelSetup.from(piece, List.of(Instrument.FLUTE), List.of(100));
         assertEquals(a, b);
     }
+
+    @Test
+    void fromInstrumentsLeavesBanksEmpty() {
+        Piece piece = pieceOf(mt("Lead", Instrument.ACOUSTIC_GRAND_PIANO));
+        var setup = ChannelSetup.from(piece, List.of(Instrument.FLUTE), List.of(100));
+        assertTrue(setup.banks().isEmpty(),
+                "GM-only setup should not record any bank overrides");
+    }
+
+    @Test
+    void fromPatchesGmOnlyMatchesFromInstruments() {
+        Piece piece = pieceOf(mt("Lead", Instrument.ACOUSTIC_GRAND_PIANO));
+        var fromIns = ChannelSetup.from(piece, List.of(Instrument.FLUTE), List.of(100));
+        var fromPatches = ChannelSetup.fromPatches(piece,
+                List.of(PatchRef.gm(Instrument.FLUTE)), List.of(100), null);
+        assertEquals(fromIns.programs(), fromPatches.programs());
+        assertEquals(fromIns.volumes(), fromPatches.volumes());
+        assertTrue(fromPatches.banks().isEmpty());
+    }
+
+    @Test
+    void fromPatchesCustomRecordsBank() {
+        Piece piece = pieceOf(mt("Lead", Instrument.ACOUSTIC_GRAND_PIANO));
+        var ref = PatchRef.custom(Instrument.ACOUSTIC_GRAND_PIANO, 1, 0, "Steinway");
+        var setup = ChannelSetup.fromPatches(piece, List.of(ref), List.of(100), null);
+        assertEquals(1, setup.banks().get(0));
+        assertEquals(0, setup.programs().get(0));
+    }
+
+    @Test
+    void fromPatchesDrumChannelOmitsBank() {
+        Piece piece = pieceOf(mt("Lead", Instrument.ACOUSTIC_GRAND_PIANO), dt("D"));
+        var refs = List.of(
+                PatchRef.gm(Instrument.ACOUSTIC_GRAND_PIANO),
+                PatchRef.custom(Instrument.DRUM_KIT, 128, 8, "Room Kit"));
+        var setup = ChannelSetup.fromPatches(piece, refs, List.of(100, 100), null);
+        // Drum on channel 9 — bank not recorded (GM ignores bank-select on rhythm).
+        assertFalse(setup.banks().containsKey(9));
+        // The kit's program (8 = Room Kit) does ride on channel 9.
+        assertEquals(8, setup.programs().get(9));
+    }
 }

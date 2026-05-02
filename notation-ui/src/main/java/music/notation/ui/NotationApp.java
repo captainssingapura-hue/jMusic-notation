@@ -14,6 +14,7 @@ import javafx.stage.Stage;
 import music.notation.event.Instrument;
 import music.notation.play.ChannelSetup;
 import music.notation.play.MidiPlayer;
+import music.notation.play.SoundbankSetup;
 import music.notation.play.SwingSetup;
 import music.notation.play.TempoSetup;
 import music.notation.songs.PieceLibrary;
@@ -44,7 +45,6 @@ public class NotationApp extends Application {
     private ControlsPanel controls;
 
     private PitchScroll pitchScroll;
-    private ScrollPane pianoRollScrollPane;
     private KeyboardDisplay keyboardDisplay;
     private GuitarTabDisplay guitarTabDisplay;
 
@@ -96,6 +96,9 @@ public class NotationApp extends Application {
         controls.setOnScaleChanged(this::rebuildPiece);
         controls.setOnBpmReleased(this::onBpmReleased);
         controls.setOnSwingChanged(this::onSwingChanged);
+        controls.setOnSoundbankAddRequested(() -> onAddSoundbank(stage));
+        controls.setOnSoundbanksChanged(this::onSoundbanksChanged);
+        loadPersistedSoundbanks();
 
         // ── Piano roll (centre) ─────────────────────────────────────
         final double CONTROL_PANEL_WIDTH = 180;
@@ -105,12 +108,10 @@ public class NotationApp extends Application {
                 this::buildTrackRowControlPanel,
                 CONTROL_PANEL_WIDTH
         );
-        pianoRollScrollPane = new ScrollPane(pitchScroll);
-        pianoRollScrollPane.setFitToWidth(true);
-        pianoRollScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        pianoRollScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        pianoRollScrollPane.setStyle("-fx-background: #1e1e2e; -fx-background-color: #1e1e2e;");
-        pianoRollScrollPane.viewportBoundsProperty().addListener((obs, o, n) -> pitchScroll.hostViewportChanged());
+        // PitchScroll is self-contained (its own h/v scrollbars).
+        // Wire the host-viewport-changed signal so it can recompute on resize.
+        pitchScroll.widthProperty().addListener((obs, o, n) -> pitchScroll.hostViewportChanged());
+        pitchScroll.heightProperty().addListener((obs, o, n) -> pitchScroll.hostViewportChanged());
 
         // Cursor-readout strip on top of the piano roll.
         Button skipStartBtn = new Button("⏮");
@@ -144,8 +145,8 @@ public class NotationApp extends Application {
         zoomBar.setPadding(new Insets(2, 8, 2, 8));
         zoomBar.setStyle("-fx-background-color: #181825;");
 
-        final VBox pianoRollBox = new VBox(cursorBar, pianoRollScrollPane, zoomBar);
-        VBox.setVgrow(pianoRollScrollPane, Priority.ALWAYS);
+        final VBox pianoRollBox = new VBox(cursorBar, pitchScroll, zoomBar);
+        VBox.setVgrow(pitchScroll, Priority.ALWAYS);
 
         // ── Bottom: Keyboard | Guitar tabs ─────────────────────────
         kbHolder = new Pane();
@@ -298,6 +299,52 @@ public class NotationApp extends Application {
     }
 
     // ── Piece selection ──────────────────────────────────────────────
+
+    // ── Soundbank handling ──────────────────────────────────────────
+
+    private static final String PREF_SOUNDBANK_PATHS = "soundbank.paths";
+    private final java.util.prefs.Preferences prefs =
+            java.util.prefs.Preferences.userNodeForPackage(NotationApp.class);
+
+    private void loadPersistedSoundbanks() {
+        String saved = prefs.get(PREF_SOUNDBANK_PATHS, "");
+        if (saved.isBlank()) return;
+        var files = new java.util.ArrayList<java.io.File>();
+        for (String line : saved.split("\n")) {
+            if (line.isBlank()) continue;
+            var f = new java.io.File(line.trim());
+            if (f.isFile()) files.add(f);
+        }
+        controls.setSoundbanks(files);
+        player.setSoundbankSetup(new SoundbankSetup(files));
+    }
+
+    private void onAddSoundbank(Stage stage) {
+        var chooser = new javafx.stage.FileChooser();
+        chooser.setTitle("Add soundbank");
+        chooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("Soundbanks", "*.sf2", "*.dls", "*.sbk"));
+        var f = chooser.showOpenDialog(stage);
+        if (f != null) controls.addSoundbank(f);
+    }
+
+    private void onSoundbanksChanged(java.util.List<java.io.File> files) {
+        // Persist + stage on player. Apply lands on next start().
+        if (files.isEmpty()) prefs.remove(PREF_SOUNDBANK_PATHS);
+        else prefs.put(PREF_SOUNDBANK_PATHS,
+                files.stream().map(java.io.File::getAbsolutePath)
+                        .collect(java.util.stream.Collectors.joining("\n")));
+        player.setSoundbankSetup(new SoundbankSetup(files));
+        if (player.isPlaying() || player.isPaused()) {
+            controls.setStatus(files.isEmpty()
+                    ? "Soundbank reset (applies on next play)"
+                    : "Soundbank list updated (applies on next play)");
+        } else {
+            controls.setStatus(files.isEmpty()
+                    ? "Soundbank reset to default"
+                    : "Soundbank list: " + files.size() + " file" + (files.size() == 1 ? "" : "s"));
+        }
+    }
 
     private void openPiecePicker() {
         PiecePickerDialog.show(hostStage, "Choose Piece", currentPieceTitle)
