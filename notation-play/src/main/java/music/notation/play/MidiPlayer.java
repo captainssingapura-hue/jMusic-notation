@@ -137,6 +137,19 @@ public final class MidiPlayer {
             if (channel >= 0) {
                 Integer prog = channelSetup.programs().get(channel);
                 Integer vol = channelSetup.volumes().get(channel);
+                Integer bank = channelSetup.banks().get(channel);
+                // Bank-select before PC so the receiver resolves the right patch.
+                // Channel 9 (drums) skipped — GM ignores bank-select on rhythm.
+                if (bank != null && channel != 9) {
+                    int msb = bank > 127 ? (bank >> 7) & 0x7f : bank & 0x7f;
+                    int lsb = bank > 127 ? bank & 0x7f : 0;
+                    ShortMessage bMsb = new ShortMessage();
+                    bMsb.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #0*/ 0, msb);
+                    outTrack.add(new MidiEvent(bMsb, 0));
+                    ShortMessage bLsb = new ShortMessage();
+                    bLsb.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #32*/ 32, lsb);
+                    outTrack.add(new MidiEvent(bLsb, 0));
+                }
                 if (prog != null) {
                     ShortMessage pc = new ShortMessage();
                     pc.setMessage(ShortMessage.PROGRAM_CHANGE, channel, prog, 0);
@@ -402,6 +415,19 @@ public final class MidiPlayer {
     private TempoSetup currentTempo = TempoSetup.unity();
     /** The most-recently applied swing setup (held for restart-at-tick). */
     private SwingSetup currentSwing = SwingSetup.OFF;
+    /** Layered soundbanks applied on next start() / restartAt(). */
+    private SoundbankSetup soundbankSetup = SoundbankSetup.empty();
+
+    /**
+     * Stage a soundbank list to be applied on the next {@link #start} call.
+     * Hot-reload during playback is intentionally not supported — switching
+     * the synth's instrument table mid-stream silences any pending notes.
+     */
+    public void setSoundbankSetup(SoundbankSetup setup) {
+        this.soundbankSetup = setup == null ? SoundbankSetup.empty() : setup;
+    }
+
+    public SoundbankSetup getSoundbankSetup() { return soundbankSetup; }
     /** The piece currently loaded (held for leading-pad lookup). */
     private Piece currentPiece;
     /**
@@ -466,6 +492,7 @@ public final class MidiPlayer {
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
+        soundbankSetup.apply(synthesizer);
         sequencer.open();
         sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
         sequencer.setSequence(sequence);
@@ -504,6 +531,7 @@ public final class MidiPlayer {
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
+        soundbankSetup.apply(synthesizer);
         sequencer.open();
         sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
         sequencer.setSequence(sequence);
