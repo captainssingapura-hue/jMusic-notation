@@ -6,6 +6,8 @@ import music.notation.songs.classical.bachinvention.BachInvention13;
 import music.notation.songs.classical.bachinvention.ManualBachInvention13;
 import music.notation.songs.classical.furelise.FurElise;
 import music.notation.songs.classical.furelise.ManualFurElise;
+import music.notation.songs.classical.traumerei.DefaultTraumerei;
+import music.notation.songs.classical.traumerei.Traumerei;
 import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
 import music.notation.songs.folk.tianheihei.TianHeiHei;
 import music.notation.structure.Collection;
@@ -32,7 +34,8 @@ public final class DefaultCollection implements Collection {
                 Entry.of(new BachInvention13(),  new ManualBachInvention13()),
                 Entry.of(new Internationale(),   new ManualInternationale()),
                 Entry.of(new TianHeiHei(),       new PianoTianHeiHei()),
-                Entry.of(new FurElise(),         new ManualFurElise())
+                Entry.of(new FurElise(),         new ManualFurElise()),
+                Entry.of(new Traumerei(),        new DefaultTraumerei())
         );
     }
 }

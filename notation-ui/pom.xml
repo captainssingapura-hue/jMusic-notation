@@ -83,4 +83,22 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>explorer</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.openjfx</groupId>
+                        <artifactId>javafx-maven-plugin</artifactId>
+                        <version>0.0.8</version>
+                        <configuration>
+                            <mainClass>music.notation.ui.explorer.SoundbankExplorer</mainClass>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

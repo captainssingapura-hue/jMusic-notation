@@ -33,11 +33,16 @@ import java.util.Map;
  *                 (kit selection is bank-based, not program-based).
  * @param volumes  per-channel CC #7 level (0–127).
  * @param pans     per-channel CC #10 pan (0=hard-left, 64=center, 127=hard-right).
+ * @param banks    per-channel bank number for soundbank patches. {@code 0} means
+ *                 "no bank-select sent" (plain GM); non-zero values trigger
+ *                 CC #0 (bank-MSB) on apply for non-drum channels. Drums on
+ *                 channel 9 ignore bank-select per GM convention.
  */
 public record ChannelSetup(
         Map<Integer, Integer> programs,
         Map<Integer, Integer> volumes,
-        Map<Integer, Integer> pans
+        Map<Integer, Integer> pans,
+        Map<Integer, Integer> banks
 ) {
 
     /** Default pan: dead-centre. Use this when the caller has no opinion. */
@@ -50,11 +55,19 @@ public record ChannelSetup(
         programs = Map.copyOf(programs);
         volumes = Map.copyOf(volumes);
         pans = Map.copyOf(pans);
+        banks = banks == null ? Map.of() : Map.copyOf(banks);
     }
 
-    /** Backwards-compat constructor: defaults pan to centre on every channel. */
+    /** Backwards-compat constructor: pan centred + no bank overrides. */
     public ChannelSetup(Map<Integer, Integer> programs, Map<Integer, Integer> volumes) {
-        this(programs, volumes, defaultPansFor(programs.keySet()));
+        this(programs, volumes, defaultPansFor(programs.keySet()), Map.of());
+    }
+
+    /** Backwards-compat constructor: explicit pan map, no bank overrides. */
+    public ChannelSetup(Map<Integer, Integer> programs,
+                        Map<Integer, Integer> volumes,
+                        Map<Integer, Integer> pans) {
+        this(programs, volumes, pans, Map.of());
     }
 
     /**
@@ -115,6 +128,55 @@ public record ChannelSetup(
     }
 
     /**
+     * Build a {@code ChannelSetup} from per-track {@link PatchRef}
+     * selections. Each patch's {@link PatchRef#effectiveProgram()} fills
+     * {@code programs}; non-zero {@link PatchRef#effectiveBank()} fills
+     * {@code banks} (drum channel 9 entries omitted — GM ignores bank
+     * select on the rhythm channel).
+     */
+    public static ChannelSetup fromPatches(Piece piece,
+                                           List<PatchRef> patches,
+                                           List<Integer> volumes,
+                                           List<Integer> pans) {
+        Map<Integer, Integer> programs = new LinkedHashMap<>();
+        Map<Integer, Integer> volMap = new LinkedHashMap<>();
+        Map<Integer, Integer> panMap = new LinkedHashMap<>();
+        Map<Integer, Integer> bankMap = new LinkedHashMap<>();
+        int next = 0;
+        int pitchedCount = 0;
+        List<Track> tracks = piece.tracks();
+        for (int i = 0; i < tracks.size(); i++) {
+            Track track = tracks.get(i);
+            int channel;
+            if (track instanceof DrumTrack) {
+                channel = DRUM_CHANNEL;
+            } else {
+                if (next == DRUM_CHANNEL) next++;
+                if (next > MAX_CHANNEL) {
+                    throw new IllegalStateException(
+                            "Too many pitched tracks: max 15, got " + (pitchedCount + 1));
+                }
+                channel = next++;
+                pitchedCount++;
+            }
+            PatchRef ref = (patches != null && i < patches.size() && patches.get(i) != null)
+                    ? patches.get(i)
+                    : PatchRef.gm(defaultInstrumentOf(track));
+            int vol = (volumes != null && i < volumes.size() && volumes.get(i) != null)
+                    ? volumes.get(i) : 100;
+            int pan = (pans != null && i < pans.size() && pans.get(i) != null)
+                    ? pans.get(i) : PAN_CENTER;
+            programs.put(channel, ref.effectiveProgram());
+            volMap.put(channel, clamp(vol));
+            panMap.put(channel, clamp(pan));
+            // Only record bank override for non-drum channels with bank != 0.
+            int b = ref.effectiveBank();
+            if (channel != DRUM_CHANNEL && b > 0) bankMap.put(channel, b);
+        }
+        return new ChannelSetup(programs, volMap, panMap, bankMap);
+    }
+
+    /**
      * Performance-track overload: build a setup directly from the
      * concrete {@link music.notation.performance.Track}s of an imported
      * {@link music.notation.performance.Performance}. Channel allocation
@@ -169,6 +231,18 @@ public record ChannelSetup(
         if (synth == null) return;
         var channels = synth.getChannels();
         if (channels == null) return;
+        // Bank-select before program-change so the synth resolves the right patch.
+        // Skip channel 9 — GM rhythm channel ignores bank select.
+        for (var e : banks.entrySet()) {
+            int ch = e.getKey();
+            if (ch == DRUM_CHANNEL) continue;
+            if (ch < 0 || ch >= channels.length || channels[ch] == null) continue;
+            int bank = e.getValue();
+            int msb = bank > 127 ? (bank >> 7) & 0x7f : bank & 0x7f;
+            int lsb = bank > 127 ? bank & 0x7f : 0;
+            channels[ch].controlChange(/*CC #0  bank-MSB*/ 0, msb);
+            channels[ch].controlChange(/*CC #32 bank-LSB*/ 32, lsb);
+        }
         for (var e : programs.entrySet()) {
             int ch = e.getKey();
             if (ch < 0 || ch >= channels.length || channels[ch] == null) continue;

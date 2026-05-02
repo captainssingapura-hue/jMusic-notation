@@ -4,12 +4,15 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
 import javafx.scene.control.Slider;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import music.notation.pitch.Accidental;
 import music.notation.pitch.NoteName;
@@ -18,6 +21,8 @@ import music.notation.structure.KeySignature;
 import music.notation.structure.Mode;
 import music.notation.structure.PieceContentProvider;
 
+import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -44,6 +49,10 @@ final class ControlsPanel {
 
     private final ComboBox<SwingChoice> swingCombo;
 
+    private final ListView<File> soundbankList = new ListView<>();
+    private final Button soundbankAddBtn = new Button("Add…");
+    private final Button soundbankResetBtn = new Button("Reset");
+
     private final Label statusLabel;
     private final Label pieceInfoLabel;
 
@@ -52,6 +61,7 @@ final class ControlsPanel {
     private Runnable onScaleChanged = () -> {};
     private Runnable onBpmReleased  = () -> {};
     private Consumer<SwingSetup> onSwingChanged = s -> {};
+    private Consumer<List<File>> onSoundbanksChanged = files -> {};
 
     /** Suppress flag so programmatic mutations don't fire user listeners. */
     private boolean suppressEvents;
@@ -141,7 +151,46 @@ final class ControlsPanel {
         pieceInfoLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
         pieceInfoLabel.setWrapText(true);
 
-        root.getChildren().addAll(providerRow, scaleRow, bpmRow, swingRow, statusLabel, pieceInfoLabel);
+        // ── Soundbank section (top of drawer)
+        Label sbHeader = styledLabel("Soundbanks:");
+        soundbankList.setStyle("-fx-control-inner-background: #1e1e2e; -fx-text-fill: #cdd6f4;"
+                + " -fx-background-color: #1e1e2e;");
+        soundbankList.setPrefHeight(96);
+        soundbankList.setPlaceholder(new Label("Default Java synth"));
+        soundbankList.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(File f, boolean empty) {
+                super.updateItem(f, empty);
+                if (empty || f == null) { setText(null); setGraphic(null); return; }
+                Button rm = new Button("×");
+                rm.setStyle("-fx-background-color: transparent; -fx-text-fill: #f38ba8;"
+                        + " -fx-font-size: 12; -fx-padding: 0 6;");
+                rm.setOnAction(ev -> {
+                    var items = new ArrayList<>(soundbankList.getItems());
+                    items.remove(f);
+                    soundbankList.getItems().setAll(items);
+                    if (!suppressEvents) onSoundbanksChanged.accept(items);
+                });
+                Label name = new Label(f.getName());
+                name.setStyle("-fx-text-fill: #cdd6f4;");
+                Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);
+                HBox row = new HBox(6, name, sp, rm);
+                row.setAlignment(Pos.CENTER_LEFT);
+                setText(null);
+                setGraphic(row);
+                setStyle("-fx-background-color: #1e1e2e;");
+            }
+        });
+        soundbankAddBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-padding: 4 10;");
+        soundbankResetBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-padding: 4 10;");
+        soundbankResetBtn.setOnAction(e -> {
+            soundbankList.getItems().clear();
+            if (!suppressEvents) onSoundbanksChanged.accept(List.of());
+        });
+        // Add button is wired by the host (needs the owning Stage for FileChooser).
+        HBox sbButtons = new HBox(8, soundbankAddBtn, soundbankResetBtn);
+        VBox sbBox = new VBox(4, sbHeader, soundbankList, sbButtons);
+
+        root.getChildren().addAll(sbBox, providerRow, scaleRow, bpmRow, swingRow, statusLabel, pieceInfoLabel);
     }
 
     Node getRoot() { return root; }
@@ -165,6 +214,36 @@ final class ControlsPanel {
     void setOnSwingChanged(Consumer<SwingSetup> handler) {
         this.onSwingChanged = handler == null ? s -> {} : handler;
     }
+
+    /** Wire the Add-soundbank action — host owns the file chooser. */
+    void setOnSoundbankAddRequested(Runnable action) {
+        soundbankAddBtn.setOnAction(e -> { if (action != null) action.run(); });
+    }
+
+    /** Fired when the user removes/clears soundbanks — host persists + restages on player. */
+    void setOnSoundbanksChanged(Consumer<List<File>> handler) {
+        this.onSoundbanksChanged = handler == null ? files -> {} : handler;
+    }
+
+    /** Append a file to the visible list (host calls after file picker). */
+    void addSoundbank(File f) {
+        if (f == null) return;
+        if (soundbankList.getItems().contains(f)) return;
+        soundbankList.getItems().add(f);
+        if (!suppressEvents) onSoundbanksChanged.accept(List.copyOf(soundbankList.getItems()));
+    }
+
+    /** Reset list (host calls on Preferences load). */
+    void setSoundbanks(List<File> files) {
+        suppressEvents = true;
+        try {
+            soundbankList.getItems().setAll(files == null ? List.of() : files);
+        } finally {
+            suppressEvents = false;
+        }
+    }
+
+    List<File> getSoundbanks() { return List.copyOf(soundbankList.getItems()); }
 
     /** Programmatically reset the swing selector (e.g. on dialog cancel). */
     void setSwing(SwingSetup setup) {
