@@ -14,6 +14,7 @@ import javafx.stage.Stage;
 import music.notation.event.Instrument;
 import music.notation.play.ChannelSetup;
 import music.notation.play.MidiPlayer;
+import music.notation.play.SoundBankRegistry;
 import music.notation.play.SoundbankSetup;
 import music.notation.play.SwingSetup;
 import music.notation.play.TempoSetup;
@@ -40,6 +41,8 @@ public class NotationApp extends Application {
     private music.notation.performance.MidiImport currentImport;
     /** Currently-staged swing (used at next play, and as the "previous" value for cancel-revert). */
     private SwingSetup currentSwing = SwingSetup.OFF;
+    /** Loaded soundbank patches grouped by GM family — refreshed on soundbank change. */
+    private SoundBankRegistry soundBankRegistry = SoundBankRegistry.empty();
 
     private TransportBar transportBar;
     private ControlsPanel controls;
@@ -64,6 +67,9 @@ public class NotationApp extends Application {
 
     /** Per-track selected instrument (single-instrument-per-track post-Phase-5). */
     private final List<Instrument> selectedInstruments = new ArrayList<>();
+    /** Sparse soundbank-patch overrides per track index — present only when user picked an SBI. */
+    private final java.util.Map<Integer, music.notation.play.PatchRef> selectedPatches
+            = new java.util.HashMap<>();
     /** Per-track selected volume level 0–127. */
     private final List<Integer> selectedVolumes = new ArrayList<>();
     /** Per-track selected pan 0–127 (64 = center). */
@@ -317,6 +323,7 @@ public class NotationApp extends Application {
         }
         controls.setSoundbanks(files);
         player.setSoundbankSetup(new SoundbankSetup(files));
+        soundBankRegistry = SoundBankRegistry.build(files);
     }
 
     private void onAddSoundbank(Stage stage) {
@@ -335,6 +342,7 @@ public class NotationApp extends Application {
                 files.stream().map(java.io.File::getAbsolutePath)
                         .collect(java.util.stream.Collectors.joining("\n")));
         player.setSoundbankSetup(new SoundbankSetup(files));
+        soundBankRegistry = SoundBankRegistry.build(files);
         if (player.isPlaying() || player.isPaused()) {
             controls.setStatus(files.isEmpty()
                     ? "Soundbank reset (applies on next play)"
@@ -342,7 +350,8 @@ public class NotationApp extends Application {
         } else {
             controls.setStatus(files.isEmpty()
                     ? "Soundbank reset to default"
-                    : "Soundbank list: " + files.size() + " file" + (files.size() == 1 ? "" : "s"));
+                    : "Soundbank list: " + files.size() + " file" + (files.size() == 1 ? "" : "s")
+                            + " · " + soundBankRegistry.all().size() + " patches indexed");
         }
     }
 
@@ -350,7 +359,7 @@ public class NotationApp extends Application {
         PiecePickerDialog.show(hostStage, "Choose Piece", currentPieceTitle)
                 .ifPresent(choice -> {
                     if (choice instanceof PieceChoice.Library lib) {
-                        selectPieceTitle(lib.title());
+                        selectPieceTitle(lib.title(), lib.providerIndex());
                     } else if (choice instanceof PieceChoice.Imported imp) {
                         loadImport(imp.imp());
                     }
@@ -373,6 +382,7 @@ public class NotationApp extends Application {
         selectedInstruments.clear();
         selectedVolumes.clear();
         selectedPans.clear();
+        selectedPatches.clear();
         instrumentButtons.clear();
 
         currentScrollData = PitchScrollData.fromImport(imp);
@@ -395,6 +405,10 @@ public class NotationApp extends Application {
     }
 
     private void selectPieceTitle(final String title) {
+        selectPieceTitle(title, 0);
+    }
+
+    private void selectPieceTitle(final String title, final int providerIndex) {
         if (title == null) return;
         currentPieceTitle = title;
         currentImport = null;     // mutually exclusive with library piece
@@ -408,7 +422,7 @@ public class NotationApp extends Application {
         transportBar.setPieceLabel(label);
 
         onStop();
-        controls.setProviders(PieceLibrary.providers(title));
+        controls.setProviders(PieceLibrary.providers(title), providerIndex);
         loadFromSelectedProvider();
     }
 
@@ -517,6 +531,31 @@ public class NotationApp extends Application {
         return source;
     }
 
+    /** Effective patch for a track — SBI override if present, else GM(selectedInstruments). */
+    private music.notation.play.PatchRef currentPatchFor(int trackIndex) {
+        var ovr = selectedPatches.get(trackIndex);
+        if (ovr != null) return ovr;
+        return music.notation.play.PatchRef.gm(selectedInstruments.get(trackIndex));
+    }
+
+    /** Apply a picker result back into the per-track state. */
+    private void applyPatchSelection(int trackIndex, music.notation.play.PatchRef ref) {
+        if (ref == null) return;
+        selectedInstruments.set(trackIndex, ref.instrument());
+        if (ref.isCustom()) {
+            selectedPatches.put(trackIndex, ref);
+        } else {
+            selectedPatches.remove(trackIndex);
+        }
+    }
+
+    /** Display label for a track's per-track button. */
+    private String patchLabelFor(int trackIndex) {
+        var ovr = selectedPatches.get(trackIndex);
+        if (ovr != null) return ovr.effectiveDisplayName();
+        return InstrumentPickerDialog.displayName(selectedInstruments.get(trackIndex));
+    }
+
     private Instrument defaultInstrumentForImportTrack(int idx) {
         if (currentImport == null) return Instrument.ACOUSTIC_GRAND_PIANO;
         var t = currentImport.performance().score().tracks().get(idx);
@@ -552,10 +591,31 @@ public class NotationApp extends Application {
                     selectedInstruments, selectedVolumes, selectedPans);
         }
         if (currentPiece != null) {
-            return ChannelSetup.from(currentPiece,
-                    selectedInstruments, selectedVolumes, selectedPans);
+            int n = currentPiece.tracks().size();
+            return ChannelSetup.fromPatches(currentPiece,
+                    buildPatchList(n),
+                    flatIntList(selectedVolumes, n, 100),
+                    flatIntList(selectedPans, n, 64));
         }
         return null;
+    }
+
+    /** Compose a per-track PatchRef list — SBI override per track index, else GM fallback. */
+    private List<music.notation.play.PatchRef> buildPatchList(int trackCount) {
+        var out = new ArrayList<music.notation.play.PatchRef>(trackCount);
+        for (int i = 0; i < trackCount; i++) {
+            var ovr = selectedPatches.get(i);
+            if (ovr != null) {
+                out.add(ovr);
+            } else {
+                Instrument inst = (i < selectedInstruments.size() && selectedInstruments.get(i) != null)
+                        ? selectedInstruments.get(i)
+                        : (currentPiece != null ? defaultInstrumentOf(currentPiece.tracks().get(i))
+                                                 : Instrument.ACOUSTIC_GRAND_PIANO);
+                out.add(music.notation.play.PatchRef.gm(inst));
+            }
+        }
+        return out;
     }
 
     /** Format "Bar X · Beat Y · tick T" for the cursor readout label. */
@@ -604,6 +664,7 @@ public class NotationApp extends Application {
         selectedInstruments.clear();
         selectedVolumes.clear();
         selectedPans.clear();
+        selectedPatches.clear();
         instrumentButtons.clear();
         pitchScroll.load(currentScrollData);
         if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
@@ -638,27 +699,42 @@ public class NotationApp extends Application {
         if (selectedInstruments.get(trackIndex) == null) selectedInstruments.set(trackIndex, defaultIns);
         if (selectedVolumes.get(trackIndex) == null) selectedVolumes.set(trackIndex, 100);
         if (selectedPans.get(trackIndex) == null) selectedPans.set(trackIndex, 64);
+        // If a soundbank is loaded and provides any variant for this track's
+        // GM family, default to the first one (better quality than Java's
+        // built-in synth) and the button label will show the SBI name.
+        if (!selectedPatches.containsKey(trackIndex)) {
+            var variants = soundBankRegistry.variantsFor(defaultIns);
+            if (!variants.isEmpty()) {
+                selectedPatches.put(trackIndex,
+                        music.notation.play.PatchRef.soundbank(variants.get(0)));
+            }
+        }
 
         Label nameLabel = new Label(trackName);
         nameLabel.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12; -fx-font-weight: bold;");
         nameLabel.setMaxWidth(Double.MAX_VALUE);
 
-        Button instrButton = new Button(InstrumentPickerDialog.displayName(selectedInstruments.get(trackIndex)));
+        Button instrButton = new Button(patchLabelFor(trackIndex));
         instrButton.setMaxWidth(Double.MAX_VALUE);
         instrButton.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4; -fx-font-size: 11;");
         instrButton.setOnAction(e -> {
-            Instrument current = selectedInstruments.get(trackIndex);
-            Consumer<Instrument> preview = picked -> {
-                selectedInstruments.set(trackIndex, picked);
+            var current = currentPatchFor(trackIndex);
+            // Live preview also updates the button label so the UI tracks
+            // the synth state moment-to-moment. On cancel the dialog
+            // re-fires preview with `current`, which restores the label.
+            Consumer<music.notation.play.PatchRef> preview = picked -> {
+                applyPatchSelection(trackIndex, picked);
+                instrButton.setText(patchLabelFor(trackIndex));
                 applyChannelSetupLive();
             };
-            var chosen = InstrumentPickerDialog.show(
-                    hostStage, "Instrument · " + trackName, current, preview);
+            var chosen = InstrumentPickerDialog.showPatch(
+                    hostStage, "Instrument · " + trackName, current, soundBankRegistry, preview);
             if (chosen.isPresent()) {
-                instrButton.setText(InstrumentPickerDialog.displayName(chosen.get()));
+                applyPatchSelection(trackIndex, chosen.get());
             } else {
-                instrButton.setText(InstrumentPickerDialog.displayName(current));
+                applyPatchSelection(trackIndex, current);
             }
+            instrButton.setText(patchLabelFor(trackIndex));
         });
         instrumentButtons.set(trackIndex, instrButton);
 
@@ -740,9 +816,8 @@ public class NotationApp extends Application {
                                 i -> defaultInstrumentForImportTrack(i)),
                         flatIntList(selectedVolumes, trackCount, 100),
                         flatIntList(selectedPans, trackCount, 64))
-                : ChannelSetup.from(currentPiece,
-                        flatList(selectedInstruments, trackCount,
-                                i -> defaultInstrumentOf(currentPiece.tracks().get(i))),
+                : ChannelSetup.fromPatches(currentPiece,
+                        buildPatchList(trackCount),
                         flatIntList(selectedVolumes, trackCount, 100),
                         flatIntList(selectedPans, trackCount, 64));
 

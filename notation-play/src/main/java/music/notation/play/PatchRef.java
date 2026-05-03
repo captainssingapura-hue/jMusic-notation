@@ -40,6 +40,12 @@ public record PatchRef(
         return new PatchRef(instrument, bank, program, displayName);
     }
 
+    /** Wrap a {@link SoundBankInstrument} as a per-track patch override. */
+    public static PatchRef soundbank(SoundBankInstrument sbi) {
+        if (sbi == null) return null;
+        return new PatchRef(sbi.family(), sbi.bank(), sbi.program(), sbi.displayName());
+    }
+
     /** Effective bank: override if present, else 128 for drum kit, else 0. */
     public int effectiveBank() {
         if (bankOverride != null) return bankOverride;
