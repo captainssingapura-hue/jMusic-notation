@@ -258,11 +258,16 @@ final class ControlsPanel {
     // ── State setters / getters ─────────────────────────────────────
 
     void setProviders(List<PieceContentProvider<?>> providers) {
+        setProviders(providers, 0);
+    }
+
+    void setProviders(List<PieceContentProvider<?>> providers, int initialIndex) {
         suppressEvents = true;
         try {
             providerSelector.setItems(FXCollections.observableArrayList(providers));
             if (!providers.isEmpty()) {
-                providerSelector.getSelectionModel().selectFirst();
+                int idx = (initialIndex >= 0 && initialIndex < providers.size()) ? initialIndex : 0;
+                providerSelector.getSelectionModel().select(idx);
             }
             boolean show = providers.size() > 1;
             providerRow.setVisible(show);

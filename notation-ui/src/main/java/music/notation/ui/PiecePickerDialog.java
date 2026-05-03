@@ -21,6 +21,7 @@ import javafx.stage.Stage;
 import javafx.stage.Window;
 import music.notation.songs.PieceLibrary;
 import music.notation.structure.MusicalPiece;
+import music.notation.structure.PieceContentProvider;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,12 +29,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.prefs.Preferences;
 
 /**
  * Modal dialog for picking a {@link MusicalPiece} from
- * {@link PieceLibrary}, organised as Collection → Type → Piece with a
- * free-text search filter. Mirrors the look of
- * {@link InstrumentPickerDialog}.
+ * {@link PieceLibrary}, organised as Collection → Type → Piece →
+ * Arrangement (variation) with a free-text search filter. Mirrors the
+ * look of {@link InstrumentPickerDialog}.
  *
  * <p>No live preview — switching pieces is heavy (load + reset transport),
  * so we only commit on OK or double-click.</p>
@@ -41,6 +43,25 @@ import java.util.TreeMap;
 final class PiecePickerDialog {
 
     private PiecePickerDialog() {}
+
+    private static final Preferences PREFS =
+            Preferences.userNodeForPackage(PiecePickerDialog.class);
+    private static final String PREF_LAST_MIDI_DIR = "piecePicker.lastMidiDir";
+
+    /** Variation row: provider index + display label (subtitle or "Default"). */
+    private record Variation(int providerIndex, String label) {}
+
+    private static List<Variation> variationsFor(MusicalPiece piece) {
+        List<PieceContentProvider<?>> provs = PieceLibrary.providers(piece.title());
+        if (provs.isEmpty()) return List.of();
+        if (provs.size() == 1) return List.of(new Variation(0, "Default"));
+        var out = new ArrayList<Variation>(provs.size());
+        for (int i = 0; i < provs.size(); i++) {
+            String sub = provs.get(i).subtitle();
+            out.add(new Variation(i, (sub == null || sub.isBlank()) ? ("Variation " + (i + 1)) : sub));
+        }
+        return out;
+    }
 
     /** Open the modal and return the chosen piece (library title or imported file). */
     static Optional<PieceChoice> show(Window owner, String title, String currentTitle) {
@@ -64,7 +85,7 @@ final class PiecePickerDialog {
         search.setPromptText("Search pieces…");
         search.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4;");
 
-        // ── Left: tree of Collection → Type
+        // ── Pane 1: tree of Collection → Type
         TreeItem<String> root = new TreeItem<>("All");
         root.setExpanded(true);
         for (var collEntry : grouped.entrySet()) {
@@ -77,7 +98,7 @@ final class PiecePickerDialog {
         }
         TreeView<String> tree = new TreeView<>(root);
         tree.setShowRoot(false);
-        tree.setPrefWidth(200);
+        tree.setPrefWidth(180);
         tree.setStyle("-fx-control-inner-background: #1e1e2e; -fx-text-fill: #cdd6f4;");
         tree.setCellFactory(lv -> {
             var cell = new TreeCell<String>() {
@@ -91,9 +112,10 @@ final class PiecePickerDialog {
             return cell;
         });
 
-        // ── Right: piece list
-        ObservableList<MusicalPiece> items = FXCollections.observableArrayList();
-        ListView<MusicalPiece> pieceList = new ListView<>(items);
+        // ── Pane 2: piece list (one row per MusicalPiece)
+        ObservableList<MusicalPiece> pieceItems = FXCollections.observableArrayList();
+        ListView<MusicalPiece> pieceList = new ListView<>(pieceItems);
+        pieceList.setPrefWidth(260);
         pieceList.setStyle("-fx-control-inner-background: #1e1e2e; -fx-text-fill: #cdd6f4;");
         pieceList.setCellFactory(lv -> {
             var cell = new javafx.scene.control.ListCell<MusicalPiece>() {
@@ -107,63 +129,88 @@ final class PiecePickerDialog {
             return cell;
         });
 
-        // ── Refresh: filter by tree selection + search.
-        Runnable refresh = () -> {
+        // ── Pane 3: variation list (providers for the currently-selected piece)
+        ObservableList<Variation> variationItems = FXCollections.observableArrayList();
+        ListView<Variation> variationList = new ListView<>(variationItems);
+        variationList.setPrefWidth(180);
+        variationList.setStyle("-fx-control-inner-background: #1e1e2e; -fx-text-fill: #cdd6f4;");
+        variationList.setCellFactory(lv -> {
+            var cell = new javafx.scene.control.ListCell<Variation>() {
+                @Override protected void updateItem(Variation v, boolean empty) {
+                    super.updateItem(v, empty);
+                    setText(empty || v == null ? null : v.label());
+                    restyleList(this);
+                }
+            };
+            cell.selectedProperty().addListener((obs, o, n) -> restyleList(cell));
+            return cell;
+        });
+
+        // ── Refresh piece list: filter by tree selection + search.
+        Runnable refreshPieces = () -> {
             String q = search.getText() == null ? "" : search.getText().trim().toLowerCase();
-            items.clear();
+            pieceItems.clear();
             if (!q.isEmpty()) {
-                // Search overrides tree filter.
                 for (MusicalPiece p : PieceLibrary.pieces()) {
                     if (p.title().toLowerCase().contains(q)
                             || p.composer().toLowerCase().contains(q)) {
-                        items.add(p);
+                        pieceItems.add(p);
                     }
                 }
             } else {
                 TreeItem<String> sel = tree.getSelectionModel().getSelectedItem();
                 if (sel == null || sel == root) {
-                    // Show everything in stable order.
                     for (var coll : grouped.values()) {
-                        for (var pieces : coll.values()) items.addAll(pieces);
+                        for (var pieces : coll.values()) pieceItems.addAll(pieces);
                     }
                 } else if (sel.getParent() == root) {
-                    // Collection-level: show all types under it.
                     var coll = grouped.get(sel.getValue());
-                    if (coll != null) for (var pieces : coll.values()) items.addAll(pieces);
+                    if (coll != null) for (var pieces : coll.values()) pieceItems.addAll(pieces);
                 } else {
-                    // Type-level: a specific type within a specific collection.
                     String collName = sel.getParent().getValue();
                     String typeName = sel.getValue();
                     var coll = grouped.get(collName);
                     if (coll != null) {
                         var pieces = coll.get(typeName);
-                        if (pieces != null) items.addAll(pieces);
+                        if (pieces != null) pieceItems.addAll(pieces);
                     }
                 }
             }
-            // Pre-select current title if it's in the filtered list.
+            // Pre-select current title if present, else first.
+            int chosen = -1;
             if (currentTitle != null) {
-                for (int i = 0; i < items.size(); i++) {
-                    if (items.get(i).title().equals(currentTitle)) {
-                        pieceList.getSelectionModel().select(i);
-                        return;
-                    }
+                for (int i = 0; i < pieceItems.size(); i++) {
+                    if (pieceItems.get(i).title().equals(currentTitle)) { chosen = i; break; }
                 }
             }
-            if (!items.isEmpty()) pieceList.getSelectionModel().select(0);
+            if (chosen < 0 && !pieceItems.isEmpty()) chosen = 0;
+            if (chosen >= 0) pieceList.getSelectionModel().select(chosen);
         };
 
-        tree.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refresh.run());
-        search.textProperty().addListener((obs, o, n) -> refresh.run());
+        // Variations populate from the selected piece.
+        Runnable refreshVariations = () -> {
+            var piece = pieceList.getSelectionModel().getSelectedItem();
+            variationItems.clear();
+            if (piece == null) return;
+            variationItems.addAll(variationsFor(piece));
+            if (!variationItems.isEmpty()) {
+                variationList.getSelectionModel().select(0);
+            }
+        };
 
-        // Pre-select the tree node that matches the current piece (best-effort).
+        tree.getSelectionModel().selectedItemProperty()
+                .addListener((obs, o, n) -> refreshPieces.run());
+        search.textProperty().addListener((obs, o, n) -> refreshPieces.run());
+        pieceList.getSelectionModel().selectedItemProperty()
+                .addListener((obs, o, n) -> refreshVariations.run());
+
+        // Pre-select the tree node that matches the current piece.
         if (currentTitle != null) {
             outer:
             for (var collEntry : grouped.entrySet()) {
                 for (var typeEntry : collEntry.getValue().entrySet()) {
                     for (MusicalPiece p : typeEntry.getValue()) {
                         if (p.title().equals(currentTitle)) {
-                            // Find and select the matching type node.
                             for (TreeItem<String> collNode : root.getChildren()) {
                                 if (collNode.getValue().equals(collEntry.getKey())) {
                                     for (TreeItem<String> typeNode : collNode.getChildren()) {
@@ -183,57 +230,49 @@ final class PiecePickerDialog {
             tree.getSelectionModel().select(root.getChildren().get(0));
         }
 
-        // ── Bottom: Load file / OK / Cancel
+        // ── Bottom buttons (OK on left, then Cancel; Load file pushed to far right)
         Button okBtn = new Button("OK");
         Button cancelBtn = new Button("Cancel");
         Button loadBtn = new Button("Load file…");
         PieceChoice[] result = { null };
-        okBtn.setOnAction(e -> {
-            var sel = pieceList.getSelectionModel().getSelectedItem();
-            if (sel != null) result[0] = new PieceChoice.Library(sel.title());
+
+        Runnable commit = () -> {
+            var piece = pieceList.getSelectionModel().getSelectedItem();
+            var variation = variationList.getSelectionModel().getSelectedItem();
+            if (piece != null) {
+                int idx = variation == null ? 0 : variation.providerIndex();
+                result[0] = new PieceChoice.Library(piece.title(), idx);
+            }
             stage.close();
-        });
+        };
+
+        okBtn.setOnAction(e -> commit.run());
         cancelBtn.setOnAction(e -> stage.close());
         pieceList.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2 && pieceList.getSelectionModel().getSelectedItem() != null) {
-                result[0] = new PieceChoice.Library(pieceList.getSelectionModel().getSelectedItem().title());
-                stage.close();
+                commit.run();
             }
         });
-        loadBtn.setOnAction(e -> {
-            var chooser = new javafx.stage.FileChooser();
-            chooser.setTitle("Load MIDI file");
-            chooser.getExtensionFilters().add(
-                    new javafx.stage.FileChooser.ExtensionFilter("MIDI Files", "*.mid", "*.midi"));
-            java.io.File f = chooser.showOpenDialog(stage);
-            if (f == null) return;
-            try {
-                byte[] bytes = java.nio.file.Files.readAllBytes(f.toPath());
-                String label = f.getName().replaceFirst("\\.[^.]+$", "");
-                var imp = music.notation.performance.MidiCodec.fromMidiWithMeta(bytes, label);
-                result[0] = new PieceChoice.Imported(imp);
-                stage.close();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                var alert = new javafx.scene.control.Alert(
-                        javafx.scene.control.Alert.AlertType.ERROR,
-                        "Failed to load MIDI: " + ex.getMessage());
-                alert.initOwner(stage);
-                alert.showAndWait();
+        variationList.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2 && variationList.getSelectionModel().getSelectedItem() != null) {
+                commit.run();
             }
         });
+        loadBtn.setOnAction(e -> handleLoadFile(stage, result));
+
         okBtn.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;");
         cancelBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4;");
         loadBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4;");
 
         Region buttonSpacer = new Region();
         HBox.setHgrow(buttonSpacer, Priority.ALWAYS);
-        HBox buttons = new HBox(8, loadBtn, buttonSpacer, cancelBtn, okBtn);
+        // OK on the left to follow convention; Load file pushed to the far right.
+        HBox buttons = new HBox(8, okBtn, cancelBtn, buttonSpacer, loadBtn);
         buttons.setAlignment(Pos.CENTER_LEFT);
         buttons.setPadding(new Insets(8, 8, 8, 8));
 
-        // ── Layout
-        HBox lists = new HBox(0, tree, pieceList);
+        // ── Layout: three panes, all sized to share horizontal space
+        HBox lists = new HBox(0, tree, pieceList, variationList);
         HBox.setHgrow(pieceList, Priority.ALWAYS);
         VBox.setVgrow(lists, Priority.ALWAYS);
 
@@ -246,14 +285,54 @@ final class PiecePickerDialog {
         rootBox.setStyle("-fx-background-color: #1e1e2e;");
         ((Region) lists).setPrefHeight(420);
 
-        Scene scene = new Scene(rootBox, 640, 520);
+        Scene scene = new Scene(rootBox, 760, 520);
         stage.setScene(scene);
-        stage.setMinWidth(480);
+        stage.setMinWidth(620);
         stage.setMinHeight(380);
 
-        refresh.run();
+        refreshPieces.run();
+        refreshVariations.run();
         stage.showAndWait();
         return Optional.ofNullable(result[0]);
+    }
+
+    /** Open MIDI file chooser, remembering the last directory in {@link Preferences}. */
+    private static void handleLoadFile(Stage stage, PieceChoice[] result) {
+        var chooser = new javafx.stage.FileChooser();
+        chooser.setTitle("Load MIDI file");
+        chooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("MIDI Files", "*.mid", "*.midi"));
+
+        // Restore the previous browse location so sibling folders are easy to reach.
+        String lastDir = PREFS.get(PREF_LAST_MIDI_DIR, null);
+        if (lastDir != null) {
+            var dir = new java.io.File(lastDir);
+            if (dir.isDirectory()) chooser.setInitialDirectory(dir);
+        }
+
+        java.io.File f = chooser.showOpenDialog(stage);
+        if (f == null) return;
+
+        // Persist the directory so the next open lands here.
+        var parent = f.getParentFile();
+        if (parent != null && parent.isDirectory()) {
+            PREFS.put(PREF_LAST_MIDI_DIR, parent.getAbsolutePath());
+        }
+
+        try {
+            byte[] bytes = java.nio.file.Files.readAllBytes(f.toPath());
+            String label = f.getName().replaceFirst("\\.[^.]+$", "");
+            var imp = music.notation.performance.MidiCodec.fromMidiWithMeta(bytes, label);
+            result[0] = new PieceChoice.Imported(imp);
+            stage.close();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            var alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.ERROR,
+                    "Failed to load MIDI: " + ex.getMessage());
+            alert.initOwner(stage);
+            alert.showAndWait();
+        }
     }
 
     private static void restyleList(javafx.scene.control.ListCell<?> cell) {

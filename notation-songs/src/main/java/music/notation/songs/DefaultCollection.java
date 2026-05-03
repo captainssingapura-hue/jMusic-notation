@@ -1,15 +1,18 @@
 package music.notation.songs;
 
+import music.notation.songs.anthem.internationale.GrungeInternationale;
 import music.notation.songs.anthem.internationale.Internationale;
 import music.notation.songs.anthem.internationale.ManualInternationale;
 import music.notation.songs.classical.bachinvention.BachInvention13;
 import music.notation.songs.classical.bachinvention.ManualBachInvention13;
 import music.notation.songs.classical.furelise.FurElise;
 import music.notation.songs.classical.furelise.ManualFurElise;
+import music.notation.songs.classical.furelise.SoulTechnoFurElise;
 import music.notation.songs.classical.traumerei.DefaultTraumerei;
 import music.notation.songs.classical.traumerei.Traumerei;
 import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
 import music.notation.songs.folk.tianheihei.TianHeiHei;
+import music.notation.songs.folk.tianheihei.U2RockTianHeiHei;
 import music.notation.structure.Collection;
 
 import java.util.List;
@@ -32,9 +35,9 @@ public final class DefaultCollection implements Collection {
     public List<Entry<?>> entries() {
         return List.of(
                 Entry.of(new BachInvention13(),  new ManualBachInvention13()),
-                Entry.of(new Internationale(),   new ManualInternationale()),
-                Entry.of(new TianHeiHei(),       new PianoTianHeiHei()),
-                Entry.of(new FurElise(),         new ManualFurElise()),
+                Entry.of(new Internationale(),   new ManualInternationale(), new GrungeInternationale()),
+                Entry.of(new TianHeiHei(),       new PianoTianHeiHei(), new U2RockTianHeiHei()),
+                Entry.of(new FurElise(),         new ManualFurElise(), new SoulTechnoFurElise()),
                 Entry.of(new Traumerei(),        new DefaultTraumerei())
         );
     }

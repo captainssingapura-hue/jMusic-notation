@@ -7,6 +7,12 @@ import music.notation.performance.MidiImport;
  * from the library, or a freshly-loaded MIDI import (session-only).
  */
 sealed interface PieceChoice {
-    record Library(String title) implements PieceChoice {}
+    /**
+     * @param title          the piece's title (matches PieceLibrary).
+     * @param providerIndex  which arrangement to select on load (0 = first).
+     */
+    record Library(String title, int providerIndex) implements PieceChoice {
+        public Library(String title) { this(title, 0); }
+    }
     record Imported(MidiImport imp) implements PieceChoice {}
 }
