@@ -53,7 +53,10 @@ final class KeyAccidentals {
         final Accidental acc = key.accidental();
 
         // Aeolian is enharmonically equivalent to natural minor.
-        if (mode == Mode.MAJOR)                              return majorKeyCount(tonic, acc);
+        // NONE — mode is undeclared, but the accidentals on the staff are
+        // determined by tonic + accidental alone (mode is just a label),
+        // so use the major-key count as the structural answer.
+        if (mode == Mode.MAJOR || mode == Mode.NONE)         return majorKeyCount(tonic, acc);
         if (mode == Mode.MINOR || mode == Mode.AEOLIAN)      return minorKeyCount(tonic, acc);
         // Other modes: approximate via relative-major offset (semitone shift).
         // Best-effort; users can add explicit accidentals per note as needed.

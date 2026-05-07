@@ -47,6 +47,8 @@ final class PiecePickerDialog {
     private static final Preferences PREFS =
             Preferences.userNodeForPackage(PiecePickerDialog.class);
     private static final String PREF_LAST_MIDI_DIR = "piecePicker.lastMidiDir";
+    private static final String PREF_LAST_MXL_DIR  = "piecePicker.lastMxlDir";
+    private static final String PREF_LAST_JSON_DIR = "piecePicker.lastJsonDir";
 
     /** Variation row: provider index + display label (subtitle or "Default"). */
     private record Variation(int providerIndex, String label) {}
@@ -230,11 +232,37 @@ final class PiecePickerDialog {
             tree.getSelectionModel().select(root.getChildren().get(0));
         }
 
-        // ── Bottom buttons (OK on left, then Cancel; Load file pushed to far right)
+        // ── Import panel state — built first so the toggle can refer to it
+        var importPanel = buildImportPanel(stage,
+                () -> { /* on success, dialog closes via handleLoadFile */ });
+
+        // ── Bottom buttons: OK / Cancel on the left, Import toggle on the right
         Button okBtn = new Button("OK");
         Button cancelBtn = new Button("Cancel");
-        Button loadBtn = new Button("Load file…");
+        javafx.scene.control.ToggleButton importToggle =
+                new javafx.scene.control.ToggleButton("Import…");
+        importToggle.setTooltip(new javafx.scene.control.Tooltip(
+                "Open the import panel — load a MIDI file, an .mxl, or a pre-processed JSON folder."));
         PieceChoice[] result = { null };
+
+        // Wire the three load buttons. Voice-split + quantizer-profile apply
+        // only to MIDI; for already-concretized sources (MXL / JSON) they're
+        // passed through as PRESERVE / STANDARD no-ops.
+        importPanel.loadMidiBtn.setOnAction(e ->
+                handleLoadMidi(stage, result,
+                        importPanel.voiceSplitBox.isSelected(),
+                        importPanel.profileCombo.getValue().profile));
+        importPanel.loadMxlBtn.setOnAction(e -> handleLoadMxl(stage, result));
+        importPanel.loadJsonBtn.setOnAction(e -> handleLoadJsonFolder(stage, result));
+
+        // Toggle visibility/managed of the import panel.
+        importPanel.root.setVisible(false);
+        importPanel.root.setManaged(false);
+        importToggle.setOnAction(e -> {
+            boolean show = importToggle.isSelected();
+            importPanel.root.setVisible(show);
+            importPanel.root.setManaged(show);
+        });
 
         Runnable commit = () -> {
             var piece = pieceList.getSelectionModel().getSelectedItem();
@@ -258,16 +286,14 @@ final class PiecePickerDialog {
                 commit.run();
             }
         });
-        loadBtn.setOnAction(e -> handleLoadFile(stage, result));
 
         okBtn.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;");
         cancelBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4;");
-        loadBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4;");
+        importToggle.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4;");
 
         Region buttonSpacer = new Region();
         HBox.setHgrow(buttonSpacer, Priority.ALWAYS);
-        // OK on the left to follow convention; Load file pushed to the far right.
-        HBox buttons = new HBox(8, okBtn, cancelBtn, buttonSpacer, loadBtn);
+        HBox buttons = new HBox(8, okBtn, cancelBtn, buttonSpacer, importToggle);
         buttons.setAlignment(Pos.CENTER_LEFT);
         buttons.setPadding(new Insets(8, 8, 8, 8));
 
@@ -281,7 +307,7 @@ final class PiecePickerDialog {
         VBox top = new VBox(6, header, search);
         top.setPadding(new Insets(8, 8, 8, 8));
 
-        VBox rootBox = new VBox(top, lists, buttons);
+        VBox rootBox = new VBox(top, lists, buttons, importPanel.root);
         rootBox.setStyle("-fx-background-color: #1e1e2e;");
         ((Region) lists).setPrefHeight(420);
 
@@ -296,43 +322,198 @@ final class PiecePickerDialog {
         return Optional.ofNullable(result[0]);
     }
 
-    /** Open MIDI file chooser, remembering the last directory in {@link Preferences}. */
-    private static void handleLoadFile(Stage stage, PieceChoice[] result) {
-        var chooser = new javafx.stage.FileChooser();
-        chooser.setTitle("Load MIDI file");
-        chooser.getExtensionFilters().add(
-                new javafx.stage.FileChooser.ExtensionFilter("MIDI Files", "*.mid", "*.midi"));
+    // ── Import panel ────────────────────────────────────────────────
 
-        // Restore the previous browse location so sibling folders are easy to reach.
-        String lastDir = PREFS.get(PREF_LAST_MIDI_DIR, null);
+    /** Display-friendly wrapper for {@link music.notation.performance.QuantizerProfile}. */
+    private record ProfileChoice(String label,
+            music.notation.performance.QuantizerProfile profile) {
+        @Override public String toString() { return label; }
+    }
+
+    private static final java.util.List<ProfileChoice> PROFILE_CHOICES = java.util.List.of(
+            new ProfileChoice("Standard  (powers of 2 + dotted)",
+                    music.notation.performance.QuantizerProfile.STANDARD),
+            new ProfileChoice("With triplets  (Mozart, Beethoven, pop/rock)",
+                    music.notation.performance.QuantizerProfile.WITH_TRIPLETS),
+            new ProfileChoice("Full  (Chopin, Liszt, jazz — quintuplets + septuplets)",
+                    music.notation.performance.QuantizerProfile.FULL),
+            new ProfileChoice("Improvisation  (live MIDI keyboard, permissive)",
+                    music.notation.performance.QuantizerProfile.IMPROV));
+
+    /** Bundle of widgets used by the import panel. Returned to the caller. */
+    private static final class ImportPanel {
+        final VBox root;
+        final javafx.scene.control.ComboBox<ProfileChoice> profileCombo;
+        final javafx.scene.control.CheckBox voiceSplitBox;
+        final Button loadMidiBtn;
+        final Button loadMxlBtn;
+        final Button loadJsonBtn;
+
+        ImportPanel(VBox root,
+                    javafx.scene.control.ComboBox<ProfileChoice> profileCombo,
+                    javafx.scene.control.CheckBox voiceSplitBox,
+                    Button loadMidiBtn,
+                    Button loadMxlBtn,
+                    Button loadJsonBtn) {
+            this.root = root;
+            this.profileCombo = profileCombo;
+            this.voiceSplitBox = voiceSplitBox;
+            this.loadMidiBtn = loadMidiBtn;
+            this.loadMxlBtn = loadMxlBtn;
+            this.loadJsonBtn = loadJsonBtn;
+        }
+    }
+
+    private static ImportPanel buildImportPanel(Stage owner, Runnable onClose) {
+        // Profile picker — defaults to STANDARD. MIDI-only knob; MXL/JSON ignore it.
+        var profileLabel = new Label("Quantizer:");
+        profileLabel.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12;");
+        var profileCombo = new javafx.scene.control.ComboBox<ProfileChoice>();
+        profileCombo.getItems().addAll(PROFILE_CHOICES);
+        profileCombo.getSelectionModel().select(0);
+        profileCombo.setStyle("-fx-background-color: #313244; -fx-text-fill: #cdd6f4;");
+        profileCombo.setTooltip(new javafx.scene.control.Tooltip(
+                "MIDI-only. Note values the quantizer recognises during import.\n"
+              + "Standard:       only powers of 2 + dotted (folk/pop).\n"
+              + "With triplets:  adds triplet values (Mozart, Beethoven).\n"
+              + "Full:           adds quintuplets + septuplets (Chopin, Liszt).\n"
+              + "Improvisation:  permissive — for live keyboard capture.\n"
+              + "Ignored for MXL and JSON imports."));
+
+        // Voice-split — MIDI-only.
+        var voiceSplitBox = new javafx.scene.control.CheckBox("Voice-split tracks");
+        voiceSplitBox.setStyle("-fx-text-fill: #cdd6f4;");
+        voiceSplitBox.setTooltip(new javafx.scene.control.Tooltip(
+                "MIDI-only.\n"
+              + "Off: each input track → one Piece track (use for properly-arranged MIDIs).\n"
+              + "On:  break each track into RH/LH and detected voices (use for piano blobs).\n"
+              + "Ignored for MXL and JSON imports — those already arrive voice-separated."));
+
+        // Three load buttons — one per source format.
+        var loadMidiBtn = new Button("Load MIDI…");
+        loadMidiBtn.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;");
+        loadMidiBtn.setTooltip(new javafx.scene.control.Tooltip(
+                "Load a .mid / .midi file. Quantizer + voice-split apply."));
+
+        var loadMxlBtn = new Button("Load MusicXML…");
+        loadMxlBtn.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;");
+        loadMxlBtn.setTooltip(new javafx.scene.control.Tooltip(
+                "Load a compressed MusicXML (.mxl) file."));
+
+        var loadJsonBtn = new Button("Load JSON folder…");
+        loadJsonBtn.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;");
+        loadJsonBtn.setTooltip(new javafx.scene.control.Tooltip(
+                "Load a previously-extracted piece (folder containing meta.json + tempo.json + track-*.json)."));
+
+        var profileRow = new HBox(8, profileLabel, profileCombo);
+        profileRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(profileCombo, Priority.ALWAYS);
+
+        var loadRow = new HBox(8, voiceSplitBox);
+        Region loadSpacer = new Region();
+        HBox.setHgrow(loadSpacer, Priority.ALWAYS);
+        loadRow.getChildren().addAll(loadSpacer, loadMidiBtn, loadMxlBtn, loadJsonBtn);
+        loadRow.setAlignment(Pos.CENTER_LEFT);
+
+        var sectionHeader = new Label("Import file");
+        sectionHeader.setStyle("-fx-text-fill: #89b4fa; -fx-font-size: 12; -fx-font-weight: bold;");
+
+        var root = new VBox(8, sectionHeader, profileRow, loadRow);
+        root.setPadding(new Insets(10, 10, 10, 10));
+        root.setStyle("-fx-background-color: #181825; -fx-border-color: #45475a; -fx-border-width: 1 0 0 0;");
+
+        return new ImportPanel(root, profileCombo, voiceSplitBox,
+                loadMidiBtn, loadMxlBtn, loadJsonBtn);
+    }
+
+    /** Open MIDI file chooser, remembering the last directory in {@link Preferences}. */
+    private static void handleLoadMidi(Stage stage, PieceChoice[] result,
+                                       boolean voiceSplit,
+                                       music.notation.performance.QuantizerProfile profile) {
+        java.io.File f = openFileChooser(stage, "Load MIDI file", PREF_LAST_MIDI_DIR,
+                "MIDI Files", "*.mid", "*.midi");
+        if (f == null) return;
+        try {
+            byte[] bytes = java.nio.file.Files.readAllBytes(f.toPath());
+            String label = stripExt(f.getName());
+            var imp = music.notation.performance.MidiCodec.fromMidiWithMeta(bytes, label);
+            result[0] = new PieceChoice.Imported(imp, voiceSplit, profile);
+            stage.close();
+        } catch (Exception ex) {
+            showLoadError(stage, "MIDI", ex);
+        }
+    }
+
+    /** Open MusicXML (.mxl) chooser and parse via {@code notation-mxl}. */
+    private static void handleLoadMxl(Stage stage, PieceChoice[] result) {
+        java.io.File f = openFileChooser(stage, "Load MusicXML file", PREF_LAST_MXL_DIR,
+                "Compressed MusicXML", "*.mxl");
+        if (f == null) return;
+        try {
+            var imp = music.notation.mxl.MxlReader.read(f.toPath());
+            result[0] = new PieceChoice.Imported(imp);
+            stage.close();
+        } catch (Exception ex) {
+            showLoadError(stage, "MusicXML", ex);
+        }
+    }
+
+    /** Open directory chooser for a previously-extracted JSON piece folder. */
+    private static void handleLoadJsonFolder(Stage stage, PieceChoice[] result) {
+        var chooser = new javafx.stage.DirectoryChooser();
+        chooser.setTitle("Load JSON piece folder");
+        String lastDir = PREFS.get(PREF_LAST_JSON_DIR, null);
         if (lastDir != null) {
             var dir = new java.io.File(lastDir);
             if (dir.isDirectory()) chooser.setInitialDirectory(dir);
         }
-
-        java.io.File f = chooser.showOpenDialog(stage);
-        if (f == null) return;
-
-        // Persist the directory so the next open lands here.
-        var parent = f.getParentFile();
+        java.io.File dir = chooser.showDialog(stage);
+        if (dir == null) return;
+        var parent = dir.getParentFile();
         if (parent != null && parent.isDirectory()) {
-            PREFS.put(PREF_LAST_MIDI_DIR, parent.getAbsolutePath());
+            PREFS.put(PREF_LAST_JSON_DIR, parent.getAbsolutePath());
         }
-
         try {
-            byte[] bytes = java.nio.file.Files.readAllBytes(f.toPath());
-            String label = f.getName().replaceFirst("\\.[^.]+$", "");
-            var imp = music.notation.performance.MidiCodec.fromMidiWithMeta(bytes, label);
+            var imp = music.notation.mxl.MxlSplitJsonReader.read(dir.toPath());
             result[0] = new PieceChoice.Imported(imp);
             stage.close();
         } catch (Exception ex) {
-            ex.printStackTrace();
-            var alert = new javafx.scene.control.Alert(
-                    javafx.scene.control.Alert.AlertType.ERROR,
-                    "Failed to load MIDI: " + ex.getMessage());
-            alert.initOwner(stage);
-            alert.showAndWait();
+            showLoadError(stage, "JSON folder", ex);
         }
+    }
+
+    private static java.io.File openFileChooser(Stage stage, String title, String prefKey,
+                                                 String filterName, String... patterns) {
+        var chooser = new javafx.stage.FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter(filterName, patterns));
+        String lastDir = PREFS.get(prefKey, null);
+        if (lastDir != null) {
+            var dir = new java.io.File(lastDir);
+            if (dir.isDirectory()) chooser.setInitialDirectory(dir);
+        }
+        java.io.File f = chooser.showOpenDialog(stage);
+        if (f != null) {
+            var parent = f.getParentFile();
+            if (parent != null && parent.isDirectory()) {
+                PREFS.put(prefKey, parent.getAbsolutePath());
+            }
+        }
+        return f;
+    }
+
+    private static void showLoadError(Stage stage, String kind, Exception ex) {
+        ex.printStackTrace();
+        var alert = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.ERROR,
+                "Failed to load " + kind + ": " + ex.getMessage());
+        alert.initOwner(stage);
+        alert.showAndWait();
+    }
+
+    private static String stripExt(String name) {
+        return name.replaceFirst("\\.[^.]+$", "");
     }
 
     private static void restyleList(javafx.scene.control.ListCell<?> cell) {

@@ -71,6 +71,23 @@ final class PitchScroll extends BorderPane {
             Color.web("#94e2d5"), Color.web("#f2cdcd")
     };
 
+    /**
+     * Per-lane sustain-pedal background tint. Cycles through this small
+     * warm palette so consecutive pedal-down regions are always different
+     * colours (especially helpful at {@code <pedal type="change"/>} edges
+     * where the audio gap is just 1 ms). See
+     * {@code .docs/pedal-visualisation.md}.
+     */
+    private static final Color[] PEDAL_TINTS = {
+            Color.rgb(245, 194, 124, 0.12),   // pale amber
+            Color.rgb(245, 154, 162, 0.12),   // pale rose
+            Color.rgb(166, 218, 149, 0.10),   // pale sage
+            Color.rgb(180, 168, 245, 0.11),   // pale lavender
+    };
+
+    /** Pre-converted pedal region for visualisation. */
+    record PedalTintRegion(long startTick, long endTick, int paletteIndex) {}
+
     private static final String[] NOTE_NAMES = {
             "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
     };
@@ -108,6 +125,10 @@ final class PitchScroll extends BorderPane {
     private double pixelsPerTick = 1.0;
     private long currentTick;
     private final Set<String> disabledTracks = new HashSet<>();
+    /** Pre-computed pedal tint regions per lane (track-name → list of regions). Empty when no pedaling. */
+    private java.util.Map<String, java.util.List<PedalTintRegion>> pedalRegionsByTrack = java.util.Map.of();
+    /** Honor-or-ignore toggle. Tints disappear when false. */
+    private boolean pedalTintEnabled = true;
 
     PitchScroll(LongConsumer onSeek,
                 DoubleConsumer onCursorMove,
@@ -317,6 +338,23 @@ final class PitchScroll extends BorderPane {
 
     void setOnCursorTick(LongConsumer onCursorTick) {
         this.onCursorTick = onCursorTick;
+    }
+
+    /**
+     * Pre-computed sustain-pedal tint regions per track-name. Pass an
+     * empty map to clear. Adjacent regions within a lane should carry
+     * incrementing palette indices so they cycle through different
+     * tints — see {@code .docs/pedal-visualisation.md}.
+     */
+    void setPedalRegions(java.util.Map<String, java.util.List<PedalTintRegion>> regions) {
+        this.pedalRegionsByTrack = (regions == null) ? java.util.Map.of() : regions;
+        redrawLanes();
+    }
+
+    /** Honor-or-ignore tint toggle. Audio toggle is separate (on MidiPlayer). */
+    void setPedalTintEnabled(boolean enabled) {
+        this.pedalTintEnabled = enabled;
+        redrawLanes();
     }
 
     void setTrackEnabled(String trackName, boolean enabled) {
@@ -566,6 +604,22 @@ final class PitchScroll extends BorderPane {
                 for (long tick = 0; tick <= data.totalTicks(); tick += barTickWidth) {
                     double bx = PADDING_LEFT + tick * pixelsPerTick;
                     gc.strokeLine(bx, laneY, bx, laneY + LANE_HEIGHT);
+                }
+            }
+
+            // Sustain-pedal tint (drawn before notes so notes render on top).
+            if (pedalTintEnabled) {
+                var regions = pedalRegionsByTrack.get(trackKey);
+                if (regions != null && !regions.isEmpty()) {
+                    double tintTop = laneY + LANE_HEADER;
+                    double tintHeight = LANE_HEIGHT - LANE_HEADER;
+                    for (PedalTintRegion region : regions) {
+                        double x0 = PADDING_LEFT + region.startTick() * pixelsPerTick;
+                        double x1 = PADDING_LEFT + region.endTick() * pixelsPerTick;
+                        double rw = Math.max(x1 - x0, 1.0);
+                        gc.setFill(PEDAL_TINTS[Math.floorMod(region.paletteIndex(), PEDAL_TINTS.length)]);
+                        gc.fillRect(x0, tintTop, rw, tintHeight);
+                    }
                 }
             }
 

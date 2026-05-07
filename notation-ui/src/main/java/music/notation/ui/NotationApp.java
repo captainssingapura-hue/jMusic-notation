@@ -35,12 +35,30 @@ public class NotationApp extends Application {
 
     private final MidiPlayer player = new MidiPlayer();
     private Piece currentPiece;
+    /** Source-of-truth for export: same as {@code currentPiece} except never carries the live auto-drum overlay. */
+    private Piece savedPiece;
     private Piece originalPiece;
     private String currentPieceTitle;
-    /** Set when a session-only MIDI import is loaded; mutually exclusive with currentPiece. */
-    private music.notation.performance.MidiImport currentImport;
+    /** Set when a session-only external import is loaded (MIDI/MXL/JSON); mutually exclusive with library piece. */
+    private music.notation.performance.MusicalImport currentImport;
     /** Currently-staged swing (used at next play, and as the "previous" value for cancel-revert). */
     private SwingSetup currentSwing = SwingSetup.OFF;
+    /** Currently-staged auto-drum strategy (live-only — never persisted into savedPiece). */
+    private music.notation.autodrum.DrumStrategy currentDrumStrategy =
+            music.notation.autodrum.DrumStrategies.NONE;
+    /** Currently-staged auto-drum energy level. */
+    private music.notation.autodrum.Energy currentEnergy =
+            music.notation.autodrum.Energy.MEDIUM;
+    /**
+     * Per-drum-track velocity timeline emitted by the staged strategy
+     * (when it opts in via {@link music.notation.autodrum.PatternSpec#slotVelocities}).
+     * Empty when no strategy is staged or the strategy doesn't carry
+     * velocities. Captured here so {@link #refreshVelocityState} can
+     * merge it with the pitched auto-velocities into one
+     * {@link music.notation.expressivity.Velocities}.
+     */
+    private music.notation.expressivity.Velocities currentDrumVelocities =
+            music.notation.expressivity.Velocities.empty();
     /** Loaded soundbank patches grouped by GM family — refreshed on soundbank change. */
     private SoundBankRegistry soundBankRegistry = SoundBankRegistry.empty();
 
@@ -102,9 +120,14 @@ public class NotationApp extends Application {
         controls.setOnScaleChanged(this::rebuildPiece);
         controls.setOnBpmReleased(this::onBpmReleased);
         controls.setOnSwingChanged(this::onSwingChanged);
+        controls.setOnAutoDrumChanged(this::onAutoDrumChanged);
+        controls.setOnEnergyChanged(this::onEnergyChanged);
+        controls.setOnHumanizerChanged(this::onHumanizerChanged);
+        controls.setOnPedalModeChanged(this::onPedalModeChanged);
         controls.setOnSoundbankAddRequested(() -> onAddSoundbank(stage));
         controls.setOnSoundbanksChanged(this::onSoundbanksChanged);
         loadPersistedSoundbanks();
+        loadPersistedPreferences();
 
         // ── Piano roll (centre) ─────────────────────────────────────
         final double CONTROL_PANEL_WIDTH = 180;
@@ -309,6 +332,11 @@ public class NotationApp extends Application {
     // ── Soundbank handling ──────────────────────────────────────────
 
     private static final String PREF_SOUNDBANK_PATHS = "soundbank.paths";
+    private static final String PREF_DRUM_STRATEGY   = "autodrum.strategy.id";
+    private static final String PREF_DRUM_ENERGY     = "autodrum.energy";
+    private static final String PREF_PEDAL_MODE      = "pedal.mode";
+    private static final String PREF_SWING_CHOICE    = "swing.choice";
+    private static final String PREF_HUMANIZER       = "humanizer.choice";
     private final java.util.prefs.Preferences prefs =
             java.util.prefs.Preferences.userNodeForPackage(NotationApp.class);
 
@@ -324,6 +352,59 @@ public class NotationApp extends Application {
         controls.setSoundbanks(files);
         player.setSoundbankSetup(new SoundbankSetup(files));
         soundBankRegistry = SoundBankRegistry.build(files);
+    }
+
+    /**
+     * Restore user's last-session UI choices: drum strategy, energy,
+     * pedal mode, swing, humanizer. Each is best-effort — invalid /
+     * stale enum names silently fall through to the panel defaults.
+     */
+    private void loadPersistedPreferences() {
+        // ── Drum strategy
+        String stratId = prefs.get(PREF_DRUM_STRATEGY, "");
+        if (!stratId.isBlank()) {
+            for (var s : music.notation.autodrum.DrumStrategies.available()) {
+                if (s.id().equals(stratId)) {
+                    currentDrumStrategy = s;
+                    controls.setAutoDrum(s);
+                    break;
+                }
+            }
+        }
+        // ── Energy
+        String energyName = prefs.get(PREF_DRUM_ENERGY, "");
+        if (!energyName.isBlank()) {
+            try {
+                var e = music.notation.autodrum.Energy.valueOf(energyName);
+                currentEnergy = e;
+                controls.setEnergy(e);
+            } catch (IllegalArgumentException ignored) { /* stale value */ }
+        }
+        // ── Pedal mode
+        String pedalModeName = prefs.get(PREF_PEDAL_MODE, "");
+        if (!pedalModeName.isBlank()) {
+            try {
+                controls.setPedalMode(ControlsPanel.PedalMode.valueOf(pedalModeName));
+            } catch (IllegalArgumentException ignored) { /* stale value */ }
+        }
+        // ── Swing
+        String swingName = prefs.get(PREF_SWING_CHOICE, "");
+        if (!swingName.isBlank()) {
+            try {
+                var c = ControlsPanel.SwingChoice.valueOf(swingName);
+                currentSwing = c.setup;
+                controls.setSwing(c.setup);
+            } catch (IllegalArgumentException ignored) { /* stale value */ }
+        }
+        // ── Humanizer
+        String humanizerName = prefs.get(PREF_HUMANIZER, "");
+        if (!humanizerName.isBlank()) {
+            try {
+                var c = ControlsPanel.HumanizerChoice.valueOf(humanizerName);
+                controls.setHumanizer(c.setup);
+                player.setHumanizer(c.setup);
+            } catch (IllegalArgumentException ignored) { /* stale value */ }
+        }
     }
 
     private void onAddSoundbank(Stage stage) {
@@ -361,18 +442,54 @@ public class NotationApp extends Application {
                     if (choice instanceof PieceChoice.Library lib) {
                         selectPieceTitle(lib.title(), lib.providerIndex());
                     } else if (choice instanceof PieceChoice.Imported imp) {
-                        loadImport(imp.imp());
+                        loadImport(imp.imp(),
+                                imp.voiceSplit()
+                                        ? music.notation.performance.PerformanceImporter.SplitMode.SPLIT
+                                        : music.notation.performance.PerformanceImporter.SplitMode.PRESERVE,
+                                imp.profile());
                     }
                 });
     }
 
-    /** Switch to a freshly-loaded MIDI import. Drops any current Piece. */
-    private void loadImport(music.notation.performance.MidiImport imp) {
+    /**
+     * Switch to a freshly-loaded external import (MIDI / MXL / JSON-folder).
+     * Routes through {@link music.notation.performance.PerformanceImporter}
+     * so the resulting tracks render via the standard Piece path — every
+     * per-track UI (lane controls, instrument picker, SBI overrides,
+     * keyboard/guitar tabs) gets the layout for free.
+     *
+     * <p>The original {@link music.notation.performance.MusicalImport} is
+     * retained as {@code currentImport} so audio and MIDI export use the
+     * lossless source data (the "{@code Piece + sidecar Performance}"
+     * model). {@code mode} and {@code profile} are MIDI-only knobs; they
+     * are passed through harmlessly for already-concretized sources.</p>
+     */
+    private void loadImport(music.notation.performance.MusicalImport imp) {
+        loadImport(imp, music.notation.performance.PerformanceImporter.SplitMode.PRESERVE,
+                music.notation.performance.QuantizerProfile.STANDARD);
+    }
+
+    private void loadImport(music.notation.performance.MusicalImport imp,
+                            music.notation.performance.PerformanceImporter.SplitMode mode) {
+        loadImport(imp, mode, music.notation.performance.QuantizerProfile.STANDARD);
+    }
+
+    private void loadImport(music.notation.performance.MusicalImport imp,
+                            music.notation.performance.PerformanceImporter.SplitMode mode,
+                            music.notation.performance.QuantizerProfile profile) {
         onStop();
-        currentPiece = null;
-        originalPiece = null;
+        currentImport     = imp;
         currentPieceTitle = null;
-        currentImport = imp;
+        originalPiece     = null;
+
+        var importedPiece = music.notation.performance.PerformanceImporter.toPiece(
+                imp.performance(), imp.timeSig(), imp.key(),
+                imp.initialBpm(), imp.displayName(),
+                music.notation.performance.PerformanceImporter.DEFAULT_CUTOFF_MIDI,
+                mode, profile);
+        setSavedAndCurrent(importedPiece);
+        refreshAutoDrumEnabled();
+        onPieceLoaded();
         transportBar.setPieceLabel("▾  " + imp.displayName() + "   —   imported");
 
         // Disable Piece-only controls (scale combo / arrangement combo).
@@ -385,7 +502,8 @@ public class NotationApp extends Application {
         selectedPatches.clear();
         instrumentButtons.clear();
 
-        currentScrollData = PitchScrollData.fromImport(imp);
+        // Visualisation reads the structural Piece (gets the voice split).
+        currentScrollData = PitchScrollData.fromPiece(currentPiece);
         disabledVisualizerTracks.clear();
         pitchScroll.load(currentScrollData);
         if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
@@ -395,11 +513,17 @@ public class NotationApp extends Application {
         controls.setSwing(SwingSetup.OFF);
         currentSwing = SwingSetup.OFF;
         controls.setPieceInfo(String.format(
-                "%s — imported\n%d/%d  |  %d BPM",
+                "%s — imported\n%d/%d  |  %d BPM  ·  %d voice%s",
                 imp.displayName(),
                 imp.timeSig().beats(), imp.timeSig().beatValue(),
-                imp.initialBpm()));
-        controls.setStatus("Imported · " + imp.performance().score().tracks().size() + " tracks");
+                imp.initialBpm(),
+                importedPiece.tracks().size(),
+                importedPiece.tracks().size() == 1 ? "" : "s"));
+        controls.setStatus("Imported · "
+                + imp.performance().score().tracks().size() + " source track(s) → "
+                + importedPiece.tracks().size() + " Piece track(s)"
+                + (mode == music.notation.performance.PerformanceImporter.SplitMode.SPLIT
+                        ? " (voice-split)" : ""));
         transportBar.playButton().setDisable(false);
         transportBar.exportButton().setDisable(false);
     }
@@ -444,8 +568,328 @@ public class NotationApp extends Application {
      * the user for a restart anchor (beginning vs current bar) and apply
      * via {@link MidiPlayer#applySwing}; on cancel, revert the combo.
      */
+    /**
+     * Auto-drum strategy changed in the controls panel — restage the
+     * playback piece so the new pattern shows up as a lane and is heard
+     * on the next play. Live-only: {@code savedPiece} (the export source)
+     * is never modified, so JSON / MIDI exports stay drum-free.
+     */
+    private void onAutoDrumChanged(music.notation.autodrum.DrumStrategy strategy) {
+        this.currentDrumStrategy = strategy == null
+                ? music.notation.autodrum.DrumStrategies.NONE : strategy;
+        prefs.put(PREF_DRUM_STRATEGY, currentDrumStrategy.id());
+        if (savedPiece != null) {
+            setCurrentPieceFromSaved();
+            refreshVelocityState();
+            loadPiece();
+        }
+    }
+
+    /**
+     * User picked a different pedal mode. Live-applies if running,
+     * otherwise just stages for the next play.
+     */
+    private void onPedalModeChanged(ControlsPanel.PedalMode mode) {
+        prefs.put(PREF_PEDAL_MODE, mode.name());
+        try {
+            applyEffectivePedaling();
+            // applyPedalEnabled rebuilds the running sequence — only call
+            // it when actually playing/paused. setPedalEnabled stages.
+            boolean active = mode != ControlsPanel.PedalMode.OFF;
+            if (player.isPlaying() || player.isPaused()) {
+                player.applyPedalEnabled(active, player.getTickPosition());
+            } else {
+                player.setPedalEnabled(active);
+            }
+            if (pitchScroll != null) pitchScroll.setPedalTintEnabled(active);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    /**
+     * Refresh side-channels for a freshly-loaded piece. Pedal mode is
+     * preserved from the user's last pick (sticky across pieces and
+     * sessions); {@link #refreshPedalState()} auto-falls back to a
+     * sensible mode when the saved choice isn't available for the
+     * loaded piece (e.g. user has Source but the new piece has no
+     * {@code <pedal/>} markings).
+     */
+    private void onPieceLoaded() {
+        refreshPedalState();
+        refreshVelocityState();
+    }
+
+    /**
+     * Stage auto-velocities on the player so library / Piece-based
+     * playback gets per-note dynamics. Imports go through the
+     * Performance start path which already carries its own velocities.
+     *
+     * <p>Source velocities aren't yet plumbed (MXL importer will add
+     * them when {@code <dynamics>} parsing lands); for now every
+     * imported piece gets the auto-velocity baseline too, matching
+     * the auto-pedal behaviour.</p>
+     */
+    private void refreshVelocityState() {
+        var perf = currentPerformance();
+        var ts = currentTimeSig();
+        if (perf == null || ts == null) {
+            player.setVelocities(music.notation.expressivity.Velocities.empty());
+            return;
+        }
+        var sourceVelocities = perf.velocities();
+        var pitched = sourceVelocities.byTrack().isEmpty()
+                ? music.notation.performance.AutoVelocity.generate(perf, ts)
+                : sourceVelocities;
+        player.setVelocities(mergeVelocities(pitched, currentDrumVelocities));
+    }
+
+    /**
+     * Merge two {@link music.notation.expressivity.Velocities} (typically
+     * pitched-auto + drum-strategy). Per-track entries from {@code drum}
+     * win when the same {@link music.notation.expressivity.TrackId}
+     * appears in both — drum strategies emit their own velocity timeline
+     * and shouldn't be overlaid by the pitched-auto helper (which already
+     * skips drum tracks anyway, so this is belt-and-braces).
+     */
+    private static music.notation.expressivity.Velocities mergeVelocities(
+            music.notation.expressivity.Velocities pitched,
+            music.notation.expressivity.Velocities drum) {
+        if (drum.byTrack().isEmpty()) return pitched;
+        if (pitched.byTrack().isEmpty()) return drum;
+        var merged = new java.util.LinkedHashMap<>(pitched.byTrack());
+        merged.putAll(drum.byTrack());
+        return new music.notation.expressivity.Velocities(merged);
+    }
+
+    /**
+     * Refresh the player + UI to match the currently-loaded piece's
+     * pedaling info. Called after every {@code setSavedAndCurrent}.
+     * Preserves the user's mode selection when still applicable; falls
+     * back to a sensible mode (Source → Auto → Off) when not.
+     */
+    private void refreshPedalState() {
+        boolean sourceAvailable = !sourcePedaling().byTrack().isEmpty();
+        boolean autoAvailable   = !autoPedaling().byTrack().isEmpty();
+        controls.setPedalAvailability(sourceAvailable, autoAvailable);
+        applyEffectivePedaling();
+    }
+
+    /**
+     * Push the effective pedaling (per current mode + availability) into
+     * the player and the per-lane tint visualisation.
+     */
+    private void applyEffectivePedaling() {
+        music.notation.expressivity.Pedaling pedaling = effectivePedaling();
+        music.notation.performance.TempoTrack tempos = currentTempoTrack();
+        boolean active = !pedaling.byTrack().isEmpty();
+        player.setPedaling(pedaling, tempos);
+        player.setPedalEnabled(active);
+        if (pitchScroll != null) {
+            pitchScroll.setPedalRegions(buildPedalRegions(pedaling, tempos));
+            pitchScroll.setPedalTintEnabled(active);
+        }
+    }
+
+    /**
+     * Concrete {@link music.notation.performance.Performance} for the
+     * loaded piece — {@code currentImport.performance()} for MXL imports,
+     * else lazily concretized from {@code savedPiece} for DSL-authored
+     * library pieces. {@code null} when nothing's loaded.
+     */
+    private music.notation.performance.Performance currentPerformance() {
+        if (currentImport != null) return currentImport.performance();
+        if (savedPiece != null) return music.notation.play.PieceConcretizer.concretize(savedPiece);
+        return null;
+    }
+
+    /** Time signature for the loaded piece, regardless of source. */
+    private music.notation.structure.TimeSignature currentTimeSig() {
+        if (currentImport != null) return currentImport.timeSig();
+        if (savedPiece != null) return savedPiece.timeSig();
+        return null;
+    }
+
+    /** Tempo timeline for the loaded piece, regardless of source. */
+    private music.notation.performance.TempoTrack currentTempoTrack() {
+        var perf = currentPerformance();
+        return (perf == null)
+                ? music.notation.performance.TempoTrack.empty()
+                : perf.tempo();
+    }
+
+    /**
+     * Source pedaling — engraver's {@code <pedal/>} markings. Only MXL
+     * imports carry these; library DSL pieces always return empty.
+     */
+    private music.notation.expressivity.Pedaling sourcePedaling() {
+        return currentImport == null
+                ? music.notation.expressivity.Pedaling.empty()
+                : currentImport.performance().pedaling();
+    }
+
+    /**
+     * Auto-generated pedaling for the loaded piece, working for both
+     * MXL imports and DSL-authored library pieces (concretized on
+     * demand). Empty when no piece is loaded or the piece has no
+     * pitched content.
+     */
+    private music.notation.expressivity.Pedaling autoPedaling() {
+        var perf = currentPerformance();
+        var ts   = currentTimeSig();
+        if (perf == null || ts == null) {
+            return music.notation.expressivity.Pedaling.empty();
+        }
+        return music.notation.performance.AutoPedaling.generate(perf, ts);
+    }
+
+    /** Pedaling actually emitted for export / play — depends on the mode picker. */
+    private music.notation.expressivity.Pedaling effectivePedaling() {
+        return switch (controls.getPedalMode()) {
+            case SOURCE -> sourcePedaling();
+            case AUTO   -> autoPedaling();
+            case OFF    -> music.notation.expressivity.Pedaling.empty();
+        };
+    }
+
+    /**
+     * Convert the per-track {@code Pedaling} timeline (in ms) into
+     * pre-cycled {@link PitchScroll.PedalTintRegion}s in MIDI tick space,
+     * mapping ms→ticks through the import's tempo timeline so tints
+     * align with the actual notated bars under rubato.
+     */
+    private static java.util.Map<String, java.util.List<PitchScroll.PedalTintRegion>>
+            buildPedalRegions(music.notation.expressivity.Pedaling pedaling,
+                              music.notation.performance.TempoTrack tempos) {
+        if (pedaling == null || pedaling.byTrack().isEmpty()) return java.util.Map.of();
+        int ppq = music.notation.play.MidiMapper.TICKS_PER_QUARTER;
+        music.notation.performance.TempoTrack tt = (tempos == null)
+                ? music.notation.performance.TempoTrack.empty() : tempos;
+        java.util.Map<String, java.util.List<PitchScroll.PedalTintRegion>> out =
+                new java.util.LinkedHashMap<>();
+        for (var entry : pedaling.byTrack().entrySet()) {
+            String trackName = entry.getKey().name();
+            var regions = new java.util.ArrayList<PitchScroll.PedalTintRegion>();
+            int regionIndex = 0;
+            long downAt = -1;
+            for (var change : entry.getValue().changes()) {
+                long tick = music.notation.performance.TempoConversion
+                        .msToTicks(tt, change.tickMs(), ppq);
+                switch (change.state()) {
+                    case DOWN -> downAt = tick;
+                    case UP -> {
+                        if (downAt >= 0) {
+                            regions.add(new PitchScroll.PedalTintRegion(downAt, tick, regionIndex++));
+                            downAt = -1;
+                        }
+                    }
+                    case CHANGE -> {
+                        if (downAt >= 0) {
+                            regions.add(new PitchScroll.PedalTintRegion(downAt, tick, regionIndex++));
+                        }
+                        downAt = tick;
+                    }
+                }
+            }
+            // Trailing DOWN with no closing UP — leave unclosed (renderer
+            // can extend to the lane end if desired; for V1 we skip).
+            if (!regions.isEmpty()) out.put(trackName, regions);
+        }
+        return out;
+    }
+
+    /**
+     * Humaniser selection changed — stage on the player so the next play
+     * (or live restart) applies the new jitter level. Identical pattern
+     * to {@link #onSwingChanged}.
+     */
+    private void onHumanizerChanged(music.notation.play.HumanizerSetup setup) {
+        if (setup == null) setup = music.notation.play.HumanizerSetup.OFF;
+        prefs.put(PREF_HUMANIZER, ControlsPanel.HumanizerChoice.from(setup).name());
+        try {
+            // Live-toggle when running; otherwise just stage for next start().
+            if (player.isPlaying() || player.isPaused()) {
+                player.applyHumanizer(setup, player.getTickPosition());
+            } else {
+                player.setHumanizer(setup);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    /** Energy level change — restage playback piece with the new dynamics. */
+    private void onEnergyChanged(music.notation.autodrum.Energy energy) {
+        this.currentEnergy = energy == null
+                ? music.notation.autodrum.Energy.MEDIUM : energy;
+        prefs.put(PREF_DRUM_ENERGY, currentEnergy.name());
+        if (savedPiece != null
+                && currentDrumStrategy != music.notation.autodrum.DrumStrategies.NONE) {
+            setCurrentPieceFromSaved();
+            refreshVelocityState();
+            loadPiece();
+        }
+    }
+
+    /**
+     * Layer the staged auto-drum strategy onto a Piece. Returns the
+     * source unchanged when no strategy is selected, when the strategy
+     * declines (e.g. piece already has drums), or when the source is null.
+     *
+     * <p>Side-effect: captures the strategy's per-track
+     * {@link music.notation.expressivity.VelocityControl} into
+     * {@link #currentDrumVelocities} so the playback wiring can merge
+     * it with pitched auto-velocities. Cleared when no drum track is
+     * actually added.</p>
+     */
+    private Piece augmentWithAutoDrum(Piece source) {
+        currentDrumVelocities = music.notation.expressivity.Velocities.empty();
+        if (source == null) return null;
+        if (currentDrumStrategy == music.notation.autodrum.DrumStrategies.NONE) return source;
+        var generated = currentDrumStrategy.generateWithVelocities(source, currentEnergy);
+        if (generated.isEmpty()) return source;
+        var bundle = generated.get();
+        var tracks = new java.util.ArrayList<music.notation.structure.Track>(source.tracks());
+        tracks.add(bundle.track());
+        if (!bundle.velocities().changes().isEmpty()) {
+            currentDrumVelocities = music.notation.expressivity.Velocities.single(
+                    new music.notation.expressivity.TrackId(bundle.track().name()),
+                    bundle.velocities());
+        }
+        return new Piece(source.title(), source.composer(),
+                source.key(), source.timeSig(), source.tempo(), tracks);
+    }
+
+    /**
+     * Set both {@link #savedPiece} (the export source) and
+     * {@link #currentPiece} (the augmented playback/display piece). All
+     * code paths that swap in a new piece should go through this helper.
+     */
+    private void setSavedAndCurrent(Piece p) {
+        this.savedPiece = p;
+        this.currentPiece = augmentWithAutoDrum(p);
+    }
+
+    /** Re-augment {@link #currentPiece} from {@link #savedPiece} using the staged strategy. */
+    private void setCurrentPieceFromSaved() {
+        this.currentPiece = augmentWithAutoDrum(savedPiece);
+    }
+
+    /**
+     * Refresh the auto-drum picker's enabled state to match
+     * {@code savedPiece}: disabled when the source already carries a
+     * {@link music.notation.structure.DrumTrack}.
+     */
+    private void refreshAutoDrumEnabled() {
+        boolean hasDrums = savedPiece != null && savedPiece.tracks().stream()
+                .anyMatch(t -> t instanceof music.notation.structure.DrumTrack);
+        controls.setAutoDrumEnabled(!hasDrums);
+        if (hasDrums) currentDrumStrategy = music.notation.autodrum.DrumStrategies.NONE;
+    }
+
     private void onSwingChanged(SwingSetup picked) {
         if (picked == null) return;
+        prefs.put(PREF_SWING_CHOICE, ControlsPanel.SwingChoice.from(picked).name());
         if (!player.isPlaying() && !player.isPaused()) {
             currentSwing = picked;
             return;
@@ -518,7 +962,9 @@ public class NotationApp extends Application {
                     p.tracks());
         }
 
-        currentPiece = p;
+        setSavedAndCurrent(p);
+        refreshAutoDrumEnabled();
+        refreshPedalState();
         loadPiece();
     }
 
@@ -556,13 +1002,6 @@ public class NotationApp extends Application {
         return InstrumentPickerDialog.displayName(selectedInstruments.get(trackIndex));
     }
 
-    private Instrument defaultInstrumentForImportTrack(int idx) {
-        if (currentImport == null) return Instrument.ACOUSTIC_GRAND_PIANO;
-        var t = currentImport.performance().score().tracks().get(idx);
-        return t.kind() == music.notation.performance.TrackKind.DRUM
-                ? Instrument.DRUM_KIT : Instrument.ACOUSTIC_GRAND_PIANO;
-    }
-
     private static Instrument defaultInstrumentOf(Track track) {
         return switch (track) {
             case MelodicTrack mt -> mt.defaultInstrument();
@@ -583,13 +1022,8 @@ public class NotationApp extends Application {
         }
     }
 
-    /** Build a ChannelSetup from current UI state, branching on Piece vs Import. */
+    /** Build a ChannelSetup from current UI state. Lanes always come from the Piece. */
     private ChannelSetup buildChannelSetup() {
-        if (currentImport != null) {
-            return ChannelSetup.fromPerformanceTracks(
-                    currentImport.performance().score().tracks(),
-                    selectedInstruments, selectedVolumes, selectedPans);
-        }
         if (currentPiece != null) {
             int n = currentPiece.tracks().size();
             return ChannelSetup.fromPatches(currentPiece,
@@ -646,7 +1080,9 @@ public class NotationApp extends Application {
         controls.setSwing(SwingSetup.OFF);
         currentSwing = SwingSetup.OFF;
 
-        currentPiece = originalPiece;
+        setSavedAndCurrent(originalPiece);
+        refreshAutoDrumEnabled();
+        onPieceLoaded();
         loadPiece();
     }
 
@@ -682,15 +1118,11 @@ public class NotationApp extends Application {
      * visualizer toggle. Called by {@link PitchScroll} during lane rebuild.
      */
     private Node buildTrackRowControlPanel(int trackIndex, String trackName) {
-        Instrument defaultIns;
-        if (currentImport != null) {
-            var t = currentImport.performance().score().tracks().get(trackIndex);
-            defaultIns = (t.kind() == music.notation.performance.TrackKind.DRUM)
-                    ? Instrument.DRUM_KIT : Instrument.ACOUSTIC_GRAND_PIANO;
-        } else {
-            Track track = currentPiece.tracks().get(trackIndex);
-            defaultIns = defaultInstrumentOf(track);
-        }
+        // Imports now also produce a real Piece (via PerformanceImporter),
+        // so lanes are indexed by the Piece's voice-split tracks for both
+        // Java-authored pieces and MIDI imports.
+        Track track = currentPiece.tracks().get(trackIndex);
+        Instrument defaultIns = defaultInstrumentOf(track);
 
         while (selectedInstruments.size() <= trackIndex) selectedInstruments.add(null);
         while (selectedVolumes.size() <= trackIndex) selectedVolumes.add(null);
@@ -804,23 +1236,16 @@ public class NotationApp extends Application {
     // ── Playback ──────────────────────────────────────────────────────────
 
     private void onPlay() {
-        if (currentPiece == null && currentImport == null) return;
+        if (currentPiece == null) return;
 
-        int trackCount = (currentImport != null)
-                ? currentImport.performance().score().tracks().size()
-                : currentPiece.tracks().size();
-        ChannelSetup channelSetup = (currentImport != null)
-                ? ChannelSetup.fromPerformanceTracks(
-                        currentImport.performance().score().tracks(),
-                        flatList(selectedInstruments, trackCount,
-                                i -> defaultInstrumentForImportTrack(i)),
-                        flatIntList(selectedVolumes, trackCount, 100),
-                        flatIntList(selectedPans, trackCount, 64))
-                : ChannelSetup.fromPatches(currentPiece,
-                        buildPatchList(trackCount),
-                        flatIntList(selectedVolumes, trackCount, 100),
-                        flatIntList(selectedPans, trackCount, 64));
+        int trackCount = currentPiece.tracks().size();
+        ChannelSetup channelSetup = ChannelSetup.fromPatches(currentPiece,
+                buildPatchList(trackCount),
+                flatIntList(selectedVolumes, trackCount, 100),
+                flatIntList(selectedPans, trackCount, 64));
 
+        // Authored BPM: imports take it from the source MIDI; Java pieces
+        // from their authored Tempo (or the originalPiece if scaled).
         int authoredBpm = (currentImport != null)
                 ? currentImport.initialBpm()
                 : (originalPiece != null ? originalPiece.tempo().bpm() : currentPiece.tempo().bpm());
@@ -836,15 +1261,12 @@ public class NotationApp extends Application {
         pitchScroll.setLaneScrollHvalue(0);
 
         SwingSetup swingAtStart = currentSwing;
-        var importAtStart = currentImport;
+        // currentPiece already includes the staged auto-drum overlay (if any),
+        // so the player and the lane factory see the same augmented Piece.
         var pieceAtStart = currentPiece;
         Thread playThread = new Thread(() -> {
             try {
-                if (importAtStart != null) {
-                    player.start(importAtStart.performance(), channelSetup, tempoSetup, swingAtStart);
-                } else {
-                    player.start(pieceAtStart, channelSetup, tempoSetup, swingAtStart);
-                }
+                player.start(pieceAtStart, channelSetup, tempoSetup, swingAtStart);
                 Platform.runLater(() -> {
                     animating = true;
                     pitchScroll.startAnimation(player::getTickPosition);
@@ -900,14 +1322,14 @@ public class NotationApp extends Application {
         stopActiveBottomDisplay();
         player.stop();
         transportBar.setPlayGlyph("▶");
-        transportBar.playButton().setDisable(currentPiece == null && currentImport == null);
+        transportBar.playButton().setDisable(currentPiece == null);
         transportBar.stopButton().setDisable(true);
         transportBar.setPieceEnabled(true);
         controls.setStatus("Stopped");
     }
 
     private void onExport(Stage stage) {
-        if (currentPiece == null && currentImport == null) return;
+        if (currentPiece == null) return;
 
         String baseName = (currentImport != null)
                 ? currentImport.displayName()
@@ -926,11 +1348,14 @@ public class NotationApp extends Application {
 
         ChannelSetup channelSetup = buildChannelSetup();
         try {
-            if (currentImport != null) {
-                MidiPlayer.exportMidi(currentImport.performance(), channelSetup, file);
-            } else {
-                MidiPlayer.exportMidi(currentPiece, channelSetup, file);
-            }
+            // Export the source piece (no auto-drum overlay) so saved files
+            // stay drum-free regardless of the live picker's state. Inject
+            // the same pedaling the player uses (source-or-auto-or-none),
+            // so what's heard live matches what lands in the exported MIDI.
+            Piece exportPiece = (savedPiece != null) ? savedPiece : currentPiece;
+            music.notation.expressivity.Pedaling pedaling = effectivePedaling();
+            music.notation.performance.TempoTrack tempos = currentTempoTrack();
+            MidiPlayer.exportMidi(exportPiece, channelSetup, file, pedaling, tempos);
             controls.setStatus("Exported: " + file.getName());
         } catch (Exception ex) {
             controls.setStatus("Export failed: " + ex.getMessage());

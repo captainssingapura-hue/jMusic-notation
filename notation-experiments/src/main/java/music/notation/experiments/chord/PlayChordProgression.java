@@ -9,7 +9,7 @@ import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Score;
 import music.notation.performance.Track;
-import music.notation.performance.TrackId;
+import music.notation.expressivity.TrackId;
 import music.notation.performance.TrackKind;
 
 import javax.sound.midi.MidiChannel;
@@ -76,7 +76,7 @@ public final class PlayChordProgression {
                 score,
                 music.notation.performance.TempoTrack.empty(),
                 Instrumentation.single(PROGRESSION_TRACK, GM_PROGRAM_ACOUSTIC_GUITAR),
-                music.notation.performance.Articulations.empty());
+                music.notation.expressivity.Articulations.empty());
 
         printPerformanceText(whole);
 

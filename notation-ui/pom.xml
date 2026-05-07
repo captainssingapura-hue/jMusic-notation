@@ -31,6 +31,16 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-mxl</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-autodrum</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>

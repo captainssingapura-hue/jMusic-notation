@@ -23,7 +23,7 @@ import music.notation.experiments.iwato.IwatoNote;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
 import music.notation.performance.Swing;
-import music.notation.performance.TrackId;
+import music.notation.expressivity.TrackId;
 import music.notation.experiments.ryukyu.RyukyuConcretizer;
 import music.notation.experiments.ryukyu.RyukyuNote;
 import music.notation.experiments.scale.ScaleFactory;

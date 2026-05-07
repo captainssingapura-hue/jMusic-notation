@@ -1,7 +1,8 @@
 package music.notation.play;
 
-import music.notation.event.Instrument;
-import music.notation.event.PercussionSound;
+import music.notation.performance.InstrumentMap;
+import music.notation.performance.PercussionMap;
+import music.notation.performance.Quantizer;
 
 import javax.sound.midi.*;
 import java.io.File;
@@ -43,39 +44,32 @@ public final class MidiExtractor {
     private static final int PPQ_DEFAULT = 480;
     private static final String[] NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
-    // Quantization grid: maps sixty-fourths count to duration name
-    private static final TreeMap<Integer, String> DURATION_MAP = new TreeMap<>();
+    // Code-emit names for each legal duration. Quantization grid lives
+    // in {@link Quantizer}; this map only serves the text-rendering side.
+    private static final Map<Integer, String> DURATION_NAMES = new HashMap<>();
     static {
-        DURATION_MAP.put(1, "SIXTY_FOURTH");
-        DURATION_MAP.put(2, "THIRTY_SECOND");
-        DURATION_MAP.put(3, "THIRTY_SECOND.dot()");
-        DURATION_MAP.put(4, "SIXTEENTH");
-        DURATION_MAP.put(6, "SIXTEENTH.dot()");
-        DURATION_MAP.put(8, "EIGHTH");
-        DURATION_MAP.put(12, "EIGHTH.dot()");
-        DURATION_MAP.put(16, "QUARTER");
-        DURATION_MAP.put(24, "QUARTER.dot()");
-        DURATION_MAP.put(32, "HALF");
-        DURATION_MAP.put(48, "HALF.dot()");
-        DURATION_MAP.put(64, "WHOLE");
+        DURATION_NAMES.put(1,  "SIXTY_FOURTH");
+        DURATION_NAMES.put(2,  "THIRTY_SECOND");
+        DURATION_NAMES.put(3,  "THIRTY_SECOND.dot()");
+        DURATION_NAMES.put(4,  "SIXTEENTH");
+        DURATION_NAMES.put(6,  "SIXTEENTH.dot()");
+        DURATION_NAMES.put(8,  "EIGHTH");
+        DURATION_NAMES.put(12, "EIGHTH.dot()");
+        DURATION_NAMES.put(16, "QUARTER");
+        DURATION_NAMES.put(24, "QUARTER.dot()");
+        DURATION_NAMES.put(32, "HALF");
+        DURATION_NAMES.put(48, "HALF.dot()");
+        DURATION_NAMES.put(64, "WHOLE");
     }
 
-    // Reverse lookup: MIDI program number → Instrument enum name
-    private static final Map<Integer, String> PROGRAM_TO_NAME = new HashMap<>();
-    static {
-        for (Instrument inst : Instrument.values()) {
-            if (inst != Instrument.DRUM_KIT) {
-                PROGRAM_TO_NAME.put(inst.program(), inst.name());
-            }
-        }
+    /** Code-emit name for a GM program (delegates to {@link InstrumentMap}). */
+    private static String instrumentNameFor(int program) {
+        return InstrumentMap.forProgram(program).map(Enum::name).orElse(null);
     }
 
-    // Reverse lookup: MIDI note → PercussionSound enum name
-    private static final Map<Integer, String> DRUM_NOTE_TO_NAME = new HashMap<>();
-    static {
-        for (PercussionSound ps : PercussionSound.values()) {
-            DRUM_NOTE_TO_NAME.put(ps.midiNote(), ps.name());
-        }
+    /** Code-emit name for a drum-channel note (delegates to {@link PercussionMap}). */
+    private static String drumNameFor(int midiNote) {
+        return PercussionMap.forNote(midiNote).map(Enum::name).orElse(null);
     }
 
     public static void main(String[] args) throws Exception {
@@ -174,8 +168,8 @@ public final class MidiExtractor {
                     isDrum = (ch == 9);
 
                     if (cmd == ShortMessage.PROGRAM_CHANGE) {
-                        instrumentName = PROGRAM_TO_NAME.getOrDefault(sm.getData1(),
-                                "PROGRAM_" + sm.getData1());
+                        String mapped = instrumentNameFor(sm.getData1());
+                        instrumentName = mapped != null ? mapped : "PROGRAM_" + sm.getData1();
                     } else if (cmd == ShortMessage.NOTE_ON && sm.getData2() > 0) {
                         pendingNotes.put(sm.getData1(), event.getTick());
                     } else if (cmd == ShortMessage.NOTE_OFF
@@ -291,7 +285,8 @@ public final class MidiExtractor {
             if (isDrum) {
                 // Drum notes: one per line with percussion name
                 for (NoteEvent dn : chord) {
-                    String drumName = DRUM_NOTE_TO_NAME.getOrDefault(dn.midiNote, "NOTE_" + dn.midiNote);
+                    String mapped = drumNameFor(dn.midiNote);
+                    String drumName = mapped != null ? mapped : "NOTE_" + dn.midiNote;
                     pw.println(drumName + " " + durStr);
                 }
             } else if (chord.size() == 1) {
@@ -325,9 +320,9 @@ public final class MidiExtractor {
     private static void emitRests(PrintWriter pw, int totalSf) {
         int remaining = totalSf;
         while (remaining > 0) {
-            Integer dur = DURATION_MAP.floorKey(remaining);
+            Integer dur = Quantizer.floor(remaining);
             if (dur == null) break;
-            pw.println("r " + DURATION_MAP.get(dur));
+            pw.println("r " + DURATION_NAMES.get(dur));
             remaining -= dur;
         }
     }
@@ -338,25 +333,17 @@ public final class MidiExtractor {
         return "o" + octave + " " + name;
     }
 
-    /**
-     * Quantize a fractional sixty-fourths value to the nearest standard duration.
-     */
+    /** Snap a fractional sixty-fourths value to the nearest legal duration. */
     private static int quantizeSf(double rawSf) {
-        int sf = Math.max(1, (int) Math.round(rawSf));
-        // Snap to nearest key in DURATION_MAP
-        Integer floor = DURATION_MAP.floorKey(sf);
-        Integer ceil = DURATION_MAP.ceilingKey(sf);
-        if (floor == null) return ceil != null ? ceil : sf;
-        if (ceil == null) return floor;
-        return (sf - floor <= ceil - sf) ? floor : ceil;
+        return Quantizer.snap(rawSf);
     }
 
     private static String durationName(int sf) {
-        String name = DURATION_MAP.get(sf);
+        String name = DURATION_NAMES.get(sf);
         if (name != null) return name;
-        // Try quantizing
-        int quantized = quantizeSf(sf);
-        name = DURATION_MAP.get(quantized);
+        // Try quantizing to the nearest legal value, annotate the original.
+        int quantized = Quantizer.snap(sf);
+        name = DURATION_NAMES.get(quantized);
         if (name != null) return name + " # ~" + sf + "sf";
         // Fallback: express as sixty-fourths
         return sf + "sf";

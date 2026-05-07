@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.expressivity.*;
+
 import music.notation.structure.Mode;
 import org.junit.jupiter.api.Test;
 

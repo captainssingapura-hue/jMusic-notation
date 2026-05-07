@@ -17,6 +17,7 @@ import music.notation.phrase.TempoTransitionStartNode;
 import music.notation.phrase.TransitionMethod;
 import music.notation.pitch.Pitch;
 import music.notation.performance.*;
+import music.notation.expressivity.*;
 import music.notation.structure.DrumTrack;
 import music.notation.structure.MelodicTrack;
 import music.notation.structure.Piece;
@@ -71,35 +72,63 @@ public final class PieceConcretizer {
         Map<TrackId, InstrumentControl> instrMap = new LinkedHashMap<>();
         Set<String> seenIds = new HashSet<>();
 
+        // Pitched tracks: one Score Track per Piece track. Drum tracks:
+        // {@link Score} accepts at most one DRUM track (MIDI channel 9
+        // can host only one kit), so when the Piece carries multiple
+        // DrumTracks (e.g., one per percussion piece from a MIDI import)
+        // we collect their events and emit a single merged Score Track.
+        //
+        // See .docs/drum-track-model.md for the full design rationale.
+        List<ConcreteNote> mergedDrums = new ArrayList<>();
+        String singleDrumName = null;
+        int drumTrackCount = 0;
+
         for (TrackEvents te : trackEventsList) {
+            if (te.kind == TrackKind.DRUM) {
+                drumTrackCount++;
+                singleDrumName = te.name;     // last-seen, used only if count == 1
+                for (DrumTickNote n : te.drums) {
+                    long onMs = tempoMap.tickToMs(n.tick);
+                    long offMs = tempoMap.tickToMs(n.tick + n.dur);
+                    long durMs = Math.max(1, offMs - onMs);
+                    mergedDrums.add(new DrumNote(onMs, durMs, n.piece));
+                }
+                continue;
+            }
             TrackId id = new TrackId(te.name);
             if (!seenIds.add(te.name)) {
                 throw new IllegalArgumentException(
                         "Duplicate TrackId in concretized Piece: " + te.name);
             }
             List<ConcreteNote> notes = new ArrayList<>();
-            if (te.kind == TrackKind.PITCHED) {
-                for (PitchedTickNote n : te.pitched) {
-                    long onMs = tempoMap.tickToMs(n.tick);
-                    long offMs = tempoMap.tickToMs(n.tick + n.dur);
-                    long durMs = Math.max(1, offMs - onMs);
-                    notes.add(new PitchedNote(onMs, durMs, n.midi, n.tiedToNext));
-                }
-            } else {
-                for (DrumTickNote n : te.drums) {
-                    long onMs = tempoMap.tickToMs(n.tick);
-                    long offMs = tempoMap.tickToMs(n.tick + n.dur);
-                    long durMs = Math.max(1, offMs - onMs);
-                    notes.add(new DrumNote(onMs, durMs, n.piece));
-                }
+            for (PitchedTickNote n : te.pitched) {
+                long onMs = tempoMap.tickToMs(n.tick);
+                long offMs = tempoMap.tickToMs(n.tick + n.dur);
+                long durMs = Math.max(1, offMs - onMs);
+                notes.add(new PitchedNote(onMs, durMs, n.midi, n.tiedToNext));
             }
             outTracks.add(new Track(id, te.kind, notes));
             instrMap.put(id, InstrumentControl.constant(te.program));
+        }
+        if (!mergedDrums.isEmpty()) {
+            String preferredName = (drumTrackCount == 1) ? singleDrumName : "drums";
+            TrackId drumId = uniqueId(seenIds, preferredName);
+            outTracks.add(new Track(drumId, TrackKind.DRUM, mergedDrums));
+            instrMap.put(drumId, InstrumentControl.constant(Instrument.DRUM_KIT.program()));
         }
 
         Score score = new Score(outTracks);
         return new Performance(score, tempoTrack, new Instrumentation(instrMap),
                 Articulations.empty());
+    }
+
+    /** Pick a non-colliding TrackId name (appends suffix until unique). */
+    private static TrackId uniqueId(Set<String> seen, String base) {
+        if (seen.add(base)) return new TrackId(base);
+        for (int i = 2; ; i++) {
+            String candidate = base + "_" + i;
+            if (seen.add(candidate)) return new TrackId(candidate);
+        }
     }
 
     // ── Per-track walker ────────────────────────────────────────────────────

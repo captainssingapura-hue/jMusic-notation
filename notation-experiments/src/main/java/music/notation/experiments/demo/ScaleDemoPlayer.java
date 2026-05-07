@@ -9,7 +9,7 @@ import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Score;
 import music.notation.performance.Track;
-import music.notation.performance.TrackId;
+import music.notation.expressivity.TrackId;
 import music.notation.performance.TrackKind;
 import music.notation.experiments.scale.ScaleNote;
 import music.notation.experiments.scale.ScalePitchResolver;
@@ -87,7 +87,7 @@ public final class ScaleDemoPlayer {
                 score,
                 music.notation.performance.TempoTrack.empty(),
                 Instrumentation.single(DEMO_TRACK_ID, GM_PROGRAM_KOTO),
-                music.notation.performance.Articulations.empty());
+                music.notation.expressivity.Articulations.empty());
     }
 
     private static void playWithSyncedDisplay(Performance performance, PianoRollDisplay roll) {

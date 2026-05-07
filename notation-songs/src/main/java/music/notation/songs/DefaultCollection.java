@@ -13,6 +13,11 @@ import music.notation.songs.classical.traumerei.Traumerei;
 import music.notation.songs.folk.tianheihei.PianoTianHeiHei;
 import music.notation.songs.folk.tianheihei.TianHeiHei;
 import music.notation.songs.folk.tianheihei.U2RockTianHeiHei;
+import music.notation.songs.folk.zainayaoyuan.BluesZaiNaYaoYuan;
+import music.notation.songs.folk.zainayaoyuan.PianoZaiNaYaoYuan;
+import music.notation.songs.folk.zainayaoyuan.ZaiNaYaoYuan;
+import music.notation.songs.nursery.xiaohongmao.XiaoHongMao;
+import music.notation.songs.nursery.xiaohongmao.XuWeiXiaoHongMao;
 import music.notation.structure.Collection;
 
 import java.util.List;
@@ -38,7 +43,9 @@ public final class DefaultCollection implements Collection {
                 Entry.of(new Internationale(),   new ManualInternationale(), new GrungeInternationale()),
                 Entry.of(new TianHeiHei(),       new PianoTianHeiHei(), new U2RockTianHeiHei()),
                 Entry.of(new FurElise(),         new ManualFurElise(), new SoulTechnoFurElise()),
-                Entry.of(new Traumerei(),        new DefaultTraumerei())
+                Entry.of(new Traumerei(),        new DefaultTraumerei()),
+                Entry.of(new XiaoHongMao(),      new XuWeiXiaoHongMao()),
+                Entry.of(new ZaiNaYaoYuan(),     new PianoZaiNaYaoYuan(), new BluesZaiNaYaoYuan())
         );
     }
 }

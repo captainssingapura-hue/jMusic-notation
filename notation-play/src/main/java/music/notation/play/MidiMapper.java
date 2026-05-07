@@ -38,8 +38,12 @@ public final class MidiMapper {
     }
 
     public static long toTicks(Duration duration) {
-        // 1 sixty-fourth = TICKS_PER_QUARTER / 16 = 30 ticks
-        return (long) duration.sixtyFourths() * TICKS_PER_QUARTER / 16;
+        // Exact rational → ticks math. PPQ = ticks per quarter, so
+        // ticks per whole = 4 × PPQ. For a duration N/D of a whole:
+        //   ticks = N × 4 × PPQ / D
+        // This is exact for triplets, quintuplets, septuplets, etc.
+        // (all integer at PPQ = 480: 480/12 = 40, 480/10 = 48, etc.).
+        return duration.ticks(TICKS_PER_QUARTER);
     }
 
     /** MIDI note one diatonic step above (approximated as +2 semitones). */

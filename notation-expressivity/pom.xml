@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>music.notation</groupId>
+        <artifactId>notation-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>notation-expressivity</artifactId>
+    <name>Music Notation Expressivity</name>
+    <description>Performance side-channels — per-track timelines for volume,
+        articulations, pedaling, velocity, and other instrument-specific
+        expressivity layers. Keyed by TrackId; sparse + canonical at
+        construction. Composed by MidiCodec at emission time. Sits below
+        notation-performance so any dimension that's "how the piece is
+        played" rather than "what's notated" lands here.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

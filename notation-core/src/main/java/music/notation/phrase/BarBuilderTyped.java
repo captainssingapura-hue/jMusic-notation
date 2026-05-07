@@ -83,7 +83,7 @@ public final class BarBuilderTyped extends NoteAcceptor<BarBuilderTyped> {
             }
         }
 
-        Bar bar = new Bar(barSize, nodes);
+        Bar bar = new Bar(music.notation.duration.BarDuration.fromSixtyFourths(barSize), nodes);
         Map<String, Bar> auxForBar;
         if (auxBuilders.isEmpty()) {
             auxForBar = Map.of();

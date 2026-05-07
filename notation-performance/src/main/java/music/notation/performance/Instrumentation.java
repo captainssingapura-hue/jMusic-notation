@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.expressivity.*;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;

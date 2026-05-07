@@ -4,7 +4,7 @@ import music.notation.core.model.Concretizer;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Track;
-import music.notation.performance.TrackId;
+import music.notation.expressivity.TrackId;
 import music.notation.performance.TrackKind;
 import music.notation.experiments.scale.ScaleNote;
 import music.notation.experiments.scale.ScalePitchResolver;

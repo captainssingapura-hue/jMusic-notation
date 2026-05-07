@@ -40,7 +40,7 @@ public record ChordPhrase(List<ChordEvent> chords, PhraseMarking marking) implem
                     false));     // tiedToNext
             total += chord.duration().sixtyFourths();
         }
-        Bar bar = new Bar(total, nodes);
+        Bar bar = new Bar(music.notation.duration.BarDuration.fromSixtyFourths(total), nodes);
         return new MelodicTrack(name, instrument, Phrase.of(bar));
     }
 }
