@@ -8,7 +8,7 @@ import music.notation.experiments.chord.ChordProgression;
 import music.notation.experiments.chord.ChordShape;
 import music.notation.experiments.chord.ScaleChord;
 import music.notation.performance.ConcreteNote;
-import music.notation.performance.Articulations;
+import music.notation.expressivity.Articulations;
 import music.notation.performance.Instrumentation;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
@@ -16,7 +16,7 @@ import music.notation.performance.PitchedNote;
 import music.notation.performance.Score;
 import music.notation.performance.TempoTrack;
 import music.notation.performance.Track;
-import music.notation.performance.TrackId;
+import music.notation.expressivity.TrackId;
 import music.notation.performance.TrackKind;
 import org.junit.jupiter.api.Test;
 

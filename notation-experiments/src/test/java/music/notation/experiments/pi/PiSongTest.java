@@ -6,7 +6,7 @@ import music.notation.experiments.hirajoshi.HirajoshiConcretizer;
 import music.notation.experiments.hirajoshi.HirajoshiNote;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.PitchedNote;
-import music.notation.performance.TrackId;
+import music.notation.expressivity.TrackId;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

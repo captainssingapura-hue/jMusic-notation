@@ -30,8 +30,8 @@ public final class AuxBarBuilderTyped extends NoteAcceptor<AuxBarBuilderTyped> {
         if (total < barSize) {
             var padded = new ArrayList<>(current);
             padded.add(new RestNode(Duration.ofSixtyFourths(barSize - total)));
-            return new Bar(barSize, padded);
+            return new Bar(music.notation.duration.BarDuration.fromSixtyFourths(barSize), padded);
         }
-        return new Bar(barSize, current);
+        return new Bar(music.notation.duration.BarDuration.fromSixtyFourths(barSize), current);
     }
 }

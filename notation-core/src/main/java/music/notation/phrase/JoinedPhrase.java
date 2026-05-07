@@ -211,7 +211,7 @@ public record JoinedPhrase(String name, List<Phrase> children, ConnectingMode mo
                     music.notation.duration.Duration.ofSixtyFourths(middleGap64)));
         }
         merged.addAll(firstAudible);
-        return new Bar(barSize, merged);
+        return new Bar(music.notation.duration.BarDuration.fromSixtyFourths(barSize), merged);
     }
 
     // ── Bar inspection helpers ───────────────────────────────────────

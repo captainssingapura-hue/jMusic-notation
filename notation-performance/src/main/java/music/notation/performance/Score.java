@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.expressivity.*;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -12,6 +14,11 @@ import java.util.Set;
  * Score have unique {@link TrackId}s; at most one track is DRUM (MIDI 1.0 limitation).
  * The single drum track, if present, sinks to the end of the track list during
  * canonicalisation.
+ *
+ * <p>{@code Piece}s may carry <em>multiple</em> {@code DrumTrack}s (for example,
+ * one per percussion sound after a MIDI import). They are merged into a single
+ * channel-9 stream when {@code PieceConcretizer} produces this {@code Score}.
+ * See {@code .docs/drum-track-model.md} for the rationale.</p>
  */
 public record Score(List<Track> tracks) implements music.notation.core.model.ConcreteNote {
     public Score {

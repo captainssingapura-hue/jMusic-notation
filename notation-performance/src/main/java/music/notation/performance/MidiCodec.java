@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.expressivity.*;
+
 import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MetaMessage;
 import javax.sound.midi.MidiEvent;
@@ -83,9 +85,11 @@ import java.util.TreeMap;
  *       codec writes nothing for it and recovers nothing. A future
  *       export-time articulator may interpret these into note-off /
  *       velocity tweaks behind an explicit opt-in.</li>
- *   <li>Per-note velocity in source MIDI — every NOTE_ON the codec
- *       emits uses a fixed velocity of 80; incoming velocities are
- *       read but discarded.</li>
+ *   <li>Per-note velocity is now a side-channel (see {@link Velocities}).
+ *       NOTE_ON velocities are emitted from {@code Performance.velocities()},
+ *       defaulting to {@link VelocityControl#DEFAULT_VELOCITY} when no entry
+ *       covers the note. {@link #fromMidi} back-fills {@link Velocities} from
+ *       observed velocities — same audible result, denser shape.</li>
  *   <li>The {@code tiedToNext} flag — not recoverable on read; MIDI has
  *       no representation for "these two physical events are
  *       conceptually tied," only the coalesced sounding note.</li>
@@ -113,8 +117,6 @@ public final class MidiCodec {
     private static final int PPQ = 480;
     /** Default bpm used for tempo-map calculations when no tempo events exist. */
     private static final int DEFAULT_BPM = 120;
-    /** Fixed velocity used for every NOTE_ON the codec emits. */
-    private static final int DEFAULT_VELOCITY = 80;
     private static final int MIDI_FILE_TYPE_MULTI_TRACK = 1;
     private static final int DRUM_CHANNEL = 9;
     private static final int META_TEMPO = 0x51;
@@ -164,7 +166,15 @@ public final class MidiCodec {
                     }
                 }
 
-                emitNotes(mt, t.notes(), channel, tempoMap);
+                PedalControl pc = p.pedaling().byTrack().get(t.id());
+                if (pc != null) {
+                    for (PedalChange change : pc.changes()) {
+                        addPedalChange(mt, change, channel, tempoMap);
+                    }
+                }
+
+                VelocityControl velocityCtrl = p.velocities().byTrack().get(t.id());
+                emitNotes(mt, t.notes(), channel, tempoMap, velocityCtrl);
             }
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -250,14 +260,47 @@ public final class MidiCodec {
         track.add(new MidiEvent(msg, midiTick));
     }
 
+    /**
+     * Emit a MIDI Damper / Sustain Pedal control change (CC #64) for a
+     * single {@link PedalChange}. Mapping:
+     * <ul>
+     *   <li>{@link PedalState#DOWN}   → CC #64 = 127</li>
+     *   <li>{@link PedalState#UP}     → CC #64 = 0</li>
+     *   <li>{@link PedalState#CHANGE} → CC #64 = 0, then = 127, separated by 1 ms</li>
+     * </ul>
+     * Per the import doctrine, CC events are silently dropped on read
+     * — pedal is a write-only side-channel over the codec boundary.
+     */
+    private static void addPedalChange(javax.sound.midi.Track track, PedalChange change,
+                                       int channel, TempoMap map)
+            throws InvalidMidiDataException {
+        long midiTick = map.msToTick(change.tickMs());
+        if (change.state() == PedalState.CHANGE) {
+            // Quick release+press: emit two events 1 ms apart so the
+            // dampers fully clear before re-engaging.
+            track.add(controlChange(channel, /*CC #64=*/ 64, 0,   midiTick));
+            track.add(controlChange(channel, /*CC #64=*/ 64, 127, map.msToTick(change.tickMs() + 1)));
+            return;
+        }
+        int level = (change.state() == PedalState.DOWN) ? 127 : 0;
+        track.add(controlChange(channel, 64, level, midiTick));
+    }
+
+    private static MidiEvent controlChange(int channel, int controller, int value, long tick)
+            throws InvalidMidiDataException {
+        ShortMessage msg = new ShortMessage();
+        msg.setMessage(ShortMessage.CONTROL_CHANGE, channel, controller, value);
+        return new MidiEvent(msg, tick);
+    }
+
     private static void addNotePair(javax.sound.midi.Track track, long tickMs, long durationMs,
-                                    int pitch, int channel, TempoMap map)
+                                    int pitch, int channel, TempoMap map, int velocity)
             throws InvalidMidiDataException {
         long onTick  = map.msToTick(tickMs);
         long offTick = map.msToTick(tickMs + durationMs);
 
         ShortMessage on = new ShortMessage();
-        on.setMessage(ShortMessage.NOTE_ON, channel, pitch, DEFAULT_VELOCITY);
+        on.setMessage(ShortMessage.NOTE_ON, channel, pitch, velocity);
         track.add(new MidiEvent(on, onTick));
 
         ShortMessage off = new ShortMessage();
@@ -284,7 +327,8 @@ public final class MidiCodec {
      * emitted as a single NOTE_ON / NOTE_OFF pair.</p>
      */
     private static void emitNotes(javax.sound.midi.Track track, List<ConcreteNote> notes,
-                                  int channel, TempoMap tempoMap)
+                                  int channel, TempoMap tempoMap,
+                                  VelocityControl velocityCtrl)
             throws InvalidMidiDataException {
         int i = 0;
         while (i < notes.size()) {
@@ -311,8 +355,11 @@ public final class MidiCodec {
                 }
             }
 
+            int velocity = (velocityCtrl == null)
+                    ? VelocityControl.DEFAULT_VELOCITY
+                    : velocityCtrl.velocityAt(startTickMs);
             addNotePair(track, startTickMs, endTickMs - startTickMs,
-                    pitch, channel, tempoMap);
+                    pitch, channel, tempoMap, velocity);
             i = j + 1;
         }
     }
@@ -376,7 +423,7 @@ public final class MidiCodec {
                                     if (sm.getData2() > 0) {
                                         outstanding.computeIfAbsent(
                                                         noteKey(channel, sm.getData1()), k -> new ArrayList<>())
-                                                .add(new Pending(ti, channel, tickMs));
+                                                .add(new Pending(ti, channel, tickMs, sm.getData2()));
                                     } else {
                                         matchOff(outstanding, lanes, channel, sm.getData1(), tickMs);
                                     }
@@ -401,10 +448,12 @@ public final class MidiCodec {
             // real-world MIDI commonly splits drum kit pieces across tracks.
             List<Track> outTracks = new ArrayList<>();
             Map<TrackId, InstrumentControl> instrMap = new LinkedHashMap<>();
+            Map<TrackId, VelocityControl> velocityMap = new LinkedHashMap<>();
             Set<String> usedNames = new HashSet<>();
             int unnamedCounter = 0;
 
             List<ConcreteNote> drumNotes = new ArrayList<>();
+            List<RawNote> drumRawNotes = new ArrayList<>();
             List<InstrumentChange> drumProgramChanges = new ArrayList<>();
 
             for (Map.Entry<LaneKey, Lane> entry : lanes.entrySet()) {
@@ -415,6 +464,7 @@ public final class MidiCodec {
                 if (key.channel == DRUM_CHANNEL) {
                     for (RawNote rn : lane.notes) {
                         drumNotes.add(new DrumNote(rn.tickMs, rn.durationMs, rn.pitch));
+                        drumRawNotes.add(rn);
                     }
                     drumProgramChanges.addAll(lane.programChanges);
                     continue;
@@ -442,11 +492,14 @@ public final class MidiCodec {
                 if (!lane.programChanges.isEmpty()) {
                     instrMap.put(id, new InstrumentControl(lane.programChanges));
                 }
+                VelocityControl vc = velocityControlFor(lane.notes);
+                if (!vc.changes().isEmpty()) velocityMap.put(id, vc);
             }
 
             // Emit the coalesced drum Track if any drum events were seen.
             if (!drumNotes.isEmpty() || !drumProgramChanges.isEmpty()) {
                 drumNotes.sort(Comparator.comparingLong(ConcreteNote::tickMs));
+                drumRawNotes.sort(Comparator.comparingLong(RawNote::tickMs));
                 drumProgramChanges.sort(Comparator.comparingLong(InstrumentChange::tickMs));
                 String drumName = uniqueName("drums", usedNames);
                 usedNames.add(drumName);
@@ -455,6 +508,8 @@ public final class MidiCodec {
                 if (!drumProgramChanges.isEmpty()) {
                     instrMap.put(id, new InstrumentControl(drumProgramChanges));
                 }
+                VelocityControl vc = velocityControlFor(drumRawNotes);
+                if (!vc.changes().isEmpty()) velocityMap.put(id, vc);
             }
 
             Score score = new Score(outTracks);
@@ -462,10 +517,42 @@ public final class MidiCodec {
                     score,
                     new TempoTrack(tempoChanges),
                     new Instrumentation(instrMap),
-                    Articulations.empty());
+                    Volume.empty(),
+                    Articulations.empty(),
+                    Pedaling.empty(),
+                    new Velocities(velocityMap));
         } catch (Exception e) {
             throw new IllegalStateException("fromMidi failed", e);
         }
+    }
+
+    /**
+     * Build a per-onset {@link VelocityControl} from raw note velocities.
+     * Step-function semantics + dedup mean a uniform-velocity track
+     * produces just one (or zero) entries.
+     *
+     * <p>Returns {@link VelocityControl#empty()} when the resulting
+     * control would be trivially default — i.e. one entry at velocity
+     * {@link VelocityControl#DEFAULT_VELOCITY}. This preserves
+     * {@code Performance} round-trip equality when the source had no
+     * explicit per-note dynamics (every NOTE_ON written + read at the
+     * codec default).</p>
+     */
+    private static VelocityControl velocityControlFor(List<RawNote> notes) {
+        if (notes.isEmpty()) return VelocityControl.empty();
+        List<RawNote> sorted = new ArrayList<>(notes);
+        sorted.sort(Comparator.comparingLong(RawNote::tickMs));
+        List<VelocityChange> changes = new ArrayList<>(sorted.size());
+        for (RawNote rn : sorted) {
+            changes.add(new VelocityChange(rn.tickMs, rn.velocity));
+        }
+        // VelocityControl's constructor sorts + dedups consecutive same-velocity entries.
+        VelocityControl ctrl = new VelocityControl(changes);
+        if (ctrl.changes().size() == 1
+                && ctrl.changes().get(0).velocity() == VelocityControl.DEFAULT_VELOCITY) {
+            return VelocityControl.empty();
+        }
+        return ctrl;
     }
 
     private static String uniqueName(String base, Set<String> used) {
@@ -517,15 +604,15 @@ public final class MidiCodec {
         long safeOff = Math.max(offMs, pending.onMs + 1);
         long duration = safeOff - pending.onMs;
         Lane lane = lanes.computeIfAbsent(new LaneKey(pending.midiTrackIndex, pending.channel), k -> new Lane());
-        lane.notes.add(new RawNote(pending.onMs, duration, pitch));
+        lane.notes.add(new RawNote(pending.onMs, duration, pitch, pending.velocity));
     }
 
     private static int noteKey(int channel, int pitch) {
         return (channel << 8) | pitch;
     }
 
-    private record Pending(int midiTrackIndex, int channel, long onMs) {}
-    private record RawNote(long tickMs, long durationMs, int pitch) {}
+    private record Pending(int midiTrackIndex, int channel, long onMs, int velocity) {}
+    private record RawNote(long tickMs, long durationMs, int pitch, int velocity) {}
     private record LaneKey(int midiTrackIndex, int channel) {}
     private static final class Lane {
         final List<RawNote> notes = new ArrayList<>();

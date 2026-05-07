@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.expressivity.*;
+
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -53,6 +55,34 @@ public final class PerformanceJson {
 
     public static byte[] toJsonBytes(Performance p) {
         return toJson(p).getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Pretty-print any value through the same configured mapper — exposed for
+     * consumers that want to split a {@link Performance} across multiple files
+     * (per-track / per-tempo) while keeping {@link TrackId} formatting and the
+     * sealed-{@link ConcreteNote} discriminator consistent.
+     */
+    public static String toJsonAny(Object value) {
+        try {
+            return PRETTY.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("toJsonAny failed", e);
+        }
+    }
+
+    /**
+     * Inverse of {@link #toJsonAny(Object)} — parse any value through the same
+     * configured mapper. Useful for split-file readers that load
+     * {@link Track}, {@link TempoTrack}, or custom meta records one at a time.
+     */
+    public static <T> T fromJsonAny(String json, Class<T> type) {
+        try {
+            return MAPPER.readValue(json, type);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "fromJsonAny failed for " + type.getSimpleName(), e);
+        }
     }
 
     public static Performance fromJsonBytes(byte[] bytes) {

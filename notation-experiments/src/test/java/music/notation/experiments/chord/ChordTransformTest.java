@@ -10,7 +10,7 @@ import music.notation.experiments.hirajoshi.HirajoshiNote;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Track;
-import music.notation.performance.TrackId;
+import music.notation.expressivity.TrackId;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

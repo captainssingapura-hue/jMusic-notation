@@ -1,5 +1,6 @@
 package music.notation.phrase;
 
+import music.notation.duration.BarDuration;
 import music.notation.duration.Duration;
 import music.notation.event.Instrument;
 import music.notation.structure.DrumTrack;
@@ -16,13 +17,15 @@ public record RestPhrase(Duration duration, PhraseMarking marking) implements Au
      * dropped. Rejects {@link Instrument#DRUM_KIT} on melodic conversion.
      */
     public MelodicTrack toMelodicTrack(String name, Instrument instrument) {
-        Bar bar = new Bar(duration.sixtyFourths(), List.of(new RestNode(duration)));
+        Bar bar = new Bar(BarDuration.fromSixtyFourths(duration.sixtyFourths()),
+                List.of(new RestNode(duration)));
         return new MelodicTrack(name, instrument, Phrase.of(bar));
     }
 
     /** Phase 4b adapter: same shape as {@link #toMelodicTrack} but on a {@link DrumTrack}. */
     public DrumTrack toDrumTrack(String name) {
-        Bar bar = new Bar(duration.sixtyFourths(), List.of(new RestNode(duration)));
+        Bar bar = new Bar(BarDuration.fromSixtyFourths(duration.sixtyFourths()),
+                List.of(new RestNode(duration)));
         return new DrumTrack(name, Phrase.of(bar));
     }
 }

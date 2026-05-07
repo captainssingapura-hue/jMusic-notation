@@ -61,7 +61,8 @@ public record MelodicPhrase(
             for (PhraseNode n : nodes) {
                 total += Bar.nodeSixtyFourths(n);
             }
-            outBars = List.of(new Bar(total, nodes));
+            outBars = List.of(new Bar(
+                    music.notation.duration.BarDuration.fromSixtyFourths(total), nodes));
         }
         return new MelodicTrack(name, instrument, Phrase.of(outBars, auxBarsSparse));
     }

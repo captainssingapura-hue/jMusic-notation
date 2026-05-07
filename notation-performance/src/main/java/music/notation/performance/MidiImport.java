@@ -21,7 +21,7 @@ public record MidiImport(
         Performance performance,
         TimeSignature timeSig,
         KeySignature key
-) {
+) implements MusicalImport {
     public MidiImport {
         Objects.requireNonNull(displayName, "displayName");
         Objects.requireNonNull(performance, "performance");

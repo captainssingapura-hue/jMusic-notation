@@ -5,9 +5,9 @@ import music.notation.performance.InstrumentControl;
 import music.notation.performance.Instrumentation;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
-import music.notation.performance.TrackId;
-import music.notation.performance.Volume;
-import music.notation.performance.VolumeControl;
+import music.notation.expressivity.TrackId;
+import music.notation.expressivity.Volume;
+import music.notation.expressivity.VolumeControl;
 import music.notation.phrase.*;
 import music.notation.structure.DrumTrack;
 import music.notation.structure.MelodicTrack;
@@ -55,6 +55,20 @@ public final class MidiPlayer {
      */
     public static Sequence buildNoteSequence(Piece piece) throws InvalidMidiDataException {
         Sequence seq = buildSequence(piece);
+        stripChannelControlEvents(seq);
+        return seq;
+    }
+
+    /**
+     * Variant of {@link #buildNoteSequence(Piece)} that folds a
+     * {@link music.notation.expressivity.Velocities} side-channel into
+     * the concretized {@link Performance} before sequence build, so
+     * NOTE_ON bytes carry the per-note velocity.
+     */
+    public static Sequence buildNoteSequence(Piece piece,
+                                             music.notation.expressivity.Velocities velocities)
+            throws InvalidMidiDataException {
+        Sequence seq = buildSequence(piece, velocities);
         stripChannelControlEvents(seq);
         return seq;
     }
@@ -251,9 +265,21 @@ public final class MidiPlayer {
     }
 
     public static Sequence buildSequence(Piece piece) throws InvalidMidiDataException {
+        return buildSequence(piece, music.notation.expressivity.Velocities.empty());
+    }
+
+    /**
+     * Build a MIDI Sequence from a {@link Piece} with the supplied
+     * {@link music.notation.expressivity.Velocities Velocities} folded
+     * into the concretized {@link Performance}.
+     */
+    public static Sequence buildSequence(Piece piece,
+                                         music.notation.expressivity.Velocities velocities)
+            throws InvalidMidiDataException {
         try {
             Performance perf = PieceConcretizer.concretize(piece);
-            byte[] bytes = MidiCodec.toMidi(perf);
+            Performance withVelocities = applyVelocityOverrides(perf, velocities);
+            byte[] bytes = MidiCodec.toMidi(withVelocities);
             return MidiSystem.getSequence(new ByteArrayInputStream(bytes));
         } catch (IOException e) {
             throw new InvalidMidiDataException("buildSequence(Piece) failed: " + e.getMessage());
@@ -301,15 +327,51 @@ public final class MidiPlayer {
     public static Sequence buildSequence(Piece piece, List<List<Instrument>> trackInstruments,
                                          List<List<Integer>> trackVolumes)
             throws InvalidMidiDataException {
+        return buildSequence(piece, trackInstruments, trackVolumes,
+                music.notation.expressivity.Velocities.empty());
+    }
+
+    /**
+     * Build a MIDI Sequence with explicit instrument, volume, AND
+     * per-note velocity assignments. The velocities side-channel is
+     * folded into the concretized {@link Performance} before
+     * {@link MidiCodec#toMidi}, so the codec emits the correct
+     * NOTE_ON velocity bytes.
+     *
+     * <p>Pass {@link music.notation.expressivity.Velocities#empty()}
+     * to keep uniform default velocity (no per-note dynamics).</p>
+     */
+    public static Sequence buildSequence(Piece piece, List<List<Instrument>> trackInstruments,
+                                         List<List<Integer>> trackVolumes,
+                                         music.notation.expressivity.Velocities velocities)
+            throws InvalidMidiDataException {
         try {
             Performance perf = PieceConcretizer.concretize(piece);
             Performance withInstruments = applyInstrumentOverrides(perf, piece, trackInstruments);
             Performance withVolumes = applyVolumeOverrides(withInstruments, piece, trackVolumes);
-            byte[] bytes = MidiCodec.toMidi(withVolumes);
+            Performance withVelocities = applyVelocityOverrides(withVolumes, velocities);
+            byte[] bytes = MidiCodec.toMidi(withVelocities);
             return MidiSystem.getSequence(new ByteArrayInputStream(bytes));
         } catch (IOException e) {
             throw new InvalidMidiDataException("buildSequence(...) failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * Replace the {@link Performance}'s velocities side-channel. Empty
+     * input → no-op (returns the input unchanged).
+     */
+    private static Performance applyVelocityOverrides(Performance perf,
+                                                      music.notation.expressivity.Velocities velocities) {
+        if (velocities == null || velocities.byTrack().isEmpty()) return perf;
+        return new Performance(
+                perf.score(),
+                perf.tempo(),
+                perf.instruments(),
+                perf.volume(),
+                perf.articulations(),
+                perf.pedaling(),
+                velocities);
     }
 
     /**
@@ -415,6 +477,34 @@ public final class MidiPlayer {
     private TempoSetup currentTempo = TempoSetup.unity();
     /** The most-recently applied swing setup (held for restart-at-tick). */
     private SwingSetup currentSwing = SwingSetup.OFF;
+    /**
+     * The currently-staged humanizer setup. Applied to the note sequence
+     * after swing on every {@code start} / {@code restartAt}. Hosts call
+     * {@link #setHumanizer} before {@link #start} and
+     * {@link #applyHumanizer} for live changes.
+     */
+    private HumanizerSetup currentHumanizer = HumanizerSetup.OFF;
+    /**
+     * Sustain-pedal info from an MXL import. The {@link music.notation.structure.Piece}
+     * doesn't carry pedaling, so {@code NotationApp} stages it here before
+     * {@code start()} so the Sequence can be post-processed by
+     * {@link PedalInjector}.
+     */
+    private music.notation.expressivity.Pedaling currentPedaling =
+            music.notation.expressivity.Pedaling.empty();
+    /** When false, {@link #currentPedaling} is ignored even if non-empty. */
+    private boolean pedalEnabled = true;
+    /** Tempo timeline for ms→tick conversion in {@link PedalInjector}. */
+    private music.notation.performance.TempoTrack currentPedalTempos =
+            music.notation.performance.TempoTrack.empty();
+    /**
+     * Per-note velocity timelines applied to the next sequence build.
+     * Empty means uniform default velocity. Augmented onto the
+     * concretized {@link Performance} before {@link MidiCodec#toMidi}
+     * so the codec emits the right NOTE_ON velocity bytes.
+     */
+    private music.notation.expressivity.Velocities currentVelocities =
+            music.notation.expressivity.Velocities.empty();
     /** Layered soundbanks applied on next start() / restartAt(). */
     private SoundbankSetup soundbankSetup = SoundbankSetup.empty();
 
@@ -488,7 +578,8 @@ public final class MidiPlayer {
         stop();
         paused = false;
 
-        Sequence sequence = swingSetup.apply(buildNoteSequence(piece));
+        Sequence sequence = injectPedal(swingSetup.apply(buildNoteSequence(piece, currentVelocities)));
+        sequence = currentHumanizer.apply(sequence);
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
@@ -502,7 +593,7 @@ public final class MidiPlayer {
         currentSetup = channelSetup;
         currentTempo = tempoSetup;
         currentSwing = swingSetup;
-        baseFactory = () -> buildNoteSequence(piece);
+        baseFactory = () -> buildNoteSequence(piece, currentVelocities);
 
         channelSetup.apply(synthesizer);
         tempoSetup.apply(sequencer);
@@ -527,7 +618,10 @@ public final class MidiPlayer {
         stop();
         paused = false;
 
-        Sequence sequence = swingSetup.apply(buildNoteSequence(performance));
+        // Performance-based path already routes Pedaling through MidiCodec;
+        // the post-process pedalInjector is a no-op (currentPedaling left
+        // empty here so we don't double-emit).
+        Sequence sequence = currentHumanizer.apply(swingSetup.apply(buildNoteSequence(performance)));
         sequencer = MidiSystem.getSequencer(false);
         synthesizer = MidiSystem.getSynthesizer();
         synthesizer.open();
@@ -559,7 +653,7 @@ public final class MidiPlayer {
                           TempoSetup tempoSetup, SwingSetup swingSetup) throws Exception {
         if (sequencer == null || baseFactory == null) return;
         sequencer.stop();
-        Sequence seq = swingSetup.apply(baseFactory.build());
+        Sequence seq = currentHumanizer.apply(injectPedal(swingSetup.apply(baseFactory.build())));
         sequencer.setSequence(seq);
         currentNoteSequence = seq;
         currentSetup = channelSetup;
@@ -583,6 +677,86 @@ public final class MidiPlayer {
             return;
         }
         restartAt(resumeTick, currentSetup, currentTempo, swingSetup);
+    }
+
+    /**
+     * Stage a {@link HumanizerSetup} to be applied on the next
+     * {@link #start} or {@link #restartAt}. Idempotent. Use
+     * {@link #applyHumanizer(HumanizerSetup, long)} to take effect on a
+     * running sequencer.
+     */
+    public void setHumanizer(HumanizerSetup setup) {
+        this.currentHumanizer = setup == null ? HumanizerSetup.OFF : setup;
+    }
+
+    public HumanizerSetup getHumanizer() { return currentHumanizer; }
+
+    /**
+     * Live humaniser change. Stops, rebuilds with the new jitter setting,
+     * resumes at the given tick. No-op if not running (the new setup is
+     * staged for the next {@link #start}).
+     */
+    public void applyHumanizer(HumanizerSetup setup, long resumeTick) throws Exception {
+        if (setup == null) return;
+        currentHumanizer = setup;
+        if (sequencer == null) return;
+        restartAt(resumeTick, currentSetup, currentTempo, currentSwing);
+    }
+
+    /**
+     * Stage a {@link music.notation.expressivity.Pedaling} (typically from
+     * an MXL import) plus the tempo timeline used to map ms positions to
+     * MIDI ticks. Applied to the Piece-based playback sequence on the
+     * next {@link #start} or {@link #restartAt}. No-op when
+     * {@link #setPedalEnabled} is false or the pedaling is empty.
+     */
+    public void setPedaling(music.notation.expressivity.Pedaling pedaling,
+                            music.notation.performance.TempoTrack tempos) {
+        this.currentPedaling = (pedaling == null)
+                ? music.notation.expressivity.Pedaling.empty() : pedaling;
+        this.currentPedalTempos = (tempos == null)
+                ? music.notation.performance.TempoTrack.empty() : tempos;
+    }
+
+    /**
+     * Backwards-compat overload accepting a constant bpm.
+     *
+     * @deprecated use
+     *     {@link #setPedaling(music.notation.expressivity.Pedaling,
+     *                          music.notation.performance.TempoTrack)}
+     */
+    @Deprecated
+    public void setPedaling(music.notation.expressivity.Pedaling pedaling, int referenceBpm) {
+        setPedaling(pedaling, referenceBpm > 0
+                ? music.notation.performance.TempoTrack.constant(referenceBpm)
+                : music.notation.performance.TempoTrack.empty());
+    }
+
+    /** Live toggle for honour-or-ignore pedaling. Default: true. */
+    public void setPedalEnabled(boolean enabled) { this.pedalEnabled = enabled; }
+    public boolean isPedalEnabled()              { return pedalEnabled; }
+
+    /**
+     * Stage a {@link music.notation.expressivity.Velocities} side-channel
+     * (typically auto-generated, or imported from MXL dynamics) for the
+     * next library-piece sequence build. The Performance-based start
+     * path consumes the source's own velocities and ignores this setter.
+     */
+    public void setVelocities(music.notation.expressivity.Velocities velocities) {
+        this.currentVelocities = (velocities == null)
+                ? music.notation.expressivity.Velocities.empty() : velocities;
+    }
+
+    /** Live pedal toggle on a running sequencer — rebuilds + resumes. */
+    public void applyPedalEnabled(boolean enabled, long resumeTick) throws Exception {
+        this.pedalEnabled = enabled;
+        if (sequencer == null) return;
+        restartAt(resumeTick, currentSetup, currentTempo, currentSwing);
+    }
+
+    private Sequence injectPedal(Sequence seq) throws InvalidMidiDataException {
+        if (!pedalEnabled || currentPedaling.byTrack().isEmpty()) return seq;
+        return PedalInjector.inject(seq, currentPedaling, currentPedalTempos);
     }
 
     /**
@@ -741,11 +915,53 @@ public final class MidiPlayer {
      */
     public static void exportMidi(Piece piece, ChannelSetup channelSetup, File file)
             throws InvalidMidiDataException, IOException {
+        exportMidi(piece, channelSetup, file,
+                music.notation.expressivity.Pedaling.empty(),
+                music.notation.performance.TempoTrack.empty());
+    }
+
+    /**
+     * Export with optional sustain-pedal injection. The {@link Piece}
+     * model doesn't carry pedal info, so callers that have a
+     * {@link music.notation.expressivity.Pedaling} (typically from an MXL
+     * import) pass it explicitly to materialise CC #64 events in the
+     * exported MIDI — same code path live playback uses via
+     * {@link PedalInjector}. The supplied tempo timeline is used to
+     * convert pedal-event ms positions to ticks (rubato-aware).
+     */
+    public static void exportMidi(Piece piece, ChannelSetup channelSetup, File file,
+                                   music.notation.expressivity.Pedaling pedaling,
+                                   music.notation.performance.TempoTrack tempos)
+            throws InvalidMidiDataException, IOException {
         Sequence noteSeq = buildNoteSequence(piece);
+        if (pedaling != null && !pedaling.byTrack().isEmpty()) {
+            noteSeq = PedalInjector.inject(noteSeq, pedaling, tempos);
+        }
         Sequence frozen = freezeForExport(noteSeq, channelSetup, TempoSetup.unity(), Region.full());
         int[] types = MidiSystem.getMidiFileTypes(frozen);
         int fileType = (types.length > 1) ? 1 : types[0];
         MidiSystem.write(frozen, fileType, file);
+    }
+
+    /**
+     * Backwards-compat export overload accepting a constant reference
+     * bpm. Prefer the {@link music.notation.performance.TempoTrack}
+     * overload for rubato-aware export.
+     *
+     * @deprecated use
+     *     {@link #exportMidi(Piece, ChannelSetup, File,
+     *         music.notation.expressivity.Pedaling,
+     *         music.notation.performance.TempoTrack)}
+     */
+    @Deprecated
+    public static void exportMidi(Piece piece, ChannelSetup channelSetup, File file,
+                                   music.notation.expressivity.Pedaling pedaling,
+                                   int referenceBpm)
+            throws InvalidMidiDataException, IOException {
+        exportMidi(piece, channelSetup, file, pedaling,
+                referenceBpm > 0
+                        ? music.notation.performance.TempoTrack.constant(referenceBpm)
+                        : music.notation.performance.TempoTrack.empty());
     }
 
     /**

@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.expressivity.*;
+
 import org.junit.jupiter.api.Test;
 
 import javax.sound.midi.MidiSystem;

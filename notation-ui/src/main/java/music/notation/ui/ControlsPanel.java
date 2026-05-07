@@ -14,8 +14,12 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import music.notation.autodrum.DrumStrategies;
+import music.notation.autodrum.DrumStrategy;
+import music.notation.autodrum.Energy;
 import music.notation.pitch.Accidental;
 import music.notation.pitch.NoteName;
+import music.notation.play.HumanizerSetup;
 import music.notation.play.SwingSetup;
 import music.notation.structure.KeySignature;
 import music.notation.structure.Mode;
@@ -49,6 +53,14 @@ final class ControlsPanel {
 
     private final ComboBox<SwingChoice> swingCombo;
 
+    private final ComboBox<DrumStrategy> autoDrumCombo;
+    private final ComboBox<Energy> energyCombo;
+    private final ComboBox<HumanizerChoice> humanizerCombo;
+    private final javafx.scene.control.RadioButton pedalSourceRadio;
+    private final javafx.scene.control.RadioButton pedalAutoRadio;
+    private final javafx.scene.control.RadioButton pedalOffRadio;
+    private final javafx.scene.control.ToggleGroup pedalGroup;
+
     private final ListView<File> soundbankList = new ListView<>();
     private final Button soundbankAddBtn = new Button("Add…");
     private final Button soundbankResetBtn = new Button("Reset");
@@ -61,6 +73,10 @@ final class ControlsPanel {
     private Runnable onScaleChanged = () -> {};
     private Runnable onBpmReleased  = () -> {};
     private Consumer<SwingSetup> onSwingChanged = s -> {};
+    private Consumer<DrumStrategy> onAutoDrumChanged = s -> {};
+    private Consumer<Energy> onEnergyChanged = e -> {};
+    private Consumer<HumanizerSetup> onHumanizerChanged = h -> {};
+    private Consumer<PedalMode> onPedalModeChanged = m -> {};
     private Consumer<List<File>> onSoundbanksChanged = files -> {};
 
     /** Suppress flag so programmatic mutations don't fire user listeners. */
@@ -144,6 +160,85 @@ final class ControlsPanel {
         });
         swingRow.getChildren().addAll(swingLabel, swingCombo);
 
+        // ── Auto-Drum row
+        HBox drumRow = new HBox(10);
+        drumRow.setAlignment(Pos.CENTER_LEFT);
+        Label drumLabel = styledLabel("Auto Drum:");
+        autoDrumCombo = new ComboBox<>(FXCollections.observableArrayList(DrumStrategies.available()));
+        autoDrumCombo.setStyle(comboStyle());
+        autoDrumCombo.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(autoDrumCombo, Priority.ALWAYS);
+        autoDrumCombo.setCellFactory(lv -> drumStrategyCell());
+        autoDrumCombo.setButtonCell(drumStrategyCell());
+        autoDrumCombo.setValue(DrumStrategies.NONE);
+        autoDrumCombo.setOnAction(e -> {
+            if (suppressEvents) return;
+            DrumStrategy s = autoDrumCombo.getValue();
+            updateEnergyEnabled();
+            if (s != null) onAutoDrumChanged.accept(s);
+        });
+        drumRow.getChildren().addAll(drumLabel, autoDrumCombo);
+
+        // ── Energy row (paired with Auto Drum)
+        HBox energyRow = new HBox(10);
+        energyRow.setAlignment(Pos.CENTER_LEFT);
+        Label energyLabel = styledLabel("Energy:");
+        energyCombo = new ComboBox<>(FXCollections.observableArrayList(Energy.values()));
+        energyCombo.setStyle(comboStyle());
+        energyCombo.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(energyCombo, Priority.ALWAYS);
+        energyCombo.setCellFactory(lv -> energyCell());
+        energyCombo.setButtonCell(energyCell());
+        energyCombo.setValue(Energy.MEDIUM);
+        energyCombo.setDisable(true);  // disabled until a non-NONE strategy is picked
+        energyCombo.setOnAction(e -> {
+            if (suppressEvents) return;
+            Energy v = energyCombo.getValue();
+            if (v != null) onEnergyChanged.accept(v);
+        });
+        energyRow.getChildren().addAll(energyLabel, energyCombo);
+
+        // ── Humanizer row
+        HBox humanizerRow = new HBox(10);
+        humanizerRow.setAlignment(Pos.CENTER_LEFT);
+        Label humanizerLabel = styledLabel("Humanize:");
+        humanizerCombo = new ComboBox<>(FXCollections.observableArrayList(HumanizerChoice.values()));
+        humanizerCombo.setStyle(comboStyle());
+        humanizerCombo.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(humanizerCombo, Priority.ALWAYS);
+        humanizerCombo.setCellFactory(lv -> humanizerCell());
+        humanizerCombo.setButtonCell(humanizerCell());
+        humanizerCombo.setValue(HumanizerChoice.OFF);
+        humanizerCombo.setDisable(true);  // gated by auto-drum picker
+        humanizerCombo.setOnAction(e -> {
+            if (suppressEvents) return;
+            HumanizerChoice c = humanizerCombo.getValue();
+            if (c != null) onHumanizerChanged.accept(c.setup);
+        });
+        humanizerRow.getChildren().addAll(humanizerLabel, humanizerCombo);
+
+        // ── Pedal mode (tri-state: Source · Auto · Off). Source is gated
+        //    by whether the loaded piece declares <pedal/> markings; Auto
+        //    is gated by whether the piece has any pitched tracks. Both
+        //    can be unavailable simultaneously (only-drums score) — then
+        //    the whole row is disabled and effectively pinned to Off.
+        Label pedalLabel = styledLabel("Pedal:");
+        pedalGroup       = new javafx.scene.control.ToggleGroup();
+        pedalSourceRadio = pedalRadio("Source", pedalGroup,
+                "Use the engraver's <pedal/> markings from the source.");
+        pedalAutoRadio   = pedalRadio("Auto",   pedalGroup,
+                "Synthesize pedaling — bar boundaries plus mid-bar bass-note changes.");
+        pedalOffRadio    = pedalRadio("Off",    pedalGroup,
+                "No sustain pedal — dry playback.");
+        pedalAutoRadio.setSelected(true);
+        HBox pedalRow = new HBox(10, pedalLabel,
+                pedalSourceRadio, pedalAutoRadio, pedalOffRadio);
+        pedalRow.setAlignment(Pos.CENTER_LEFT);
+        pedalGroup.selectedToggleProperty().addListener((obs, oldT, newT) -> {
+            if (suppressEvents || newT == null) return;
+            onPedalModeChanged.accept(getPedalMode());
+        });
+
         // ── Status + piece info
         statusLabel = new Label("Select a piece to begin");
         statusLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 12;");
@@ -190,7 +285,9 @@ final class ControlsPanel {
         HBox sbButtons = new HBox(8, soundbankAddBtn, soundbankResetBtn);
         VBox sbBox = new VBox(4, sbHeader, soundbankList, sbButtons);
 
-        root.getChildren().addAll(sbBox, providerRow, scaleRow, bpmRow, swingRow, statusLabel, pieceInfoLabel);
+        root.getChildren().addAll(sbBox, providerRow, scaleRow, bpmRow, swingRow,
+                drumRow, energyRow, humanizerRow, pedalRow,
+                statusLabel, pieceInfoLabel);
     }
 
     Node getRoot() { return root; }
@@ -214,6 +311,142 @@ final class ControlsPanel {
     void setOnSwingChanged(Consumer<SwingSetup> handler) {
         this.onSwingChanged = handler == null ? s -> {} : handler;
     }
+
+    /** Fires when the auto-drum strategy selector changes. */
+    void setOnAutoDrumChanged(Consumer<DrumStrategy> handler) {
+        this.onAutoDrumChanged = handler == null ? s -> {} : handler;
+    }
+
+    /** Fires when the energy selector changes. */
+    void setOnEnergyChanged(Consumer<Energy> handler) {
+        this.onEnergyChanged = handler == null ? e -> {} : handler;
+    }
+
+    void setEnergy(Energy energy) {
+        suppressEvents = true;
+        try {
+            energyCombo.setValue(energy == null ? Energy.MEDIUM : energy);
+        } finally {
+            suppressEvents = false;
+        }
+    }
+
+    Energy getEnergy() { return energyCombo.getValue(); }
+
+    /**
+     * Programmatically reset the auto-drum selector (e.g. when a new
+     * piece loads, or the host wants to revert to NONE).
+     */
+    void setAutoDrum(DrumStrategy strategy) {
+        suppressEvents = true;
+        try {
+            autoDrumCombo.setValue(strategy == null ? DrumStrategies.NONE : strategy);
+        } finally {
+            suppressEvents = false;
+        }
+    }
+
+    /**
+     * Enable/disable the auto-drum picker. Hosts call this with
+     * {@code false} when the loaded piece already carries its own drum
+     * track, so the picker is greyed out.
+     */
+    void setAutoDrumEnabled(boolean enabled) {
+        autoDrumCombo.setDisable(!enabled);
+        if (!enabled) setAutoDrum(DrumStrategies.NONE);
+        updateEnergyEnabled();
+    }
+
+    /** Energy + humanizer are meaningful only when an active strategy is staged. */
+    private void updateEnergyEnabled() {
+        boolean active = !autoDrumCombo.isDisabled()
+                && autoDrumCombo.getValue() != null
+                && autoDrumCombo.getValue() != DrumStrategies.NONE;
+        energyCombo.setDisable(!active);
+        humanizerCombo.setDisable(!active);
+    }
+
+    /** Fires when the humanizer selector changes. */
+    void setOnHumanizerChanged(Consumer<HumanizerSetup> handler) {
+        this.onHumanizerChanged = handler == null ? h -> {} : handler;
+    }
+
+    void setHumanizer(HumanizerSetup setup) {
+        suppressEvents = true;
+        try {
+            humanizerCombo.setValue(HumanizerChoice.from(setup));
+        } finally {
+            suppressEvents = false;
+        }
+    }
+
+    HumanizerSetup getHumanizer() {
+        var v = humanizerCombo.getValue();
+        return v == null ? HumanizerSetup.OFF : v.setup;
+    }
+
+    /** Fires when the user picks a different pedal mode. */
+    void setOnPedalModeChanged(Consumer<PedalMode> handler) {
+        this.onPedalModeChanged = handler == null ? m -> {} : handler;
+    }
+
+    /**
+     * Update which pedal modes are selectable. {@code source} = the
+     * loaded piece declared {@code <pedal/>} markings; {@code auto} =
+     * the piece has pitched content auto-pedal can act on. Off is
+     * always selectable. If the currently-picked mode is no longer
+     * available, the selection falls back to the next sensible mode
+     * (Source → Auto → Off) and the listener fires with the new mode.
+     */
+    void setPedalAvailability(boolean source, boolean auto) {
+        pedalSourceRadio.setDisable(!source);
+        pedalAutoRadio.setDisable(!auto);
+        // Off radio is never disabled.
+        PedalMode current = getPedalMode();
+        PedalMode resolved = current;
+        if (current == PedalMode.SOURCE && !source) resolved = auto ? PedalMode.AUTO : PedalMode.OFF;
+        if (current == PedalMode.AUTO   && !auto)   resolved = PedalMode.OFF;
+        if (resolved != current) setPedalMode(resolved);
+    }
+
+    /**
+     * Programmatically set the pedal mode without firing the change
+     * listener. Use this when applying a fresh piece's natural default
+     * or restoring sticky preferences on startup.
+     */
+    void setPedalMode(PedalMode mode) {
+        if (mode == null) mode = PedalMode.OFF;
+        suppressEvents = true;
+        try {
+            switch (mode) {
+                case SOURCE -> pedalSourceRadio.setSelected(true);
+                case AUTO   -> pedalAutoRadio.setSelected(true);
+                case OFF    -> pedalOffRadio.setSelected(true);
+            }
+        } finally {
+            suppressEvents = false;
+        }
+    }
+
+    PedalMode getPedalMode() {
+        if (pedalSourceRadio.isSelected()) return PedalMode.SOURCE;
+        if (pedalAutoRadio.isSelected())   return PedalMode.AUTO;
+        return PedalMode.OFF;
+    }
+
+    /** Tri-state pedal selector. */
+    enum PedalMode { SOURCE, AUTO, OFF }
+
+    private static javafx.scene.control.RadioButton pedalRadio(
+            String label, javafx.scene.control.ToggleGroup group, String tooltip) {
+        var rb = new javafx.scene.control.RadioButton(label);
+        rb.setToggleGroup(group);
+        rb.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 12;");
+        rb.setTooltip(new javafx.scene.control.Tooltip(tooltip));
+        return rb;
+    }
+
+    DrumStrategy getAutoDrum() { return autoDrumCombo.getValue(); }
 
     /** Wire the Add-soundbank action — host owns the file chooser. */
     void setOnSoundbankAddRequested(Runnable action) {
@@ -339,6 +572,7 @@ final class ControlsPanel {
 
     private static String modeName(Mode mode) {
         return switch (mode) {
+            case NONE -> "(mode not declared)";
             case MAJOR -> "Major (Ionian)";
             case MINOR -> "Minor (Aeolian)";
             case DORIAN -> "Dorian";
@@ -399,6 +633,67 @@ final class ControlsPanel {
                 super.updateItem(item, empty);
                 setText(empty || item == null ? null : item.label);
                 setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
+            }
+        };
+    }
+
+    private static ListCell<Energy> energyCell() {
+        return new ListCell<>() {
+            @Override protected void updateItem(Energy item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : labelFor(item));
+                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
+            }
+            private String labelFor(Energy e) {
+                return switch (e) {
+                    case LOW    -> "Low";
+                    case MEDIUM -> "Medium";
+                    case HIGH   -> "High";
+                };
+            }
+        };
+    }
+
+    private static ListCell<HumanizerChoice> humanizerCell() {
+        return new ListCell<>() {
+            @Override protected void updateItem(HumanizerChoice item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.label);
+                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
+            }
+        };
+    }
+
+    /** Discrete humaniser choices surfaced to the UI. */
+    enum HumanizerChoice {
+        OFF   ("Off",    HumanizerSetup.OFF),
+        LIGHT ("Light",  HumanizerSetup.LIGHT),
+        MEDIUM("Medium", HumanizerSetup.MEDIUM),
+        LOOSE ("Loose",  HumanizerSetup.LOOSE);
+
+        final String label;
+        final HumanizerSetup setup;
+        HumanizerChoice(String label, HumanizerSetup setup) {
+            this.label = label; this.setup = setup;
+        }
+        static HumanizerChoice from(HumanizerSetup setup) {
+            if (setup == null || setup.isOff()) return OFF;
+            int j = setup.maxJitterMs();
+            if (j <= 6)  return LIGHT;
+            if (j <= 12) return MEDIUM;
+            return LOOSE;
+        }
+    }
+
+    private static ListCell<DrumStrategy> drumStrategyCell() {
+        return new ListCell<>() {
+            @Override protected void updateItem(DrumStrategy item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.displayName());
+                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
+                if (item != null && !empty) {
+                    setTooltip(new javafx.scene.control.Tooltip(item.description()));
+                }
             }
         };
     }

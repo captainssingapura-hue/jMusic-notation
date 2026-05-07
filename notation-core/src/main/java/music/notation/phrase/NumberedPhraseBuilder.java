@@ -158,7 +158,8 @@ public final class NumberedPhraseBuilder {
 
     private void flush() {
         if (current != null) {
-            bars.add(new Bar(ts.barSixtyFourths(), current));
+            bars.add(new Bar(music.notation.duration.BarDuration.fromSixtyFourths(
+                    ts.barSixtyFourths()), current));
             current = null;
         }
     }
