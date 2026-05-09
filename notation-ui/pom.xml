@@ -57,6 +57,9 @@
                     <mainClass>music.notation.ui.NotationApp</mainClass>
                     <options>
                         <option>-Dmusic.collections=${project.basedir}/../collections.json</option>
+                        <!-- Audio export uses Gervill's offline-render API (com.sun.media.sound). -->
+                        <option>--add-exports</option>
+                        <option>java.desktop/com.sun.media.sound=ALL-UNNAMED</option>
                     </options>
                 </configuration>
             </plugin>

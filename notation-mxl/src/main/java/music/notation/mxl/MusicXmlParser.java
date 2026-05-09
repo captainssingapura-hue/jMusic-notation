@@ -6,6 +6,8 @@ import music.notation.expressivity.ArticulationControl;
 import music.notation.expressivity.Articulations;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.DrumNote;
+import music.notation.performance.InstrumentChange;
+import music.notation.performance.InstrumentControl;
 import music.notation.performance.Instrumentation;
 import music.notation.expressivity.PedalChange;
 import music.notation.expressivity.PedalControl;
@@ -110,6 +112,11 @@ public final class MusicXmlParser {
         // (used to resolve <unpitched> notes to GM percussion keys).
         Map<String, Map<String, Integer>> partInstruments = scanPartList(root);
 
+        // Parallel pre-scan for melodic <midi-program> and static <volume>.
+        // Drum-only parts (no <midi-program>) are absent from this map and
+        // their tracks fall through to the synth default at concretization.
+        Map<String, PartMidi> partMidi = scanPartMidi(root);
+
         Map<TrackKey, TrackBucket> buckets = new LinkedHashMap<>();
         List<DynamicsEvent> dynamicsEvents = new ArrayList<>();
         List<PedalEvent> pedalEvents = new ArrayList<>();
@@ -121,7 +128,7 @@ public final class MusicXmlParser {
         }
 
         return assemble(meta, tempos, buckets, dynamicsEvents, pedalEvents,
-                repeatResult.structure(), partTranspose, drumNotes);
+                repeatResult.structure(), partTranspose, drumNotes, partMidi);
     }
 
     /** Build the {@link Performance} + side-channels from the per-part walk results. */
@@ -131,7 +138,8 @@ public final class MusicXmlParser {
                                     List<PedalEvent> pedalEvents,
                                     RepeatStructure repeatStructure,
                                     Map<String, Transpose> partTranspose,
-                                    List<DrumNote> drumNotes) {
+                                    List<DrumNote> drumNotes,
+                                    Map<String, PartMidi> partMidi) {
         // Order tracks by descending average MIDI pitch so the highest-
         // sounding voice (typically the melody) lands on top in the UI's
         // pitch-roll lanes. Ties broken by document insertion order.
@@ -144,6 +152,7 @@ public final class MusicXmlParser {
                 .reversed());
 
         List<Track> tracks = new ArrayList<>(ordered.size() + 1);
+        Map<TrackId, InstrumentControl> instrumentMap = new LinkedHashMap<>();
         Map<TrackId, VolumeControl> volumeMap = new LinkedHashMap<>();
         Map<TrackId, VelocityControl> velocityMap = new LinkedHashMap<>();
         Map<TrackId, ArticulationControl> articMap = new LinkedHashMap<>();
@@ -154,6 +163,16 @@ public final class MusicXmlParser {
             TrackKey key = entry.getKey();
             TrackBucket bucket = entry.getValue();
             tracks.add(new Track(bucket.id, TrackKind.PITCHED, bucket.notes));
+
+            // <part-list><midi-instrument><midi-program> — sets the
+            // per-track instrument so MXL imports of strings/brass/etc.
+            // don't render as piano. MXL is 1-indexed; subtract 1 for GM.
+            PartMidi pm = partMidi.get(key.partId);
+            if (pm != null && pm.program != null) {
+                int gm = clamp(pm.program - 1, 0, 127);
+                instrumentMap.put(bucket.id,
+                        new InstrumentControl(List.of(new InstrumentChange(0L, gm))));
+            }
 
             List<VolumeChange> volChanges = new ArrayList<>();
             List<VelocityChange> velChanges = new ArrayList<>();
@@ -166,6 +185,17 @@ public final class MusicXmlParser {
                 // and per-note attack velocity. Clamp to [1,127] — vel 0
                 // is illegal in the model (NOTE_OFF synonym).
                 velChanges.add(new VelocityChange(ms, clamp(ev.cc7(), 1, 127)));
+            }
+            // <part-list><midi-instrument><volume> — when no <dynamics>
+            // events override, seed a single VolumeChange/VelocityChange at
+            // t=0 so the part-default volume is honoured. Authored
+            // dynamics always take precedence: when present, they're the
+            // user's explicit shaping intent and the static <volume>
+            // becomes redundant.
+            if (volChanges.isEmpty() && pm != null && pm.volume != null) {
+                int v = clamp(pm.volume, 0, 127);
+                volChanges.add(new VolumeChange(0L, v));
+                velChanges.add(new VelocityChange(0L, clamp(v, 1, 127)));
             }
             if (!volChanges.isEmpty()) {
                 volumeMap.put(bucket.id, new VolumeControl(volChanges));
@@ -204,10 +234,13 @@ public final class MusicXmlParser {
             tracks.add(new Track(new TrackId("Drums"), TrackKind.DRUM, drumConcrete));
         }
 
+        Instrumentation instrumentation = instrumentMap.isEmpty()
+                ? Instrumentation.empty()
+                : new Instrumentation(instrumentMap);
         Performance perf = new Performance(
                 new Score(tracks),
                 tempos.toTempoTrack(),
-                Instrumentation.empty(),
+                instrumentation,
                 new Volume(volumeMap),
                 new Articulations(articMap),
                 new Pedaling(pedalingMap),
@@ -245,6 +278,71 @@ public final class MusicXmlParser {
                 }
             }
             if (!instrMap.isEmpty()) out.put(partId, instrMap);
+        }
+        return out;
+    }
+
+    /**
+     * Per-part MIDI instrument metadata captured from {@code <part-list>}.
+     * Mirrors the small handful of {@code <midi-instrument>} fields we
+     * actually consume: melodic program (GM 1..128 in MXL → 0..127 in
+     * MIDI; we keep the MXL form here and convert at use site) and
+     * static initial volume.
+     *
+     * <p>Drum-only parts may have only {@code <midi-unpitched>} — for
+     * those, no entry is recorded in the {@code partMidi} map and the
+     * tracks fall through to the synth default.</p>
+     */
+    private record PartMidi(Integer program, Integer volume) {}
+
+    /**
+     * Scan {@code <part-list><score-part><midi-instrument>} for melodic
+     * program + static volume. Multi-{@code <midi-instrument>} parts (rare,
+     * e.g. one drum entry plus one melodic) take the first entry without
+     * {@code <midi-unpitched>} as the part-level program.
+     */
+    private static Map<String, PartMidi> scanPartMidi(Element root) {
+        Map<String, PartMidi> out = new LinkedHashMap<>();
+        Element partList = firstChild(root, "part-list");
+        if (partList == null) return out;
+        for (Element scorePart : children(partList, "score-part")) {
+            String partId = scorePart.getAttribute("id");
+            if (partId == null || partId.isBlank()) continue;
+            Integer program = null;
+            Integer volume = null;
+            for (Element mi : children(scorePart, "midi-instrument")) {
+                // Skip drum-only entries — those carry <midi-unpitched>
+                // and are handled by scanPartList. A part can have both
+                // a drum instrument and a melodic one; the melodic entry
+                // is what we want here.
+                if (firstChild(mi, "midi-unpitched") != null) continue;
+                String prog = textOf(firstChild(mi, "midi-program"));
+                if (prog != null && !prog.isBlank() && program == null) {
+                    try {
+                        program = Integer.parseInt(prog.trim());
+                    } catch (NumberFormatException ignored) {
+                        LOG.warn("ignored non-integer <midi-program>: {}", prog);
+                    }
+                }
+                String vol = textOf(firstChild(mi, "volume"));
+                if (vol != null && !vol.isBlank() && volume == null) {
+                    try {
+                        // <volume> is sometimes a fraction (0.0..1.0) or a
+                        // percentage 0..100 in MusicXML 3.x; treat 0..100
+                        // as a percentage and scale to 0..127.
+                        double parsed = Double.parseDouble(vol.trim());
+                        int scaled = parsed <= 1.0
+                                ? (int) Math.round(parsed * 127)
+                                : (int) Math.round(parsed * 127.0 / 100.0);
+                        volume = clamp(scaled, 0, 127);
+                    } catch (NumberFormatException ignored) {
+                        LOG.warn("ignored non-numeric <volume>: {}", vol);
+                    }
+                }
+            }
+            if (program != null || volume != null) {
+                out.put(partId, new PartMidi(program, volume));
+            }
         }
         return out;
     }

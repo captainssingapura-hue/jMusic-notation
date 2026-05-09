@@ -29,13 +29,29 @@ public record SoundbankSetup(List<File> files) {
 
     /** Number of files that actually loaded successfully. */
     public int apply(Synthesizer synth) {
+        return apply(synth, null);
+    }
+
+    /**
+     * Cache-aware variant: when {@code cache} is non-null, parsed
+     * {@link Soundbank} objects come from it (fast path); cache misses
+     * fall back to synchronous parsing via
+     * {@link MidiSystem#getSoundbank(File)} and are stored back in
+     * the cache for next time.
+     *
+     * <p>Used by the playback path — the cache is warmed on a
+     * background thread when the user configures soundbanks, so by
+     * the time {@code synth.loadAllInstruments(...)} runs at play
+     * time, the parse work is already done.</p>
+     */
+    public int apply(Synthesizer synth, WarmedSoundbanks cache) {
         if (synth == null || files.isEmpty()) return 0;
         int loaded = 0;
         for (File f : files) {
             if (f == null || !f.isFile()) continue;
             try {
-                Soundbank sb = MidiSystem.getSoundbank(f);
-                if (synth.isSoundbankSupported(sb)) {
+                Soundbank sb = (cache != null) ? cache.getOrLoad(f) : MidiSystem.getSoundbank(f);
+                if (sb != null && synth.isSoundbankSupported(sb)) {
                     synth.loadAllInstruments(sb);
                     loaded++;
                 }

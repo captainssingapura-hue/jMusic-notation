@@ -507,14 +507,41 @@ public final class MidiPlayer {
             music.notation.expressivity.Velocities.empty();
     /** Layered soundbanks applied on next start() / restartAt(). */
     private SoundbankSetup soundbankSetup = SoundbankSetup.empty();
+    /**
+     * Pre-parsed soundbank cache. Warmed asynchronously when
+     * {@link #setSoundbankSetup} is called, so {@link #start} doesn't
+     * pay the SF2 parse cost on the FX thread.
+     */
+    private final WarmedSoundbanks warmedSoundbanks = new WarmedSoundbanks();
 
     /**
      * Stage a soundbank list to be applied on the next {@link #start} call.
      * Hot-reload during playback is intentionally not supported — switching
      * the synth's instrument table mid-stream silences any pending notes.
+     *
+     * <p>Triggers an asynchronous parse of any new SF2 files on a
+     * background thread. By the time the user clicks Play, the
+     * parsed {@link javax.sound.midi.Soundbank} objects are sitting
+     * in memory; synth init applies them in milliseconds instead of
+     * seconds.</p>
+     *
+     * <p>If a synth is currently open and not playing, it's closed so
+     * the next {@link #start} re-opens with the new soundbank set.
+     * During playback, the change is queued for next start.</p>
      */
     public void setSoundbankSetup(SoundbankSetup setup) {
         this.soundbankSetup = setup == null ? SoundbankSetup.empty() : setup;
+        // Kick off async parse of any new files; drop cache entries
+        // for files no longer in the list (frees memory).
+        warmedSoundbanks.warmAsync(this.soundbankSetup.files());
+        warmedSoundbanks.evictExcept(this.soundbankSetup.files());
+        // Force re-init on next play with new soundbanks. Don't disturb
+        // an active playback — the user can stop and restart to apply.
+        if (!isPlaying() && !isPaused()
+                && synthesizer != null && synthesizer.isOpen()) {
+            synthesizer.close();
+            synthesizer = null;
+        }
     }
 
     public SoundbankSetup getSoundbankSetup() { return soundbankSetup; }
@@ -580,10 +607,8 @@ public final class MidiPlayer {
 
         Sequence sequence = injectPedal(swingSetup.apply(buildNoteSequence(piece, currentVelocities)));
         sequence = currentHumanizer.apply(sequence);
+        ensureSynthOpen();
         sequencer = MidiSystem.getSequencer(false);
-        synthesizer = MidiSystem.getSynthesizer();
-        synthesizer.open();
-        soundbankSetup.apply(synthesizer);
         sequencer.open();
         sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
         sequencer.setSequence(sequence);
@@ -622,10 +647,8 @@ public final class MidiPlayer {
         // the post-process pedalInjector is a no-op (currentPedaling left
         // empty here so we don't double-emit).
         Sequence sequence = currentHumanizer.apply(swingSetup.apply(buildNoteSequence(performance)));
+        ensureSynthOpen();
         sequencer = MidiSystem.getSequencer(false);
-        synthesizer = MidiSystem.getSynthesizer();
-        synthesizer.open();
-        soundbankSetup.apply(synthesizer);
         sequencer.open();
         sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
         sequencer.setSequence(sequence);
@@ -795,7 +818,35 @@ public final class MidiPlayer {
         return out;
     }
 
-    /** Stop playback and release resources. */
+    /**
+     * Lazy-open the synthesizer with the current {@link SoundbankSetup}
+     * applied. No-op when the synth is already open (the common case
+     * after the first {@link #start}).
+     *
+     * <p>The first call pays the synth-init + soundbank-parse cost
+     * (~hundreds of ms to a few seconds for big SF2s); subsequent
+     * calls are sub-millisecond. Combined with {@link #stop} keeping
+     * the synth open across plays, this is what eliminates the
+     * first-play freeze.</p>
+     *
+     * <p>Soundbank parses go through {@link #warmedSoundbanks}, which
+     * may already have them in memory from the async warmup triggered
+     * by {@link #setSoundbankSetup}.</p>
+     */
+    private void ensureSynthOpen() throws javax.sound.midi.MidiUnavailableException {
+        if (synthesizer != null && synthesizer.isOpen()) return;
+        synthesizer = MidiSystem.getSynthesizer();
+        synthesizer.open();
+        soundbankSetup.apply(synthesizer, warmedSoundbanks);
+    }
+
+    /**
+     * Stop playback. Releases the sequencer; **keeps the synthesizer
+     * open** so subsequent {@link #start} calls don't re-pay the
+     * synth-init + soundbank-load cost.
+     *
+     * <p>For a full teardown (app exit), call {@link #dispose()}.</p>
+     */
     public void stop() {
         paused = false;
         if (sequencer != null && sequencer.isOpen()) {
@@ -803,10 +854,25 @@ public final class MidiPlayer {
             sequencer.close();
             sequencer = null;
         }
+        // Synthesizer intentionally left open for fast re-start. See
+        // dispose() for the full-teardown path.
+    }
+
+    /**
+     * Full teardown — closes the sequencer AND synthesizer, shuts down
+     * the soundbank-warmup worker. Call this on application exit
+     * (e.g. {@code stage.setOnCloseRequest}).
+     *
+     * <p>{@link #stop} is the right call between songs;
+     * {@code dispose()} is the right call when the app is exiting.</p>
+     */
+    public void dispose() {
+        stop();
         if (synthesizer != null && synthesizer.isOpen()) {
             synthesizer.close();
             synthesizer = null;
         }
+        warmedSoundbanks.shutdown();
     }
 
     /** Pause playback, keeping the sequencer open at the current position. */
@@ -894,6 +960,32 @@ public final class MidiPlayer {
         MidiSystem.write(frozen, fileType, file);
     }
 
+    /**
+     * Export the currently-loaded piece as a rendered WAV audio file
+     * (44.1 kHz / 16-bit / stereo). Mirrors {@link #exportTo} except
+     * the destination is rendered audio, not symbolic MIDI.
+     *
+     * <p>Renders offline through the JDK's soft synth using the same
+     * {@link SoundbankSetup} as live playback — so the WAV is
+     * bit-identical-equivalent to playing the piece through the
+     * configured SF2.</p>
+     *
+     * @throws IllegalStateException when no piece is loaded
+     */
+    public void exportWav(File file, Region region) throws Exception {
+        if (currentNoteSequence == null || currentSetup == null) {
+            throw new IllegalStateException(
+                    "Nothing to export — start(...) the player first.");
+        }
+        Sequence frozen = freezeForExport(currentNoteSequence, currentSetup, currentTempo, region);
+        AudioRenderer.renderWav(frozen, soundbankSetup, file);
+    }
+
+    /** Whole-song WAV export. Equivalent to {@code exportWav(file, Region.full())}. */
+    public void exportWav(File file) throws Exception {
+        exportWav(file, Region.full());
+    }
+
     /** Whole-song export. Equivalent to {@code exportTo(file, Region.full())}. */
     public void exportTo(File file) throws InvalidMidiDataException, IOException {
         exportTo(file, Region.full());
@@ -933,14 +1025,45 @@ public final class MidiPlayer {
                                    music.notation.expressivity.Pedaling pedaling,
                                    music.notation.performance.TempoTrack tempos)
             throws InvalidMidiDataException, IOException {
+        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos);
+        int[] types = MidiSystem.getMidiFileTypes(frozen);
+        int fileType = (types.length > 1) ? 1 : types[0];
+        MidiSystem.write(frozen, fileType, file);
+    }
+
+    /**
+     * Export a piece as rendered audio (44.1 kHz / 16-bit / stereo WAV).
+     * Mirrors {@link #exportMidi(Piece, ChannelSetup, File,
+     * music.notation.expressivity.Pedaling, music.notation.performance.TempoTrack)}
+     * but the output is rendered audio, not symbolic MIDI.
+     *
+     * <p>Renders offline through the JDK's soft synth using
+     * {@code soundbankSetup} for SF2 layering — the WAV is
+     * bit-identical-equivalent to playing the piece through the
+     * configured SF2 in real time.</p>
+     */
+    public static void exportWav(Piece piece, ChannelSetup channelSetup, File file,
+                                  music.notation.expressivity.Pedaling pedaling,
+                                  music.notation.performance.TempoTrack tempos,
+                                  SoundbankSetup soundbankSetup) throws Exception {
+        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos);
+        AudioRenderer.renderWav(frozen, soundbankSetup, file);
+    }
+
+    /**
+     * Shared frozen-Sequence builder used by both {@link #exportMidi}
+     * and {@link #exportWav}: concretizes the piece, post-injects pedal
+     * CC events, and freezes the channel setup at tick 0.
+     */
+    private static Sequence buildExportSequence(Piece piece, ChannelSetup channelSetup,
+                                                 music.notation.expressivity.Pedaling pedaling,
+                                                 music.notation.performance.TempoTrack tempos)
+            throws InvalidMidiDataException {
         Sequence noteSeq = buildNoteSequence(piece);
         if (pedaling != null && !pedaling.byTrack().isEmpty()) {
             noteSeq = PedalInjector.inject(noteSeq, pedaling, tempos);
         }
-        Sequence frozen = freezeForExport(noteSeq, channelSetup, TempoSetup.unity(), Region.full());
-        int[] types = MidiSystem.getMidiFileTypes(frozen);
-        int fileType = (types.length > 1) ? 1 : types[0];
-        MidiSystem.write(frozen, fileType, file);
+        return freezeForExport(noteSeq, channelSetup, TempoSetup.unity(), Region.full());
     }
 
     /**

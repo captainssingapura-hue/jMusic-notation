@@ -49,6 +49,9 @@ public final class MxlSplitJsonReader {
                 .map(p -> readJson(p, Track.class))
                 .toList();
 
+        Instrumentation instrumentation = Files.exists(pieceDir.resolve("instruments.json"))
+                ? readJson(pieceDir.resolve("instruments.json"), Instrumentation.class)
+                : Instrumentation.empty();
         Volume volume = Files.exists(pieceDir.resolve("volume.json"))
                 ? readJson(pieceDir.resolve("volume.json"), Volume.class)
                 : Volume.empty();
@@ -71,7 +74,7 @@ public final class MxlSplitJsonReader {
         Performance perf = new Performance(
                 new Score(tracks),
                 tempo,
-                Instrumentation.empty(),
+                instrumentation,
                 volume,
                 articulations,
                 pedaling,
