@@ -300,7 +300,7 @@ public class NotationApp extends Application {
         stage.setTitle("Music Notation Player");
         stage.setScene(scene);
         stage.setOnCloseRequest(e -> {
-            player.stop();
+            player.dispose();   // closes synth + shuts down warmup worker
             Platform.exit();
         });
         stage.show();
@@ -1339,24 +1339,40 @@ public class NotationApp extends Application {
                 .replace(' ', '_');
 
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export MIDI");
+        chooser.setTitle("Export");
         chooser.setInitialFileName(safeName + ".mid");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("MIDI Files", "*.mid", "*.midi"));
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("MIDI Files", "*.mid", "*.midi"),
+                new FileChooser.ExtensionFilter("WAV Audio",  "*.wav"));
         File file = chooser.showSaveDialog(stage);
         if (file == null) return;
 
         ChannelSetup channelSetup = buildChannelSetup();
+        // Export the source piece (no auto-drum overlay)... wait —
+        // for audio export we DO want the auto-drum overlay since the
+        // user is exporting what they hear. Only MIDI export keeps
+        // savedPiece (drum-free) for round-trip cleanliness.
+        Piece exportPiece;
+        boolean isAudio = file.getName().toLowerCase().endsWith(".wav");
+        if (isAudio) {
+            exportPiece = (currentPiece != null) ? currentPiece : savedPiece;
+        } else {
+            exportPiece = (savedPiece != null) ? savedPiece : currentPiece;
+        }
+        music.notation.expressivity.Pedaling pedaling = effectivePedaling();
+        music.notation.performance.TempoTrack tempos = currentTempoTrack();
         try {
-            // Export the source piece (no auto-drum overlay) so saved files
-            // stay drum-free regardless of the live picker's state. Inject
-            // the same pedaling the player uses (source-or-auto-or-none),
-            // so what's heard live matches what lands in the exported MIDI.
-            Piece exportPiece = (savedPiece != null) ? savedPiece : currentPiece;
-            music.notation.expressivity.Pedaling pedaling = effectivePedaling();
-            music.notation.performance.TempoTrack tempos = currentTempoTrack();
-            MidiPlayer.exportMidi(exportPiece, channelSetup, file, pedaling, tempos);
-            controls.setStatus("Exported: " + file.getName());
+            if (isAudio) {
+                controls.setStatus("Rendering " + file.getName() + "...");
+                MidiPlayer.exportWav(exportPiece, channelSetup, file,
+                        pedaling, tempos, new SoundbankSetup(controls.getSoundbanks()));
+                long sizeKb = file.length() / 1024;
+                controls.setStatus("Exported: " + file.getName() + " ("
+                        + (sizeKb >= 1024 ? (sizeKb / 1024) + " MB" : sizeKb + " KB") + ")");
+            } else {
+                MidiPlayer.exportMidi(exportPiece, channelSetup, file, pedaling, tempos);
+                controls.setStatus("Exported: " + file.getName());
+            }
         } catch (Exception ex) {
             controls.setStatus("Export failed: " + ex.getMessage());
             ex.printStackTrace();

@@ -444,18 +444,36 @@ final class PiecePickerDialog {
         }
     }
 
-    /** Open MusicXML (.mxl) chooser and parse via {@code notation-mxl}. */
+    /**
+     * Open MusicXML (.mxl) chooser and parse via {@code notation-mxl}.
+     * Parsing runs on a background thread via {@link MxlImportTask};
+     * a {@link ProgressDialog} keeps the UI responsive while the
+     * (possibly multi-second) parse completes. Subsequent loads of
+     * the same file hit the on-disk cache and return near-instantly.
+     */
     private static void handleLoadMxl(Stage stage, PieceChoice[] result) {
         java.io.File f = openFileChooser(stage, "Load MusicXML file", PREF_LAST_MXL_DIR,
                 "Compressed MusicXML", "*.mxl");
         if (f == null) return;
-        try {
-            var imp = music.notation.mxl.MxlReader.read(f.toPath());
-            result[0] = new PieceChoice.Imported(imp);
+
+        var task = new MxlImportTask(f.toPath());
+        var dialog = new ProgressDialog(stage, task);
+        task.setOnSucceeded(e -> {
+            dialog.close();
+            result[0] = new PieceChoice.Imported(task.getValue());
             stage.close();
-        } catch (Exception ex) {
-            showLoadError(stage, "MusicXML", ex);
-        }
+        });
+        task.setOnFailed(e -> {
+            dialog.close();
+            Throwable cause = task.getException();
+            Exception wrapped = (cause instanceof Exception ex) ? ex
+                    : new RuntimeException(cause == null ? "unknown failure" : cause.getMessage(), cause);
+            showLoadError(stage, "MusicXML", wrapped);
+        });
+        Thread t = new Thread(task, "mxl-import");
+        t.setDaemon(true);
+        t.start();
+        dialog.show();
     }
 
     /** Open directory chooser for a previously-extracted JSON piece folder. */

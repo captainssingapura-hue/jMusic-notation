@@ -65,6 +65,10 @@ final class MxlSplitJsonWriter {
 
         // Side-channels: emit only when populated. An empty file would carry no
         // information beyond an empty map and just clutter the listing.
+        if (!imp.performance().instruments().byTrack().isEmpty()) {
+            written.add(writeJson(pieceDir.resolve("instruments.json"),
+                    imp.performance().instruments()));
+        }
         if (!imp.performance().volume().byTrack().isEmpty()) {
             written.add(writeJson(pieceDir.resolve("volume.json"),
                     imp.performance().volume()));
@@ -109,6 +113,8 @@ final class MxlSplitJsonWriter {
             throw new UncheckedIOException("failed to sweep stale files in " + pieceDir, e);
         }
 
+        deleteIfEmpty(pieceDir.resolve("instruments.json"),
+                imp.performance().instruments().byTrack().isEmpty());
         deleteIfEmpty(pieceDir.resolve("volume.json"),
                 imp.performance().volume().byTrack().isEmpty());
         deleteIfEmpty(pieceDir.resolve("articulations.json"),

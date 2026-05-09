@@ -29,7 +29,7 @@ final class TransportBar {
     TransportBar() {
         playButton    = iconButton("▶", "Play (Space)");
         stopButton    = iconButton("⏹", "Stop");
-        exportButton  = iconButton("⬇", "Export MIDI…");
+        exportButton  = iconButton("⬇", "Export (MIDI / WAV)…");
         settingsButton = iconButton("⚙", "Controls");
         playButton.setDisable(true);
         stopButton.setDisable(true);

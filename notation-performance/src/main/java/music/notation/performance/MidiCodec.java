@@ -142,7 +142,6 @@ public final class MidiCodec {
                 addTempoMeta(conductor, tc, tempoMap);
             }
 
-            // Assign channels to Score tracks.
             List<Track> scoreTracks = p.score().tracks();
             Map<TrackId, Integer> channelByTrack = assignChannels(scoreTracks);
 
