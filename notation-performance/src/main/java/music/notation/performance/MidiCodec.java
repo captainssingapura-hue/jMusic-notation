@@ -130,7 +130,55 @@ public final class MidiCodec {
     //  WRITE: Performance  →  MIDI bytes
     // ═══════════════════════════════════════════════════════════════════
 
+    /**
+     * Encode a {@link Performance} as a list of MIDI byte arrays — one per
+     * synth slot in the multi-synth fan-out scheme.
+     *
+     * <p>Phase 1: always returns a singleton list. Every track lives on
+     * synth 0 and the byte[] is identical to what {@link #toMidi(Performance)}
+     * produces. The List wrapper is the only structural change — preparation
+     * for Phase 2's actual split.</p>
+     *
+     * <p>Phase 2 (queued): {@link #assignChannels(List)} starts producing
+     * {@link ChannelAddr} addresses. Tracks are partitioned by their
+     * {@code synth} index; this method emits one byte[] per partition. The
+     * order matches {@link ChannelAddr#synth()} (0 = SOURCE_PRIMARY,
+     * 1 = AUTO, 2 = SOURCE_OVERFLOW). Empty partitions are omitted.</p>
+     *
+     * <p>For Phase-1 callers wanting the legacy single-byte[] shape, use
+     * {@link #toMidi(Performance)} which asserts {@code size == 1}.</p>
+     */
+    public static List<byte[]> toMidiSplit(Performance p) {
+        // Phase 1: singleton. Phase 2 will partition by ChannelAddr.synth().
+        return List.of(toMidiInternal(p));
+    }
+
+    /**
+     * Legacy single-byte[] entrypoint. Behaviourally identical to today's
+     * encode path. Internally delegates to {@link #toMidiSplit(Performance)}
+     * and unwraps the singleton.
+     *
+     * <p>Phase 1: always works (every Performance fits one synth). Phase 2:
+     * throws {@link IllegalStateException} when the Performance requires more
+     * than one synth — callers in that situation must migrate to
+     * {@link #toMidiSplit(Performance)}.</p>
+     */
     public static byte[] toMidi(Performance p) {
+        List<byte[]> split = toMidiSplit(p);
+        if (split.size() != 1) {
+            throw new IllegalStateException(
+                    "Legacy toMidi() called on a Performance that requires "
+                            + split.size() + " synths; migrate caller to toMidiSplit()");
+        }
+        return split.get(0);
+    }
+
+    /**
+     * The actual codec body — produces a single MIDI byte[] from the
+     * Performance using the legacy single-synth channel allocation.
+     * Will be split into per-synth invocations during Phase 2.
+     */
+    private static byte[] toMidiInternal(Performance p) {
         try {
             Sequence sequence = new Sequence(Sequence.PPQ, PPQ);
 
