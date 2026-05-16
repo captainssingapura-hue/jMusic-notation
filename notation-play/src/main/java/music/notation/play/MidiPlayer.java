@@ -5,6 +5,7 @@ import music.notation.performance.InstrumentControl;
 import music.notation.performance.Instrumentation;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
+import music.notation.performance.TransposeTransform;
 import music.notation.expressivity.TrackId;
 import music.notation.expressivity.Volume;
 import music.notation.expressivity.VolumeControl;
@@ -442,6 +443,12 @@ public final class MidiPlayer {
             if (pedalEnabled) {
                 perf = applyPedalingOverrides(perf, currentPedaling);
             }
+            // Transposition is LAST in the Performance-layer chain. Upstream
+            // transforms (AutoPedaling sustain filter, velocity heuristics)
+            // read the *original* pitches; only after those decisions are
+            // baked in do we shift the audible MIDI. See TransposeTransform
+            // class javadoc for the ordering rationale.
+            perf = TransposeTransform.apply(perf, currentTransposition);
             byte[] bytes = MidiCodec.toMidi(perf);
             Sequence seq = MidiSystem.getSequence(new ByteArrayInputStream(bytes));
             stripChannelControlEvents(seq);
@@ -583,6 +590,17 @@ public final class MidiPlayer {
      */
     private music.notation.expressivity.Velocities currentVelocities =
             music.notation.expressivity.Velocities.empty();
+    /**
+     * Whole-piece transposition (semitone shift) applied <b>last</b> in
+     * the Performance-layer transform chain, immediately before
+     * {@link MidiCodec#toMidi}. {@link TransposeTransform.Params#NONE NONE}
+     * = no transposition (pass-through). Set by the UI for vocal-comfort
+     * key shifts and similar; preserves the original Piece data while
+     * playback emits transposed pitches. See
+     * {@link TransposeTransform} for the linearity contract.
+     */
+    private TransposeTransform.Params currentTransposition =
+            TransposeTransform.Params.NONE;
     /** Layered soundbanks applied on next start() / restartAt(). */
     private SoundbankSetup soundbankSetup = SoundbankSetup.empty();
     /**
@@ -727,7 +745,10 @@ public final class MidiPlayer {
         // Performance-based path already routes Pedaling through MidiCodec;
         // the post-process pedalInjector is a no-op (currentPedaling left
         // empty here so we don't double-emit).
-        Sequence sequence = currentHumanizer.apply(swingSetup.apply(buildNoteSequence(performance)));
+        // Transposition is applied last in the Performance-layer chain
+        // (consistent with the Piece path) before handing to the codec.
+        Sequence sequence = currentHumanizer.apply(swingSetup.apply(
+                buildNoteSequence(TransposeTransform.apply(performance, currentTransposition))));
         ensureSynthOpen();
         sequencer = MidiSystem.getSequencer(false);
         sequencer.open();
@@ -739,7 +760,10 @@ public final class MidiPlayer {
         currentSetup = channelSetup;
         currentTempo = tempoSetup;
         currentSwing = swingSetup;
-        baseFactory = () -> buildNoteSequence(performance);
+        // baseFactory reads currentTransposition at build time, so a
+        // subsequent applyTransposition → restartAt picks up the new value.
+        baseFactory = () -> buildNoteSequence(
+                TransposeTransform.apply(performance, currentTransposition));
 
         channelSetup.apply(synthesizer);
         tempoSetup.apply(sequencer);
@@ -799,6 +823,37 @@ public final class MidiPlayer {
     }
 
     public HumanizerSetup getHumanizer() { return currentHumanizer; }
+
+    /**
+     * Stage whole-piece transposition (semitone shift) for the next
+     * {@link #start} or {@link #restartAt}. Applied last in the
+     * Performance-layer transform chain — pedaling, velocity, and
+     * humanizer transforms see the <i>original</i> pitches. Use
+     * {@link #applyTransposition(TransposeTransform.Params, long)} to
+     * take effect on a running sequencer.
+     *
+     * <p>The Piece data is never modified; transposition is purely a
+     * playback parameter. The original key is recoverable by setting
+     * transposition to {@link TransposeTransform.Params#NONE NONE}.</p>
+     */
+    public void setTransposition(TransposeTransform.Params params) {
+        this.currentTransposition = (params == null)
+                ? TransposeTransform.Params.NONE : params;
+    }
+
+    public TransposeTransform.Params getTransposition() { return currentTransposition; }
+
+    /**
+     * Live transposition change. Stops, rebuilds with the new semitone
+     * shift, resumes at the given tick. No-op if not running (the new
+     * value is staged for the next {@link #start}).
+     */
+    public void applyTransposition(TransposeTransform.Params params, long resumeTick) throws Exception {
+        if (params == null) return;
+        currentTransposition = params;
+        if (sequencer == null) return;
+        restartAt(resumeTick, currentSetup, currentTempo, currentSwing);
+    }
 
     /**
      * Live humaniser change. Stops, rebuilds with the new jitter setting,
