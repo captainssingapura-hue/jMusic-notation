@@ -1344,26 +1344,42 @@ public class NotationApp extends Application {
                 .replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fff _-]", "")
                 .replace(' ', '_');
 
+        // Confirm export settings in our own dialog FIRST — format and the
+        // keep-authentic toggle for MIDI. System dialogs are reserved for the
+        // one thing the OS does best: file location + name picking.
+        ExportSettings settings = showExportSettingsDialog(stage);
+        if (settings == null) return;
+        boolean isAudio = settings.isAudio();
+        boolean keepAuthentic = settings.keepAuthentic();
+
+        // File picker — one extension filter matching the chosen format. The
+        // user only picks location + name; no format choice happens here.
+        String extension = isAudio ? ".wav" : ".mid";
+        String filterDesc = isAudio ? "WAV Audio" : "MIDI Files";
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export");
-        chooser.setInitialFileName(safeName + ".mid");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("MIDI Files", "*.mid", "*.midi"),
-                new FileChooser.ExtensionFilter("WAV Audio",  "*.wav"));
+        chooser.setTitle("Save " + (isAudio ? "WAV" : "MIDI") + " As");
+        chooser.setInitialFileName(safeName + extension);
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter(filterDesc, "*" + extension));
         File file = chooser.showSaveDialog(stage);
         if (file == null) return;
 
         ChannelSetup channelSetup = buildChannelSetup();
-        // Export the source piece (no auto-drum overlay)... wait —
-        // for audio export we DO want the auto-drum overlay since the
-        // user is exporting what they hear. Only MIDI export keeps
-        // savedPiece (drum-free) for round-trip cleanliness.
+
         Piece exportPiece;
-        boolean isAudio = file.getName().toLowerCase().endsWith(".wav");
-        if (isAudio) {
-            exportPiece = (currentPiece != null) ? currentPiece : savedPiece;
-        } else {
+        music.notation.performance.TransposeTransform.Params transposition;
+        if (keepAuthentic) {
+            // Authentic: source piece, no transposition, no auto-drum.
+            // Suitable for re-import or sending to a collaborator who'll
+            // add their own arrangement layers.
             exportPiece = (savedPiece != null) ? savedPiece : currentPiece;
+            transposition = music.notation.performance.TransposeTransform.Params.NONE;
+        } else {
+            // As heard: augmented piece (with auto-drum if any) + current
+            // transposition. Suitable for a backing track in the user's
+            // key with all the overlay layers.
+            exportPiece = (currentPiece != null) ? currentPiece : savedPiece;
+            transposition = player.getTransposition();
         }
         music.notation.expressivity.Pedaling pedaling = effectivePedaling();
         music.notation.performance.TempoTrack tempos = currentTempoTrack();
@@ -1371,18 +1387,110 @@ public class NotationApp extends Application {
             if (isAudio) {
                 controls.setStatus("Rendering " + file.getName() + "...");
                 MidiPlayer.exportWav(exportPiece, channelSetup, file,
-                        pedaling, tempos, new SoundbankSetup(controls.getSoundbanks()));
+                        pedaling, tempos, new SoundbankSetup(controls.getSoundbanks()),
+                        transposition);
                 long sizeKb = file.length() / 1024;
                 controls.setStatus("Exported: " + file.getName() + " ("
                         + (sizeKb >= 1024 ? (sizeKb / 1024) + " MB" : sizeKb + " KB") + ")");
             } else {
-                MidiPlayer.exportMidi(exportPiece, channelSetup, file, pedaling, tempos);
-                controls.setStatus("Exported: " + file.getName());
+                MidiPlayer.exportMidi(exportPiece, channelSetup, file, pedaling, tempos,
+                        transposition);
+                controls.setStatus("Exported: " + file.getName()
+                        + (keepAuthentic ? " (authentic)" : ""));
             }
         } catch (Exception ex) {
             controls.setStatus("Export failed: " + ex.getMessage());
             ex.printStackTrace();
         }
+    }
+
+    /** Result of {@link #showExportSettingsDialog}; null if the user cancels. */
+    private record ExportSettings(boolean isAudio, boolean keepAuthentic) {}
+
+    /**
+     * Show our own export-settings confirmation dialog. The user picks
+     * format (MIDI / WAV) and, for MIDI, the keep-authentic flag. Returns
+     * {@code null} when the user cancels.
+     *
+     * <p>This replaces the previous system-{@code Alert}-based flow.
+     * Owning the dialog lets us:</p>
+     * <ul>
+     *   <li>Show format + keep-authentic on one panel, gated cleanly
+     *       (keep-authentic is disabled when WAV is selected, since WAV
+     *       is intrinsically "as heard").</li>
+     *   <li>Use a single-filter {@link FileChooser} downstream — no risk
+     *       of the user picking a different extension than the chosen
+     *       format implied.</li>
+     *   <li>Keep the UX consistent across platforms.</li>
+     * </ul>
+     */
+    private ExportSettings showExportSettingsDialog(Stage owner) {
+        Dialog<ExportSettings> dialog = new Dialog<>();
+        dialog.setTitle("Export");
+        dialog.setHeaderText("Confirm export settings");
+        if (owner != null) dialog.initOwner(owner);
+
+        // ── Format radio group
+        ToggleGroup formatGroup = new ToggleGroup();
+        RadioButton midiRadio = new RadioButton("MIDI (.mid)");
+        midiRadio.setToggleGroup(formatGroup);
+        midiRadio.setSelected(true);
+        RadioButton wavRadio  = new RadioButton("WAV audio (.wav)");
+        wavRadio.setToggleGroup(formatGroup);
+
+        Label midiHint = new Label("Symbolic notes for DAW import or sharing");
+        midiHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        midiHint.setPadding(new Insets(0, 0, 0, 24));
+        Label wavHint = new Label("Rendered audio at 44.1 kHz / 16-bit / stereo");
+        wavHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        wavHint.setPadding(new Insets(0, 0, 0, 24));
+
+        // ── Keep-authentic toggle
+        CheckBox keepAuthBox = new CheckBox("Authentic (source as authored)");
+        Label authHint = new Label(
+                "When off: includes current transposition and auto-drum overlay\n"
+              + "When on:  no transposition, no auto-drum — suitable for re-import");
+        authHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        authHint.setPadding(new Insets(0, 0, 0, 24));
+
+        // WAV is intrinsically "as heard" — disable keep-authentic when WAV
+        // is selected; the toggle resets to off so the export-time read is
+        // safe regardless.
+        wavRadio.selectedProperty().addListener((obs, was, now) -> {
+            if (now) {
+                keepAuthBox.setSelected(false);
+                keepAuthBox.setDisable(true);
+                authHint.setDisable(true);
+            } else {
+                keepAuthBox.setDisable(false);
+                authHint.setDisable(false);
+            }
+        });
+
+        // ── Layout
+        VBox content = new VBox(8,
+                new Label("Format"),
+                midiRadio,
+                midiHint,
+                wavRadio,
+                wavHint,
+                new Separator(),
+                new Label("Options"),
+                keepAuthBox,
+                authHint);
+        content.setPadding(new Insets(8, 4, 8, 4));
+        dialog.getDialogPane().setContent(content);
+
+        // ── Buttons
+        ButtonType continueButton = new ButtonType("Continue…",
+                ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(continueButton, ButtonType.CANCEL);
+
+        dialog.setResultConverter(button -> {
+            if (button != continueButton) return null;
+            return new ExportSettings(wavRadio.isSelected(), keepAuthBox.isSelected());
+        });
+        return dialog.showAndWait().orElse(null);
     }
 
     /** Pad/coerce a per-track value list to the track count, falling back to {@code defaultFor}. */

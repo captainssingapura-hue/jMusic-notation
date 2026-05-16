@@ -1176,7 +1176,30 @@ public final class MidiPlayer {
                                    music.notation.expressivity.Pedaling pedaling,
                                    music.notation.performance.TempoTrack tempos)
             throws InvalidMidiDataException, IOException {
-        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos);
+        // Back-compat: no transposition. New callers should use the overload
+        // below which threads TransposeTransform.Params through to the codec.
+        exportMidi(piece, channelSetup, file, pedaling, tempos,
+                music.notation.performance.TransposeTransform.Params.NONE);
+    }
+
+    /**
+     * Export a piece as a standard MIDI file with optional pedal + whole-piece
+     * transposition baked into the emitted bytes. The semitone shift is
+     * applied at the {@link Performance} layer (just like live playback),
+     * so the exported file's pitches match what the user heard.
+     *
+     * <p>To produce an "authentic source" MIDI (no transposition, no
+     * auto-drum overlay — suitable for re-import) pass
+     * {@link music.notation.performance.TransposeTransform.Params#NONE NONE}
+     * and the source {@code savedPiece}. To produce a "what you heard"
+     * MIDI, pass the current transposition and the augmented piece.</p>
+     */
+    public static void exportMidi(Piece piece, ChannelSetup channelSetup, File file,
+                                   music.notation.expressivity.Pedaling pedaling,
+                                   music.notation.performance.TempoTrack tempos,
+                                   music.notation.performance.TransposeTransform.Params transposition)
+            throws InvalidMidiDataException, IOException {
+        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos, transposition);
         int[] types = MidiSystem.getMidiFileTypes(frozen);
         int fileType = (types.length > 1) ? 1 : types[0];
         MidiSystem.write(frozen, fileType, file);
@@ -1184,43 +1207,57 @@ public final class MidiPlayer {
 
     /**
      * Export a piece as rendered audio (44.1 kHz / 16-bit / stereo WAV).
-     * Mirrors {@link #exportMidi(Piece, ChannelSetup, File,
-     * music.notation.expressivity.Pedaling, music.notation.performance.TempoTrack)}
-     * but the output is rendered audio, not symbolic MIDI.
-     *
-     * <p>Renders offline through the JDK's soft synth using
-     * {@code soundbankSetup} for SF2 layering — the WAV is
-     * bit-identical-equivalent to playing the piece through the
-     * configured SF2 in real time.</p>
+     * Back-compat overload — no transposition.
      */
     public static void exportWav(Piece piece, ChannelSetup channelSetup, File file,
                                   music.notation.expressivity.Pedaling pedaling,
                                   music.notation.performance.TempoTrack tempos,
                                   SoundbankSetup soundbankSetup) throws Exception {
-        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos);
+        exportWav(piece, channelSetup, file, pedaling, tempos, soundbankSetup,
+                music.notation.performance.TransposeTransform.Params.NONE);
+    }
+
+    /**
+     * Export a piece as rendered audio with transposition applied. Mirrors
+     * {@link #exportMidi(Piece, ChannelSetup, File,
+     * music.notation.expressivity.Pedaling,
+     * music.notation.performance.TempoTrack,
+     * music.notation.performance.TransposeTransform.Params)} but the output
+     * is rendered audio, not symbolic MIDI.
+     */
+    public static void exportWav(Piece piece, ChannelSetup channelSetup, File file,
+                                  music.notation.expressivity.Pedaling pedaling,
+                                  music.notation.performance.TempoTrack tempos,
+                                  SoundbankSetup soundbankSetup,
+                                  music.notation.performance.TransposeTransform.Params transposition)
+            throws Exception {
+        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos, transposition);
         AudioRenderer.renderWav(frozen, soundbankSetup, file);
     }
 
     /**
-     * Shared frozen-Sequence builder used by both {@link #exportMidi}
-     * and {@link #exportWav}: concretizes the piece, folds the pedaling
-     * into the {@link Performance} so the codec emits CC #64 natively,
-     * and freezes the channel setup at tick 0.
+     * Shared frozen-Sequence builder used by both {@link #exportMidi} and
+     * {@link #exportWav}: concretizes the piece, folds the pedaling into
+     * the {@link Performance}, applies the transposition (last in the
+     * Performance-layer chain, mirroring live playback), and freezes the
+     * channel setup at tick 0.
      *
-     * <p>Phase 1.5: previously this concretized the piece, ran the codec
-     * with empty pedaling, then ran {@code PedalInjector} post hoc.
-     * The {@code tempos} parameter is now redundant (the codec uses
-     * {@link Performance#tempo()} which comes from
-     * {@link PieceConcretizer#concretize}, derived from the same Piece);
-     * it is retained on the public API for backward compatibility.</p>
+     * <p>The {@code tempos} parameter is no longer functionally needed
+     * (the codec reads {@link Performance#tempo()}); it's retained for
+     * back-compat with public callers that haven't migrated yet.</p>
      */
     private static Sequence buildExportSequence(Piece piece, ChannelSetup channelSetup,
                                                  music.notation.expressivity.Pedaling pedaling,
-                                                 music.notation.performance.TempoTrack tempos)
+                                                 music.notation.performance.TempoTrack tempos,
+                                                 music.notation.performance.TransposeTransform.Params transposition)
             throws InvalidMidiDataException {
         try {
             Performance perf = PieceConcretizer.concretize(piece);
             perf = applyPedalingOverrides(perf, pedaling);
+            // Transposition is LAST in the Performance-layer chain — same
+            // ordering as buildLivePieceSequence so live and export emit
+            // identical bytes for the same (piece, shift) pair.
+            perf = music.notation.performance.TransposeTransform.apply(perf, transposition);
             byte[] bytes = MidiCodec.toMidi(perf);
             Sequence noteSeq = MidiSystem.getSequence(new ByteArrayInputStream(bytes));
             stripChannelControlEvents(noteSeq);
