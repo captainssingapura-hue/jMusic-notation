@@ -117,13 +117,19 @@ public final class HumanizerTransform {
 
     /**
      * Return a copy of {@code n} at the new tickMs. Duration and pitch
-     * are preserved verbatim. Switch on the sealed type — only
-     * {@link PitchedNote} and {@link DrumNote} exist today.
+     * are preserved verbatim. Switch on the sealed type:
+     * {@link PitchedNote} (canonical), {@link ShiftedNote} (transposed
+     * view — the wrap is preserved; only the inner original's tickMs
+     * shifts), and {@link DrumNote}.
      */
     private static ConcreteNote shifted(ConcreteNote n, long newTick) {
         return switch (n) {
             case PitchedNote pn -> new PitchedNote(newTick, pn.durationMs(),
                                                    pn.midi(), pn.tiedToNext());
+            case ShiftedNote sn -> new ShiftedNote(
+                    new PitchedNote(newTick, sn.original().durationMs(),
+                                     sn.original().midi(), sn.original().tiedToNext()),
+                    sn.semitoneShift());
             case DrumNote dn    -> new DrumNote(newTick, dn.durationMs(), dn.piece());
         };
     }

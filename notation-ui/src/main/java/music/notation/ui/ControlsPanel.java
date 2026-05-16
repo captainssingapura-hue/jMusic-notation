@@ -10,6 +10,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Slider;
+import javafx.scene.control.Spinner;
+import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -45,9 +47,6 @@ final class ControlsPanel {
     private final ComboBox<PieceContentProvider<?>> providerSelector;
     private final HBox providerRow;
 
-    private final ComboBox<String> rootNoteCombo;
-    private final ComboBox<Mode> modeCombo;
-
     private final Slider bpmSlider;
     private final Label bpmValueLabel;
 
@@ -56,6 +55,10 @@ final class ControlsPanel {
     private final ComboBox<DrumStrategy> autoDrumCombo;
     private final ComboBox<Energy> energyCombo;
     private final ComboBox<HumanizerChoice> humanizerCombo;
+    private final Spinner<Integer> transposeSpinner;
+    private final Label transposeLabel;
+    /** Source-key context for the show-both transpose label; null = no piece loaded. */
+    private KeySignature originalKey = null;
     private final javafx.scene.control.RadioButton pedalSourceRadio;
     private final javafx.scene.control.RadioButton pedalAutoRadio;
     private final javafx.scene.control.RadioButton pedalOffRadio;
@@ -70,12 +73,12 @@ final class ControlsPanel {
 
     // Listener slots populated by the host.
     private Consumer<PieceContentProvider<?>> onProviderSelected = p -> {};
-    private Runnable onScaleChanged = () -> {};
     private Runnable onBpmReleased  = () -> {};
     private Consumer<SwingSetup> onSwingChanged = s -> {};
     private Consumer<DrumStrategy> onAutoDrumChanged = s -> {};
     private Consumer<Energy> onEnergyChanged = e -> {};
     private Consumer<HumanizerSetup> onHumanizerChanged = h -> {};
+    private Consumer<Integer> onTranspositionChanged = n -> {};
     private Consumer<PedalMode> onPedalModeChanged = m -> {};
     private Consumer<List<File>> onSoundbanksChanged = files -> {};
 
@@ -102,23 +105,6 @@ final class ControlsPanel {
             onProviderSelected.accept(providerSelector.getValue());
         });
         providerRow.getChildren().addAll(providerLabel, providerSelector);
-
-        // ── Scale row
-        HBox scaleRow = new HBox(10);
-        scaleRow.setAlignment(Pos.CENTER_LEFT);
-        Label scaleLabel = styledLabel("Scale:");
-        rootNoteCombo = new ComboBox<>(FXCollections.observableArrayList(
-                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"));
-        rootNoteCombo.setStyle(comboStyle());
-        styleComboCells(rootNoteCombo);
-        rootNoteCombo.setOnAction(e -> { if (!suppressEvents) onScaleChanged.run(); });
-
-        modeCombo = new ComboBox<>(FXCollections.observableArrayList(Mode.values()));
-        modeCombo.setStyle(comboStyle());
-        modeCombo.setCellFactory(lv -> modeCell());
-        modeCombo.setButtonCell(modeCell());
-        modeCombo.setOnAction(e -> { if (!suppressEvents) onScaleChanged.run(); });
-        scaleRow.getChildren().addAll(scaleLabel, rootNoteCombo, modeCombo);
 
         // ── BPM row
         HBox bpmRow = new HBox(10);
@@ -217,6 +203,27 @@ final class ControlsPanel {
         });
         humanizerRow.getChildren().addAll(humanizerLabel, humanizerCombo);
 
+        // ── Transposition (semitone shift, applied last in the
+        //    Performance-layer transform chain). Spinner -12..+12;
+        //    a derived label shows "Original → Target" so the user
+        //    sees both keys side by side without losing the original.
+        HBox transposeRow = new HBox(10);
+        transposeRow.setAlignment(Pos.CENTER_LEFT);
+        Label transposeNameLabel = styledLabel("Transpose:");
+        transposeSpinner = new Spinner<>(new SpinnerValueFactory.IntegerSpinnerValueFactory(-12, 12, 0));
+        transposeSpinner.setEditable(true);
+        transposeSpinner.setPrefWidth(72);
+        transposeSpinner.valueProperty().addListener((obs, oldV, newV) -> {
+            if (suppressEvents || newV == null) return;
+            updateTransposeLabel();
+            onTranspositionChanged.accept(newV);
+        });
+        transposeLabel = new Label("");
+        transposeLabel.setStyle("-fx-text-fill: #a6adc8; -fx-font-size: 11;");
+        transposeLabel.setWrapText(true);
+        HBox.setHgrow(transposeLabel, Priority.ALWAYS);
+        transposeRow.getChildren().addAll(transposeNameLabel, transposeSpinner, transposeLabel);
+
         // ── Pedal mode (tri-state: Source · Auto · Off). Source is gated
         //    by whether the loaded piece declares <pedal/> markings; Auto
         //    is gated by whether the piece has any pitched tracks. Both
@@ -285,8 +292,8 @@ final class ControlsPanel {
         HBox sbButtons = new HBox(8, soundbankAddBtn, soundbankResetBtn);
         VBox sbBox = new VBox(4, sbHeader, soundbankList, sbButtons);
 
-        root.getChildren().addAll(sbBox, providerRow, scaleRow, bpmRow, swingRow,
-                drumRow, energyRow, humanizerRow, pedalRow,
+        root.getChildren().addAll(sbBox, providerRow, bpmRow, swingRow,
+                drumRow, energyRow, humanizerRow, transposeRow, pedalRow,
                 statusLabel, pieceInfoLabel);
     }
 
@@ -296,10 +303,6 @@ final class ControlsPanel {
 
     void setOnProviderSelected(Consumer<PieceContentProvider<?>> handler) {
         this.onProviderSelected = handler == null ? p -> {} : handler;
-    }
-
-    void setOnScaleChanged(Runnable handler) {
-        this.onScaleChanged = handler == null ? () -> {} : handler;
     }
 
     /** Fires when the user releases the BPM slider (mouse or keyboard). */
@@ -383,6 +386,46 @@ final class ControlsPanel {
     HumanizerSetup getHumanizer() {
         var v = humanizerCombo.getValue();
         return v == null ? HumanizerSetup.OFF : v.setup;
+    }
+
+    /**
+     * Fires when the user changes the transposition spinner. The
+     * integer is the semitone shift in [-12, +12]. The host typically
+     * forwards it as a {@code TransposeTransform.Params} to the player.
+     */
+    void setOnTranspositionChanged(Consumer<Integer> handler) {
+        this.onTranspositionChanged = handler == null ? n -> {} : handler;
+    }
+
+    /**
+     * Sync the spinner from external state (e.g. on startup or after
+     * loading a piece). Suppresses the change listener so the host's
+     * own state isn't echoed back.
+     */
+    void setTransposition(int semitoneShift) {
+        int clamped = Math.max(-12, Math.min(12, semitoneShift));
+        suppressEvents = true;
+        try {
+            transposeSpinner.getValueFactory().setValue(clamped);
+            updateTransposeLabel();
+        } finally {
+            suppressEvents = false;
+        }
+    }
+
+    int getTransposition() {
+        Integer v = transposeSpinner.getValue();
+        return v == null ? 0 : v;
+    }
+
+    /**
+     * Set the original-key context for the show-both transpose label.
+     * Pass {@code null} to clear (no piece loaded → no label).
+     * Doesn't change the transposition value; only the displayed label.
+     */
+    void setOriginalKey(KeySignature key) {
+        this.originalKey = key;
+        updateTransposeLabel();
     }
 
     /** Fires when the user picks a different pedal mode. */
@@ -514,30 +557,6 @@ final class ControlsPanel {
         return providerSelector.getValue();
     }
 
-    void setKey(KeySignature key) {
-        suppressEvents = true;
-        try {
-            rootNoteCombo.setValue(keyToRootLabel(key));
-            modeCombo.setValue(key.mode());
-        } finally {
-            suppressEvents = false;
-        }
-    }
-
-    KeySignature getSelectedKey() {
-        String rootLabel = rootNoteCombo.getValue();
-        if (rootLabel == null || modeCombo.getValue() == null) return null;
-        NoteName tonic;
-        Accidental acc = Accidental.NATURAL;
-        if (rootLabel.endsWith("#")) {
-            tonic = NoteName.valueOf(rootLabel.substring(0, 1));
-            acc = Accidental.SHARP;
-        } else {
-            tonic = NoteName.valueOf(rootLabel);
-        }
-        return new KeySignature(tonic, acc, modeCombo.getValue());
-    }
-
     void setBpm(int bpm) {
         suppressEvents = true;
         try {
@@ -557,48 +576,11 @@ final class ControlsPanel {
 
     // ── Helpers ─────────────────────────────────────────────────────
 
-    private static String keyToRootLabel(KeySignature key) {
-        String root = key.tonic().name();
-        if (key.accidental() == Accidental.SHARP) root += "#";
-        else if (key.accidental() == Accidental.FLAT) {
-            root = switch (key.tonic()) {
-                case D -> "C#"; case E -> "D#"; case G -> "F#";
-                case A -> "G#"; case B -> "A#";
-                default -> root;
-            };
-        }
-        return root;
-    }
-
-    private static String modeName(Mode mode) {
-        return switch (mode) {
-            case NONE -> "(mode not declared)";
-            case MAJOR -> "Major (Ionian)";
-            case MINOR -> "Minor (Aeolian)";
-            case DORIAN -> "Dorian";
-            case PHRYGIAN -> "Phrygian";
-            case LYDIAN -> "Lydian";
-            case MIXOLYDIAN -> "Mixolydian";
-            case AEOLIAN -> "Aeolian";
-            case LOCRIAN -> "Locrian";
-        };
-    }
-
     private static ListCell<PieceContentProvider<?>> providerCell() {
         return new ListCell<>() {
             @Override protected void updateItem(PieceContentProvider<?> item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty || item == null ? null : item.subtitle());
-                setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
-            }
-        };
-    }
-
-    private static ListCell<Mode> modeCell() {
-        return new ListCell<>() {
-            @Override protected void updateItem(Mode item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : modeName(item));
                 setStyle("-fx-text-fill: #cdd6f4; -fx-background-color: #313244;");
             }
         };
@@ -625,6 +607,119 @@ final class ControlsPanel {
         Label l = new Label(text);
         l.setStyle("-fx-text-fill: #cdd6f4; -fx-font-size: 13;");
         return l;
+    }
+
+    // ── Transposition label helpers ─────────────────────────────────────
+
+    /**
+     * Chromatic spelling preferring sharps. Used when the transposition
+     * shift is non-negative (going up the keyboard tends to read with
+     * sharps). Indexed by pitch class 0..11 with C = 0.
+     */
+    private static final String[] SHARP_SPELLING =
+            {"C", "C♯", "D", "D♯", "E", "F",
+             "F♯", "G", "G♯", "A", "A♯", "B"};
+
+    /**
+     * Chromatic spelling preferring flats. Used when the transposition
+     * shift is negative (going down tends to read with flats).
+     */
+    private static final String[] FLAT_SPELLING =
+            {"C", "D♭", "D", "E♭", "E", "F",
+             "G♭", "G", "A♭", "A", "B♭", "B"};
+
+    /**
+     * Update the show-both transpose label based on the current spinner
+     * value + the {@code originalKey} context. Cases:
+     * <ul>
+     *   <li>No piece loaded ({@code originalKey == null}) → empty label.</li>
+     *   <li>Shift = 0 → "(playing in &lt;original&gt;)".</li>
+     *   <li>Shift &ne; 0 → "&lt;original&gt; → &lt;target&gt; (&plusmn;N)".</li>
+     * </ul>
+     */
+    private void updateTransposeLabel() {
+        if (originalKey == null) {
+            transposeLabel.setText("");
+            return;
+        }
+        Integer raw = transposeSpinner.getValue();
+        int shift = raw == null ? 0 : raw;
+        String original = formatKey(originalKey.tonic(), originalKey.accidental(),
+                                     originalKey.mode());
+        if (shift == 0) {
+            transposeLabel.setText("(playing in " + original + ")");
+            return;
+        }
+        String target = transposedKeyName(originalKey, shift);
+        String sign = shift > 0 ? "+" + shift : Integer.toString(shift);
+        transposeLabel.setText(original + " → " + target + " (" + sign + ")");
+    }
+
+    /**
+     * Format a key signature as a human label, e.g. "A minor" or
+     * "B&flat; major" or just "C" when the mode is unknown.
+     */
+    private static String formatKey(NoteName tonic, Accidental acc, Mode mode) {
+        String tonicStr = spellTonic(tonic, acc);
+        return switch (mode) {
+            case NONE -> tonicStr;
+            case MAJOR -> tonicStr + " major";
+            case MINOR -> tonicStr + " minor";
+            default -> tonicStr + " " + mode.name().toLowerCase();
+        };
+    }
+
+    /**
+     * Compute the transposed key name. Mode is preserved (per the
+     * scale-only-not-mode constraint of the transposition feature).
+     * Spelling prefers sharps for upward shifts, flats for downward.
+     */
+    private static String transposedKeyName(KeySignature source, int shift) {
+        int srcPc = pitchClassOf(source.tonic(), source.accidental());
+        int tgtPc = Math.floorMod(srcPc + shift, 12);
+        String[] table = shift < 0 ? FLAT_SPELLING : SHARP_SPELLING;
+        String tonicStr = table[tgtPc];
+        return switch (source.mode()) {
+            case NONE -> tonicStr;
+            case MAJOR -> tonicStr + " major";
+            case MINOR -> tonicStr + " minor";
+            default -> tonicStr + " " + source.mode().name().toLowerCase();
+        };
+    }
+
+    private static String spellTonic(NoteName tonic, Accidental acc) {
+        return switch (acc) {
+            case DOUBLE_FLAT  -> tonic.name() + "𝄫";   // 𝄫
+            case FLAT         -> tonic.name() + "♭";          // ♭
+            case NATURAL      -> tonic.name();
+            case SHARP        -> tonic.name() + "♯";          // ♯
+            case DOUBLE_SHARP -> tonic.name() + "𝄪";   // 𝄪
+        };
+    }
+
+    /**
+     * Map a (letter, accidental) to a chromatic pitch class 0..11.
+     * C = 0, C&sharp; = 1, D = 2, etc. Wraps modulo 12 so e.g. C&flat;
+     * yields 11 (B), F&sharp; yields 6, etc.
+     */
+    private static int pitchClassOf(NoteName tonic, Accidental acc) {
+        int base = switch (tonic) {
+            case C -> 0;
+            case D -> 2;
+            case E -> 4;
+            case F -> 5;
+            case G -> 7;
+            case A -> 9;
+            case B -> 11;
+        };
+        int off = switch (acc) {
+            case DOUBLE_FLAT  -> -2;
+            case FLAT         -> -1;
+            case NATURAL      ->  0;
+            case SHARP        ->  1;
+            case DOUBLE_SHARP ->  2;
+        };
+        return Math.floorMod(base + off, 12);
     }
 
     private static ListCell<SwingChoice> swingCell() {

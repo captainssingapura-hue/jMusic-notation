@@ -117,12 +117,12 @@ public class NotationApp extends Application {
         // Drawer wired below once the centre StackPane exists.
 
         controls.setOnProviderSelected(p -> onProviderSelected());
-        controls.setOnScaleChanged(this::rebuildPiece);
         controls.setOnBpmReleased(this::onBpmReleased);
         controls.setOnSwingChanged(this::onSwingChanged);
         controls.setOnAutoDrumChanged(this::onAutoDrumChanged);
         controls.setOnEnergyChanged(this::onEnergyChanged);
         controls.setOnHumanizerChanged(this::onHumanizerChanged);
+        controls.setOnTranspositionChanged(this::onTranspositionChanged);
         controls.setOnPedalModeChanged(this::onPedalModeChanged);
         controls.setOnSoundbankAddRequested(() -> onAddSoundbank(stage));
         controls.setOnSoundbanksChanged(this::onSoundbanksChanged);
@@ -503,7 +503,10 @@ public class NotationApp extends Application {
         instrumentButtons.clear();
 
         // Visualisation reads the structural Piece (gets the voice split).
-        currentScrollData = PitchScrollData.fromPiece(currentPiece);
+        // Apply the current transposition so a non-zero shift picks up
+        // against the newly loaded piece (ghost-lane visible from the start).
+        currentScrollData = PitchScrollData.fromPiece(currentPiece)
+                .withTransposition(controls.getTransposition());
         disabledVisualizerTracks.clear();
         pitchScroll.load(currentScrollData);
         if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
@@ -818,6 +821,48 @@ public class NotationApp extends Application {
         }
     }
 
+    /**
+     * Transposition spinner changed — stage on the player so the next
+     * play (or live restart) applies the new semitone shift. Identical
+     * pattern to {@link #onHumanizerChanged}.
+     *
+     * <p>No persistence in v1: the value is session-only. Per-piece
+     * sticky transposition can be added later if requested.</p>
+     */
+    private void onTranspositionChanged(int semitoneShift) {
+        var params = music.notation.performance.TransposeTransform.Params.of(semitoneShift);
+        try {
+            if (player.isPlaying() || player.isPaused()) {
+                player.applyTransposition(params, player.getTickPosition());
+            } else {
+                player.setTransposition(params);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        // Rebuild the visualisation data so the pitch-roll shows the new
+        // shifted positions (primary lane) and the original ones (ghost lane).
+        // Rebuild from the source Piece each time — withTransposition applies
+        // the shift functionally; building from the already-shifted state
+        // would double-apply.
+        rebuildPitchScrollForTransposition(semitoneShift);
+    }
+
+    /**
+     * Rebuild {@link #currentScrollData} from the source Piece + a semitone
+     * shift, then push it to every visualisation surface. Called when the
+     * transposition value changes <em>or</em> when a new piece loads (so
+     * the current transposition picks up against the new piece).
+     */
+    private void rebuildPitchScrollForTransposition(int semitoneShift) {
+        if (currentPiece == null) return;
+        currentScrollData = PitchScrollData.fromPiece(currentPiece)
+                .withTransposition(semitoneShift);
+        pitchScroll.load(currentScrollData);
+        if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
+        if (guitarTabDisplay != null) guitarTabDisplay.load(currentScrollData);
+    }
+
     /** Energy level change — restage playback piece with the new dynamics. */
     private void onEnergyChanged(music.notation.autodrum.Energy energy) {
         this.currentEnergy = energy == null
@@ -868,6 +913,9 @@ public class NotationApp extends Application {
     private void setSavedAndCurrent(Piece p) {
         this.savedPiece = p;
         this.currentPiece = augmentWithAutoDrum(p);
+        // Feed the loaded piece's key to the transpose label so it can
+        // render "Original → Target" with the right source-key context.
+        controls.setOriginalKey(p == null ? null : p.key());
     }
 
     /** Re-augment {@link #currentPiece} from {@link #savedPiece} using the staged strategy. */
@@ -931,50 +979,6 @@ public class NotationApp extends Application {
         if (authoredBpm <= 0) return;
         int targetBpm = controls.getSelectedBpm();
         player.applyTempo(TempoSetup.atBpm(targetBpm, authoredBpm));
-    }
-
-    /**
-     * Apply scale transposition and tempo override to {@link #originalPiece},
-     * reloading the UI. (Tempo via this path causes a reload; for live tempo,
-     * the BPM slider's own listener calls {@link #onBpmReleased()} instead.)
-     */
-    private void rebuildPiece() {
-        // Imports don't have a Piece to rebuild — scale change is a no-op.
-        if (currentImport != null) return;
-        if (originalPiece == null || controls.getSelectedKey() == null) return;
-        onStop();
-
-        Piece p = originalPiece;
-
-        KeySignature targetKey = controls.getSelectedKey();
-        KeySignature sourceKey = originalPiece.key();
-        boolean sameKey = targetKey.tonic() == sourceKey.tonic()
-                && targetKey.accidental() == sourceKey.accidental()
-                && targetKey.mode() == sourceKey.mode();
-        if (!sameKey) {
-            p = transposePiece(p, sourceKey, targetKey);
-        }
-
-        int targetBpm = controls.getSelectedBpm();
-        if (targetBpm != originalPiece.tempo().bpm()) {
-            p = new Piece(p.title(), p.composer(), p.key(), p.timeSig(),
-                    new Tempo(targetBpm, p.tempo().beatUnit()),
-                    p.tracks());
-        }
-
-        setSavedAndCurrent(p);
-        refreshAutoDrumEnabled();
-        refreshPedalState();
-        loadPiece();
-    }
-
-    /**
-     * Phase 4d transitional: transposition is currently a no-op. Will be
-     * reimplemented as a Bar-level pitch transform once the bar
-     * abstract-note shape stabilises.
-     */
-    private static Piece transposePiece(Piece source, KeySignature sourceKey, KeySignature targetKey) {
-        return source;
     }
 
     /** Effective patch for a track — SBI override if present, else GM(selectedInstruments). */
@@ -1075,7 +1079,6 @@ public class NotationApp extends Application {
 
         originalPiece = provider.create();
 
-        controls.setKey(originalPiece.key());
         controls.setBpm(originalPiece.tempo().bpm());
         controls.setSwing(SwingSetup.OFF);
         currentSwing = SwingSetup.OFF;
@@ -1093,7 +1096,10 @@ public class NotationApp extends Application {
                 currentPiece.timeSig().beats(), currentPiece.timeSig().beatValue(),
                 currentPiece.tempo().bpm()));
 
-        currentScrollData = PitchScrollData.fromPiece(currentPiece);
+        // Apply current transposition so a non-zero shift carries across
+        // piece switches (matches the player's behaviour).
+        currentScrollData = PitchScrollData.fromPiece(currentPiece)
+                .withTransposition(controls.getTransposition());
         disabledVisualizerTracks.clear();
         // Reset per-track state BEFORE rebuilding lanes — the lane factory
         // grows these lists and bakes the indices into button listeners.

@@ -412,14 +412,20 @@ public final class MidiCodec {
     }
 
     private static int pitchOf(ConcreteNote n) {
+        // PitchedLike.midi() returns the EFFECTIVE midi — for ShiftedNote
+        // that's original + shift; for PitchedNote it's the authored value.
+        // This is the codec's emission point; it treats both uniformly.
         return switch (n) {
-            case PitchedNote pn -> pn.midi();
+            case PitchedLike pl -> pl.midi();
             case DrumNote dn -> dn.piece();
         };
     }
 
     private static boolean isTiedForward(ConcreteNote n) {
-        return n instanceof PitchedNote pn && pn.tiedToNext();
+        // Tied flag is preserved on both PitchedNote and ShiftedNote
+        // (the latter delegates to its original).
+        return n instanceof PitchedLike pl && pl instanceof music.notation.phrase.Tieable t
+                && t.tiedToNext();
     }
 
     // ═══════════════════════════════════════════════════════════════════

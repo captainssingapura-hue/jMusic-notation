@@ -27,7 +27,9 @@ public record Track(TrackId id, TrackKind kind, List<ConcreteNote> notes, boolea
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(notes, "notes");
         for (ConcreteNote n : notes) {
-            if (kind == TrackKind.PITCHED && !(n instanceof PitchedNote)) {
+            // PITCHED tracks accept any PitchedLike — PitchedNote (canonical)
+            // or ShiftedNote (transposed view). Drum tracks accept only DrumNote.
+            if (kind == TrackKind.PITCHED && !(n instanceof PitchedLike)) {
                 throw new IllegalArgumentException(
                         "PITCHED track " + id.name() + " contains non-pitched note: " + n);
             }
@@ -51,11 +53,15 @@ public record Track(TrackId id, TrackKind kind, List<ConcreteNote> notes, boolea
         this(id, kind, notes, false);
     }
 
+    // Canonical sort order: by tick, then by kind (pitched before drum),
+    // then by effective midi (or drum-piece) so notes-at-same-tick have a
+    // deterministic ordering. The kind-2 ternary lifts to PitchedLike so
+    // ShiftedNote sorts alongside PitchedNote.
     private static final Comparator<ConcreteNote> CANONICAL =
             Comparator.<ConcreteNote>comparingLong(ConcreteNote::tickMs)
-                    .thenComparingInt(n -> n instanceof PitchedNote ? 0 : 1)
+                    .thenComparingInt(n -> n instanceof PitchedLike ? 0 : 1)
                     .thenComparingInt(n -> switch (n) {
-                        case PitchedNote p -> p.midi();
+                        case PitchedLike pl -> pl.midi();
                         case DrumNote d -> d.piece();
                     });
 

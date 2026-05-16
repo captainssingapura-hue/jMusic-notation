@@ -87,6 +87,12 @@ public final class Swing {
     private static ConcreteNote retick(ConcreteNote n, long newTickMs, long newDurMs) {
         return switch (n) {
             case PitchedNote p -> new PitchedNote(newTickMs, newDurMs, p.midi());
+            // For ShiftedNote we re-tick the inner original and preserve the
+            // wrap — Swing is a timing transform, never a pitch transform.
+            case ShiftedNote s -> new ShiftedNote(
+                    new PitchedNote(newTickMs, newDurMs,
+                                     s.original().midi(), s.original().tiedToNext()),
+                    s.semitoneShift());
             case DrumNote d    -> new DrumNote(newTickMs, newDurMs, d.piece());
         };
     }

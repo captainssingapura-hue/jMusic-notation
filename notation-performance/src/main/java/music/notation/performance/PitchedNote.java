@@ -12,7 +12,7 @@ import music.notation.phrase.Tieable;
  * coalescing on emission lands in a later phase.</p>
  */
 public record PitchedNote(long tickMs, long durationMs, int midi, boolean tiedToNext)
-        implements ConcreteNote, Tieable {
+        implements PitchedLike, Tieable {
 
     public PitchedNote {
         if (tickMs < 0) throw new IllegalArgumentException("tickMs must be >= 0: " + tickMs);

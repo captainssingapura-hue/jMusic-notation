@@ -51,6 +51,57 @@ record PitchScrollData(
                 totalTicks, barTickWidth, ticksPerQuarter, pickupOffsetTicks, List.of());
     }
 
+    /**
+     * Functional transform: produce a copy of this data with every pitched
+     * {@link NoteRect}'s {@code midiNote} shifted by {@code semitoneShift}.
+     * The {@code originalMidi} field is preserved (or set from the current
+     * unshifted {@code midiNote} when no prior shift existed) so the UI's
+     * ghost-lane rendering shows both pitches.
+     *
+     * <p>Out-of-range notes ({@code newMidi < 0 || newMidi > 127}) are
+     * dropped — same policy as {@code TransposeTransform.apply} at the
+     * Performance layer. The vertical range ({@code minNote}/{@code maxNote})
+     * is recomputed to accommodate both the shifted and original positions.</p>
+     *
+     * <p>Shift of 0 returns the same instance — caller can use it freely
+     * without worrying about identity churn.</p>
+     */
+    PitchScrollData withTransposition(int semitoneShift) {
+        if (semitoneShift == 0) return this;
+        var shifted = new ArrayList<NoteRect>(noteRects.size());
+        for (NoteRect r : noteRects) {
+            // Drum NoteRects pass through unchanged — drum "pitch" is a
+            // GM kit selector, not a pitch. Shifting a kick (MIDI 36) up
+            // 5 would silently re-route to a high-tom slot. Same exemption
+            // as TransposeTransform.apply at the Performance layer.
+            if (r.isDrum()) {
+                shifted.add(r);
+                continue;
+            }
+            int newMidi = r.midiNote() + semitoneShift;
+            if (newMidi < 0 || newMidi > 127) continue;     // out of range, drop
+            int origMidi = r.originalMidi();   // preserve prior original if already shifted
+            shifted.add(new NoteRect(r.startTick(), r.endTick(), newMidi,
+                                       origMidi, r.trackKey(), r.voice(),
+                                       /*isDrum=*/ false));
+        }
+        int min = 127, max = 0;
+        for (NoteRect r : shifted) {
+            int lo = Math.min(r.midiNote(), r.originalMidi());
+            int hi = Math.max(r.midiNote(), r.originalMidi());
+            if (lo < min) min = lo;
+            if (hi > max) max = hi;
+        }
+        int newMin = shifted.isEmpty() ? minNote : Math.max(0, min - 2);
+        int newMax = shifted.isEmpty() ? maxNote : Math.min(127, max + 2);
+        return new PitchScrollData(
+                List.copyOf(shifted),
+                lyricRects, trackNames, trackCount,
+                newMin, newMax,
+                totalTicks, barTickWidth, ticksPerQuarter, pickupOffsetTicks,
+                tempoSegments);
+    }
+
     /** Build visualization data from a {@link Piece}. */
     static PitchScrollData fromPiece(Piece piece) {
         var rects = new ArrayList<NoteRect>();
@@ -168,18 +219,39 @@ record PitchScrollData(
                 double qEnd = msToQuarters.applyAsDouble(note.tickMs() + note.durationMs());
                 long startTick = Math.round(qStart * MidiMapper.TICKS_PER_QUARTER);
                 long endTick = Math.round(qEnd * MidiMapper.TICKS_PER_QUARTER);
-                int midi = (note instanceof music.notation.performance.PitchedNote pn) ? pn.midi()
-                        : (note instanceof music.notation.performance.DrumNote dn) ? dn.piece()
-                        : 60;
-                rects.add(new NoteRect(startTick, endTick, midi, name, 0));
+                // ShiftedNote first — it's a PitchedLike, so the broader
+                // check below would also match, but we want its originalMidi
+                // for ghost rendering.
+                int midi;
+                int originalMidi;
+                boolean isDrum = false;
+                if (note instanceof music.notation.performance.ShiftedNote sn) {
+                    midi = sn.midi();
+                    originalMidi = sn.originalMidi();
+                } else if (note instanceof music.notation.performance.PitchedLike pl) {
+                    midi = pl.midi();
+                    originalMidi = midi;
+                } else if (note instanceof music.notation.performance.DrumNote dn) {
+                    midi = dn.piece();
+                    originalMidi = midi;
+                    isDrum = true;
+                } else {
+                    midi = 60;
+                    originalMidi = 60;
+                }
+                rects.add(new NoteRect(startTick, endTick, midi, originalMidi, name, 0, isDrum));
             }
         }
         rects.sort(Comparator.comparingLong(NoteRect::startTick));
 
         int min = 127, max = 0;
         for (NoteRect r : rects) {
-            if (r.midiNote() < min) min = r.midiNote();
-            if (r.midiNote() > max) max = r.midiNote();
+            // Include both displayed and original midi so the y-axis
+            // accommodates the ghost lane.
+            int lo = Math.min(r.midiNote(), r.originalMidi());
+            int hi = Math.max(r.midiNote(), r.originalMidi());
+            if (lo < min) min = lo;
+            if (hi > max) max = hi;
         }
         int minNote = Math.max(0, min - 2);
         int maxNote = Math.min(127, max + 2);
@@ -239,7 +311,9 @@ record PitchScrollData(
             case PercussionNote pn -> {
                 int midi = pn.sound().midiNote();
                 long dur = MidiMapper.toTicks(pn.duration());
-                out.add(new NoteRect(tick, tick + dur, midi, trackKey, 0));
+                // Mark as drum so withTransposition skips it — drum "pitch"
+                // is a GM kit selector, not a pitch.
+                out.add(new NoteRect(tick, tick + dur, midi, midi, trackKey, 0, true));
                 tick += dur;
             }
             // Zero-duration markers — no advance, no rect.

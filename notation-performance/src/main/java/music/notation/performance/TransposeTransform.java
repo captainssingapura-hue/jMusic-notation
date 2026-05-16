@@ -90,57 +90,77 @@ public final class TransposeTransform {
     }
 
     /**
-     * Return a copy of {@code perf} with every pitched note's MIDI value
-     * shifted by {@code params.semitoneShift}. Returns the input
-     * unchanged when {@code params.isOff()} or when {@code perf} is null.
+     * Return a copy of {@code perf} with every pitched note <em>wrapped</em>
+     * in a {@link ShiftedNote} carrying the requested semitone shift.
+     * Returns the input unchanged when {@code params.isOff()} or when
+     * {@code perf} is null.
      *
-     * <p>Notes whose shifted value falls outside MIDI [0, 127] are
-     * silently dropped — see {@link #countOutOfRange} for a pre-flight
-     * check that callers can use to surface drop warnings to the user.</p>
+     * <h2>Wrapping, not mutating</h2>
+     *
+     * <p>The transform produces {@link ShiftedNote}s rather than new
+     * {@link PitchedNote}s at shifted MIDI values. The original is
+     * recoverable from {@link ShiftedNote#original()}. Both the codec
+     * (which reads {@link PitchedLike#midi()} for the effective value)
+     * and the UI (which can render both the original and the shifted
+     * pitch via {@link ShiftedNote#originalMidi()}) see one
+     * authoritative Performance object — no parallel "original" state
+     * to track separately.</p>
+     *
+     * <h2>Composition</h2>
+     *
+     * <p>If the input already contains {@link ShiftedNote}s (a piece
+     * already transposed and being further transposed), this method
+     * flattens — the result has {@code semitoneShift = old + new} on a
+     * single wrap. See {@link ShiftedNote#of(PitchedLike, int)}.</p>
+     *
+     * <h2>Out-of-range</h2>
+     *
+     * <p>Notes whose effective MIDI ({@code original.midi() + shift})
+     * would fall outside [0, 127] are silently dropped — see
+     * {@link #countOutOfRange} for a pre-flight check that callers
+     * (e.g. the UI) can use to surface drop warnings before committing
+     * to a transposition value.</p>
      */
     public static Performance apply(Performance perf, Params params) {
         if (perf == null) return null;
         if (params == null || params.isOff()) return perf;
 
         int shift = params.semitoneShift;
-        List<Track> transposed = new ArrayList<>(perf.score().tracks().size());
+        List<Track> wrapped = new ArrayList<>(perf.score().tracks().size());
         boolean anyChange = false;
 
         for (Track t : perf.score().tracks()) {
             if (t.kind() == TrackKind.DRUM) {
-                transposed.add(t);
+                wrapped.add(t);
                 continue;
             }
-            // Pitched track — apply linear shift to every note.
+            // Pitched track — wrap every PitchedLike note with the shift,
+            // flattening if it was already shifted. Drop out-of-range.
             List<ConcreteNote> oldNotes = t.notes();
             List<ConcreteNote> newNotes = new ArrayList<>(oldNotes.size());
             boolean trackChanged = false;
             for (ConcreteNote n : oldNotes) {
-                // The PITCHED-track invariant (validated by Track ctor) guarantees
-                // every note here is a PitchedNote, but a defensive cast keeps the
-                // sealed-type contract explicit.
-                if (!(n instanceof PitchedNote pn)) {
+                if (!(n instanceof PitchedLike pl)) {
                     newNotes.add(n);
                     continue;
                 }
-                int newMidi = pn.midi() + shift;
-                if (newMidi < 0 || newMidi > 127) {
-                    trackChanged = true;  // dropped: track differs from input
+                int effective = pl.midi() + shift;
+                if (effective < 0 || effective > 127) {
+                    trackChanged = true;        // dropped
                     continue;
                 }
-                newNotes.add(new PitchedNote(pn.tickMs(), pn.durationMs(),
-                                              newMidi, pn.tiedToNext()));
-                trackChanged = true;       // shifted: track differs from input
+                newNotes.add(ShiftedNote.of(pl, shift));
+                trackChanged = true;
             }
             if (!trackChanged) {
-                transposed.add(t);         // empty pitched track — pass through
+                wrapped.add(t);
             } else {
-                transposed.add(new Track(t.id(), t.kind(), newNotes, t.auto()));
+                wrapped.add(new Track(t.id(), t.kind(), newNotes, t.auto()));
                 anyChange = true;
             }
         }
         if (!anyChange) return perf;
-        return perf.withScore(new Score(transposed));
+        return perf.withScore(new Score(wrapped));
     }
 
     /**
@@ -148,6 +168,12 @@ public final class TransposeTransform {
      * [0, 127] if {@link #apply} were called with this shift? Pure;
      * useful for surfacing range warnings in the UI before committing
      * to a transposition value.
+     *
+     * <p>Reads {@link PitchedLike#midi()} so it handles already-shifted
+     * input correctly: a Performance whose notes are
+     * {@code ShiftedNote(orig=A4, shift=+5)} with an additional
+     * shift of +5 reports out-of-range based on the <em>cumulative</em>
+     * effective value.</p>
      */
     public static int countOutOfRange(Performance perf, int semitoneShift) {
         if (perf == null || semitoneShift == 0) return 0;
@@ -155,9 +181,9 @@ public final class TransposeTransform {
         for (Track t : perf.score().tracks()) {
             if (t.kind() == TrackKind.DRUM) continue;
             for (ConcreteNote n : t.notes()) {
-                if (n instanceof PitchedNote pn) {
-                    int newMidi = pn.midi() + semitoneShift;
-                    if (newMidi < 0 || newMidi > 127) dropped++;
+                if (n instanceof PitchedLike pl) {
+                    int effective = pl.midi() + semitoneShift;
+                    if (effective < 0 || effective > 127) dropped++;
                 }
             }
         }
