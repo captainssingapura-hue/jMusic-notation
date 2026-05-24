@@ -78,6 +78,21 @@ public class NotationApp extends Application {
     private boolean animating;
     private final Set<String> disabledVisualizerTracks = new HashSet<>();
 
+    /**
+     * Per-track export-exclusion set, remembered across export operations.
+     * Keys are {@code TrackId.name()}s; storing strings instead of {@link
+     * music.notation.expressivity.TrackId} so they persist cleanly across
+     * piece swaps where the live {@code TrackId} instances are reborn.
+     */
+    private final Set<String> excludedExportTracks = new HashSet<>();
+
+    /**
+     * Per-track pedal mode, remembered across mode picks. Empty map means
+     * "use the global radio choice for every track" — populated lazily by
+     * the per-track pedal dialog.
+     */
+    private final Map<String, ControlsPanel.PedalMode> perTrackPedalMode = new HashMap<>();
+
     // Guitar filter state (persists across recreations)
     private int guitarMinFret = 0;
     private int guitarMaxFret = 15;
@@ -124,6 +139,7 @@ public class NotationApp extends Application {
         controls.setOnHumanizerChanged(this::onHumanizerChanged);
         controls.setOnTranspositionChanged(this::onTranspositionChanged);
         controls.setOnPedalModeChanged(this::onPedalModeChanged);
+        controls.setOnPedalPerTrack(() -> onPedalPerTrack(stage));
         controls.setOnSoundbankAddRequested(() -> onAddSoundbank(stage));
         controls.setOnSoundbanksChanged(this::onSoundbanksChanged);
         loadPersistedSoundbanks();
@@ -337,6 +353,10 @@ public class NotationApp extends Application {
     private static final String PREF_PEDAL_MODE      = "pedal.mode";
     private static final String PREF_SWING_CHOICE    = "swing.choice";
     private static final String PREF_HUMANIZER       = "humanizer.choice";
+    /** Per-piece prefs node-path prefix. Each piece's per-track choices live
+     *  under a child node hashed from its display name / title via
+     *  {@link PiecePrefs#nodeNameFor}. */
+    private static final String PREF_PIECE_NODE = "piece";
     private final java.util.prefs.Preferences prefs =
             java.util.prefs.Preferences.userNodeForPackage(NotationApp.class);
 
@@ -405,6 +425,57 @@ public class NotationApp extends Application {
                 player.setHumanizer(c.setup);
             } catch (IllegalArgumentException ignored) { /* stale value */ }
         }
+    }
+
+    // ── Per-piece persistence ─────────────────────────────────────────
+
+    /**
+     * Human-readable name for the currently-loaded piece (import display name
+     * if it's a session-only import, otherwise the library title). Returns
+     * {@code null} when no piece is loaded.
+     */
+    private String currentPieceDisplayName() {
+        if (currentImport != null && currentImport.displayName() != null) {
+            return currentImport.displayName();
+        }
+        if (currentPiece != null && currentPiece.title() != null) {
+            return currentPiece.title();
+        }
+        return null;
+    }
+
+    /**
+     * The {@link java.util.prefs.Preferences} sub-node holding per-track
+     * choices for the currently-loaded piece. Returns {@code null} when no
+     * piece is loaded.
+     */
+    private java.util.prefs.Preferences currentPieceNode() {
+        String name = currentPieceDisplayName();
+        if (name == null) return null;
+        return prefs.node(PREF_PIECE_NODE).node(PiecePrefs.nodeNameFor(name));
+    }
+
+    /**
+     * Restore per-track pedal-mode and export-exclusion choices for the
+     * currently-loaded piece. Pieces never seen before yield empty maps —
+     * every track follows the global default, every track included in export.
+     */
+    private void loadPerTrackChoicesForCurrentPiece() {
+        perTrackPedalMode.clear();
+        excludedExportTracks.clear();
+        var node = currentPieceNode();
+        if (node == null) return;
+        perTrackPedalMode.putAll(PiecePrefs.readPedalMap(node));
+        excludedExportTracks.addAll(PiecePrefs.readExcludeSet(node));
+    }
+
+    /** Persist the in-memory per-track maps for the currently-loaded piece. */
+    private void persistPerTrackChoicesForCurrentPiece() {
+        var node = currentPieceNode();
+        if (node == null) return;
+        PiecePrefs.writeTitle(node, currentPieceDisplayName());
+        PiecePrefs.writePedalMap(node, perTrackPedalMode);
+        PiecePrefs.writeExcludeSet(node, excludedExportTracks);
     }
 
     private void onAddSoundbank(Stage stage) {
@@ -589,11 +660,18 @@ public class NotationApp extends Application {
     }
 
     /**
-     * User picked a different pedal mode. Live-applies if running,
-     * otherwise just stages for the next play.
+     * User picked a different global pedal mode. Acts as a "set all"
+     * shortcut: clears every per-track override so the chosen mode applies
+     * uniformly. Per-track refinements survive only until the next global
+     * pick.
+     *
+     * <p>Live-applies if the player is running, otherwise stages for the
+     * next play.</p>
      */
     private void onPedalModeChanged(ControlsPanel.PedalMode mode) {
         prefs.put(PREF_PEDAL_MODE, mode.name());
+        perTrackPedalMode.clear();   // global pick is the "set all" shortcut
+        persistPerTrackChoicesForCurrentPiece();
         try {
             applyEffectivePedaling();
             // applyPedalEnabled rebuilds the running sequence — only call
@@ -608,6 +686,74 @@ public class NotationApp extends Application {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+    }
+
+    /**
+     * Open the per-track pedal modal. Each track gets its own
+     * SOURCE / AUTO / OFF picker; drum tracks are disabled (no
+     * meaningful pedal). On OK, the per-track overrides are stored and
+     * pushed into the live pedaling timeline.
+     */
+    private void onPedalPerTrack(Stage stage) {
+        if (currentPiece == null) return;
+        Piece dialogPiece = (savedPiece != null) ? savedPiece : currentPiece;
+        java.util.List<music.notation.performance.Track> dialogTracks =
+                music.notation.play.PieceConcretizer.concretize(dialogPiece).score().tracks();
+
+        ControlsPanel.PedalMode globalDefault = controls.getPedalMode();
+        Map<music.notation.expressivity.TrackId, ControlsPanel.PedalMode> initial = new LinkedHashMap<>();
+        for (var t : dialogTracks) {
+            ControlsPanel.PedalMode val = perTrackPedalMode.getOrDefault(t.id().name(), globalDefault);
+            initial.put(t.id(), val);
+        }
+
+        java.util.Optional<Map<music.notation.expressivity.TrackId, ControlsPanel.PedalMode>> result =
+                TrackSelectorDialog.showAndWait(
+                        stage,
+                        "Pedal per track",
+                        "Choose a pedal source for each track. "
+                                + "The global Pedal selector above sets every track at once.",
+                        dialogTracks,
+                        initial,
+                        TrackSelectorDialog.choiceFactory(
+                                java.util.List.of(
+                                        ControlsPanel.PedalMode.SOURCE,
+                                        ControlsPanel.PedalMode.AUTO,
+                                        ControlsPanel.PedalMode.OFF),
+                                this::pedalModeLabel,
+                                globalDefault,
+                                track -> track.kind() == music.notation.performance.TrackKind.DRUM));
+        if (result.isEmpty()) return;
+
+        // Update per-track map. Empty out any pre-existing entries first so
+        // tracks no longer present in the piece are forgotten.
+        perTrackPedalMode.clear();
+        for (var entry : result.get().entrySet()) {
+            perTrackPedalMode.put(entry.getKey().name(), entry.getValue());
+        }
+        persistPerTrackChoicesForCurrentPiece();
+        try {
+            applyEffectivePedaling();
+            // Tint visible when ANY track has pedaling active.
+            boolean anyActive = perTrackPedalMode.values().stream()
+                    .anyMatch(m -> m != ControlsPanel.PedalMode.OFF);
+            if (pitchScroll != null) pitchScroll.setPedalTintEnabled(anyActive);
+            if (player.isPlaying() || player.isPaused()) {
+                player.applyPedalEnabled(anyActive, player.getTickPosition());
+            } else {
+                player.setPedalEnabled(anyActive);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private String pedalModeLabel(ControlsPanel.PedalMode mode) {
+        return switch (mode) {
+            case SOURCE -> "Source";
+            case AUTO   -> "Auto";
+            case OFF    -> "Off";
+        };
     }
 
     /**
@@ -746,13 +892,40 @@ public class NotationApp extends Application {
         return music.notation.performance.AutoPedaling.generate(perf, ts);
     }
 
-    /** Pedaling actually emitted for export / play — depends on the mode picker. */
+    /**
+     * Pedaling actually emitted for export / play. Per-track overrides
+     * (set via the "Per track…" dialog) take precedence; tracks without an
+     * override fall back to the global mode picker.
+     */
     private music.notation.expressivity.Pedaling effectivePedaling() {
-        return switch (controls.getPedalMode()) {
-            case SOURCE -> sourcePedaling();
-            case AUTO   -> autoPedaling();
-            case OFF    -> music.notation.expressivity.Pedaling.empty();
-        };
+        ControlsPanel.PedalMode globalMode = controls.getPedalMode();
+        var source = sourcePedaling();
+        var auto   = autoPedaling();
+        var perf   = currentPerformance();
+        if (perf == null) return music.notation.expressivity.Pedaling.empty();
+
+        java.util.Map<music.notation.expressivity.TrackId, music.notation.expressivity.PedalControl> merged =
+                new LinkedHashMap<>();
+        for (var track : perf.score().tracks()) {
+            ControlsPanel.PedalMode mode =
+                    perTrackPedalMode.getOrDefault(track.id().name(), globalMode);
+            switch (mode) {
+                case SOURCE -> {
+                    var pc = source.byTrack().get(track.id());
+                    if (pc != null) merged.put(track.id(), pc);
+                }
+                case AUTO -> {
+                    var pc = auto.byTrack().get(track.id());
+                    if (pc != null) merged.put(track.id(), pc);
+                }
+                case OFF -> {
+                    // skip — no pedaling for this track
+                }
+            }
+        }
+        return merged.isEmpty()
+                ? music.notation.expressivity.Pedaling.empty()
+                : new music.notation.expressivity.Pedaling(merged);
     }
 
     /**
@@ -916,6 +1089,12 @@ public class NotationApp extends Application {
         // Feed the loaded piece's key to the transpose label so it can
         // render "Original → Target" with the right source-key context.
         controls.setOriginalKey(p == null ? null : p.key());
+        // Restore per-track choices for the newly-loaded piece. Choices
+        // are saved per-piece (keyed by display name / title) so the
+        // user's last selections for THIS piece come back automatically;
+        // pieces never seen before start with empty maps (every track
+        // follows the global default, every track is included in export).
+        loadPerTrackChoicesForCurrentPiece();
     }
 
     /** Re-augment {@link #currentPiece} from {@link #savedPiece} using the staged strategy. */
@@ -1344,16 +1523,67 @@ public class NotationApp extends Application {
                 .replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fff _-]", "")
                 .replace(' ', '_');
 
-        // Confirm export settings in our own dialog FIRST — format and the
-        // keep-authentic toggle for MIDI. System dialogs are reserved for the
-        // one thing the OS does best: file location + name picking.
+        // ── Step 1: confirm export settings (format + keep-authentic).
+        // Asked first because keep-authentic decides whether the
+        // auto-drum overlay belongs in the exported tracks — and that
+        // changes which tracks the user can pick from in step 2.
         ExportSettings settings = showExportSettingsDialog(stage);
         if (settings == null) return;
         boolean isAudio = settings.isAudio();
         boolean keepAuthentic = settings.keepAuthentic();
 
-        // File picker — one extension filter matching the chosen format. The
-        // user only picks location + name; no format choice happens here.
+        // Determine the piece whose tracks will be presented and ultimately
+        // exported. Authentic MIDI exports use the source piece (no
+        // auto-drum); WAV and as-heard MIDI use the augmented piece (with
+        // auto-drum). Picking the right piece NOW makes step 2's dialog
+        // honest about what the file will actually contain — and lets the
+        // user opt into "auto-drum only" by un-checking every other track
+        // when the augmented piece is in play.
+        Piece exportPiece = keepAuthentic
+                ? ((savedPiece != null) ? savedPiece : currentPiece)
+                : ((currentPiece != null) ? currentPiece : savedPiece);
+        java.util.List<music.notation.performance.Track> dialogTracks =
+                music.notation.play.PieceConcretizer.concretize(exportPiece).score().tracks();
+
+        // ── Step 2: per-track include modal, against the right piece.
+        Map<music.notation.expressivity.TrackId, Boolean> initialInclude = new LinkedHashMap<>();
+        for (var t : dialogTracks) {
+            initialInclude.put(t.id(), !excludedExportTracks.contains(t.id().name()));
+        }
+        String includePrompt = keepAuthentic
+                ? "Choose which tracks to include in the exported file. "
+                + "Unchecked tracks are dropped entirely. "
+                + "(Authentic mode: no auto-drum is present to include or exclude.)"
+                : "Choose which tracks to include in the exported file. "
+                + "Unchecked tracks are dropped entirely. "
+                + "Tip: uncheck everything except the auto-drum track to export drums only.";
+        java.util.Optional<Map<music.notation.expressivity.TrackId, Boolean>> includes =
+                TrackSelectorDialog.showAndWait(
+                        stage,
+                        "Export tracks",
+                        includePrompt,
+                        dialogTracks,
+                        initialInclude,
+                        TrackSelectorDialog.booleanFactory("Include"));
+        if (includes.isEmpty()) return;     // user cancelled
+
+        // Update remembered exclusions from the user's choices.
+        excludedExportTracks.clear();
+        Set<music.notation.expressivity.TrackId> excludedIds = new HashSet<>();
+        for (var entry : includes.get().entrySet()) {
+            if (!entry.getValue()) {
+                excludedExportTracks.add(entry.getKey().name());
+                excludedIds.add(entry.getKey());
+            }
+        }
+        persistPerTrackChoicesForCurrentPiece();
+        if (excludedIds.size() == dialogTracks.size()) {
+            controls.setStatus("Export cancelled — no tracks selected.");
+            return;
+        }
+
+        // ── Step 3: file picker. One extension filter matching the chosen
+        // format; the user only picks location + name.
         String extension = isAudio ? ".wav" : ".mid";
         String filterDesc = isAudio ? "WAV Audio" : "MIDI Files";
         FileChooser chooser = new FileChooser();
@@ -1366,35 +1596,23 @@ public class NotationApp extends Application {
 
         ChannelSetup channelSetup = buildChannelSetup();
 
-        Piece exportPiece;
-        music.notation.performance.TransposeTransform.Params transposition;
-        if (keepAuthentic) {
-            // Authentic: source piece, no transposition, no auto-drum.
-            // Suitable for re-import or sending to a collaborator who'll
-            // add their own arrangement layers.
-            exportPiece = (savedPiece != null) ? savedPiece : currentPiece;
-            transposition = music.notation.performance.TransposeTransform.Params.NONE;
-        } else {
-            // As heard: augmented piece (with auto-drum if any) + current
-            // transposition. Suitable for a backing track in the user's
-            // key with all the overlay layers.
-            exportPiece = (currentPiece != null) ? currentPiece : savedPiece;
-            transposition = player.getTransposition();
-        }
-        music.notation.expressivity.Pedaling pedaling = effectivePedaling();
-        music.notation.performance.TempoTrack tempos = currentTempoTrack();
+        // All other live overlays (pedaling, velocities, transposition,
+        // swing, humanizer) are gated INSIDE player.exportPiece via the
+        // keepAuthentic flag — NotationApp doesn't need to pass them
+        // separately.
         try {
             if (isAudio) {
                 controls.setStatus("Rendering " + file.getName() + "...");
-                MidiPlayer.exportWav(exportPiece, channelSetup, file,
-                        pedaling, tempos, new SoundbankSetup(controls.getSoundbanks()),
-                        transposition);
+            }
+            player.exportPiece(exportPiece, file, isAudio, keepAuthentic,
+                    channelSetup,
+                    isAudio ? new SoundbankSetup(controls.getSoundbanks()) : null,
+                    excludedIds);
+            if (isAudio) {
                 long sizeKb = file.length() / 1024;
                 controls.setStatus("Exported: " + file.getName() + " ("
                         + (sizeKb >= 1024 ? (sizeKb / 1024) + " MB" : sizeKb + " KB") + ")");
             } else {
-                MidiPlayer.exportMidi(exportPiece, channelSetup, file, pedaling, tempos,
-                        transposition);
                 controls.setStatus("Exported: " + file.getName()
                         + (keepAuthentic ? " (authentic)" : ""));
             }

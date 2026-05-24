@@ -62,6 +62,7 @@ final class ControlsPanel {
     private final javafx.scene.control.RadioButton pedalSourceRadio;
     private final javafx.scene.control.RadioButton pedalAutoRadio;
     private final javafx.scene.control.RadioButton pedalOffRadio;
+    private final Button pedalPerTrackButton;
     private final javafx.scene.control.ToggleGroup pedalGroup;
 
     private final ListView<File> soundbankList = new ListView<>();
@@ -80,6 +81,7 @@ final class ControlsPanel {
     private Consumer<HumanizerSetup> onHumanizerChanged = h -> {};
     private Consumer<Integer> onTranspositionChanged = n -> {};
     private Consumer<PedalMode> onPedalModeChanged = m -> {};
+    private Runnable onPedalPerTrack = () -> {};
     private Consumer<List<File>> onSoundbanksChanged = files -> {};
 
     /** Suppress flag so programmatic mutations don't fire user listeners. */
@@ -238,8 +240,11 @@ final class ControlsPanel {
         pedalOffRadio    = pedalRadio("Off",    pedalGroup,
                 "No sustain pedal — dry playback.");
         pedalAutoRadio.setSelected(true);
+        pedalPerTrackButton = new Button("Per track…");
+        pedalPerTrackButton.setStyle("-fx-font-size: 10;");
+        pedalPerTrackButton.setOnAction(e -> onPedalPerTrack.run());
         HBox pedalRow = new HBox(10, pedalLabel,
-                pedalSourceRadio, pedalAutoRadio, pedalOffRadio);
+                pedalSourceRadio, pedalAutoRadio, pedalOffRadio, pedalPerTrackButton);
         pedalRow.setAlignment(Pos.CENTER_LEFT);
         pedalGroup.selectedToggleProperty().addListener((obs, oldT, newT) -> {
             if (suppressEvents || newT == null) return;
@@ -431,6 +436,14 @@ final class ControlsPanel {
     /** Fires when the user picks a different pedal mode. */
     void setOnPedalModeChanged(Consumer<PedalMode> handler) {
         this.onPedalModeChanged = handler == null ? m -> {} : handler;
+    }
+
+    /**
+     * Fires when the user clicks the "Per track…" pedal button. The host
+     * opens a {@link TrackSelectorDialog} with per-track pedal-mode picks.
+     */
+    void setOnPedalPerTrack(Runnable handler) {
+        this.onPedalPerTrack = handler == null ? () -> {} : handler;
     }
 
     /**

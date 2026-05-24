@@ -1199,7 +1199,13 @@ public final class MidiPlayer {
                                    music.notation.performance.TempoTrack tempos,
                                    music.notation.performance.TransposeTransform.Params transposition)
             throws InvalidMidiDataException, IOException {
-        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos, transposition);
+        // Static-export path doesn't carry a Velocities side-channel; pass
+        // empty so the codec emits default note velocities. The new instance
+        // method MidiPlayer#exportPiece is the recommended path when the
+        // caller has live velocity state to thread through.
+        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos, transposition,
+                music.notation.expressivity.Velocities.empty(),
+                java.util.Set.of());
         int[] types = MidiSystem.getMidiFileTypes(frozen);
         int fileType = (types.length > 1) ? 1 : types[0];
         MidiSystem.write(frozen, fileType, file);
@@ -1231,7 +1237,13 @@ public final class MidiPlayer {
                                   SoundbankSetup soundbankSetup,
                                   music.notation.performance.TransposeTransform.Params transposition)
             throws Exception {
-        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos, transposition);
+        // Static-export path doesn't carry a Velocities side-channel; pass
+        // empty so the codec emits default note velocities. The new instance
+        // method MidiPlayer#exportPiece is the recommended path when the
+        // caller has live velocity state to thread through.
+        Sequence frozen = buildExportSequence(piece, channelSetup, pedaling, tempos, transposition,
+                music.notation.expressivity.Velocities.empty(),
+                java.util.Set.of());
         AudioRenderer.renderWav(frozen, soundbankSetup, file);
     }
 
@@ -1246,17 +1258,123 @@ public final class MidiPlayer {
      * (the codec reads {@link Performance#tempo()}); it's retained for
      * back-compat with public callers that haven't migrated yet.</p>
      */
+    /**
+     * Export a {@link Piece} using the current live state of this
+     * {@code MidiPlayer} — pedaling, velocities, transposition, swing,
+     * and humanizer all read from instance fields and applied in the
+     * same order as live playback.
+     *
+     * <p>This is the recommended export entry point: a single call site
+     * captures "what the user is currently hearing" without the caller
+     * needing to thread each overlay through as a separate parameter.</p>
+     *
+     * <p>The {@code keepAuthentic} gate switches between two modes:</p>
+     * <ul>
+     *   <li>{@code false} (As Heard): all live overlays applied —
+     *       pedaling, velocities, transposition, swing, humanizer.
+     *       Suitable for backing tracks, DAW import, or any context
+     *       where the user wants to share what they heard.</li>
+     *   <li>{@code true} (Authentic): every overlay reset to its
+     *       identity value before export. The piece is concretized
+     *       and emitted as authored. Suitable for round-trip-clean
+     *       re-import or sending source-shape MIDI to a collaborator.</li>
+     * </ul>
+     *
+     * <p>The pre-codec {@link Performance}-layer transforms (velocities,
+     * pedaling, transposition) flow through {@link #buildExportSequence}
+     * for symmetry with live playback. The post-codec {@link Sequence}-
+     * layer transforms (swing, humanizer) wrap the result here.</p>
+     *
+     * @param piece           the piece to export. For "as heard," pass the
+     *                        augmented (with auto-drum) piece; for
+     *                        "authentic," pass the source piece.
+     * @param file            destination file
+     * @param isAudio         {@code true} for WAV render; {@code false} for
+     *                        symbolic MIDI write
+     * @param keepAuthentic   gate controlling which overlays are applied
+     *                        (see method docstring)
+     * @param channelSetup    per-channel program / volume / pan to bake at
+     *                        tick 0 of the exported sequence
+     * @param soundbankSetup  for WAV: the SF2 layering. Unused for MIDI.
+     */
+    public void exportPiece(Piece piece, File file, boolean isAudio,
+                            boolean keepAuthentic,
+                            ChannelSetup channelSetup,
+                            SoundbankSetup soundbankSetup) throws Exception {
+        exportPiece(piece, file, isAudio, keepAuthentic,
+                channelSetup, soundbankSetup, java.util.Set.of());
+    }
+
+    /**
+     * Export overload with a per-track exclusion filter. Tracks whose
+     * {@link music.notation.expressivity.TrackId} is in {@code excludedTracks}
+     * are dropped from the concretised {@link Performance} before any
+     * overlay applies — they contribute no notes, no pedal, no velocity to
+     * the output. An empty set means "export everything" and behaves
+     * identically to {@link #exportPiece(Piece, File, boolean, boolean,
+     * ChannelSetup, SoundbankSetup)}.
+     */
+    public void exportPiece(Piece piece, File file, boolean isAudio,
+                            boolean keepAuthentic,
+                            ChannelSetup channelSetup,
+                            SoundbankSetup soundbankSetup,
+                            java.util.Set<music.notation.expressivity.TrackId> excludedTracks)
+            throws Exception {
+        // Gate every live overlay through keepAuthentic. The two modes are
+        // symmetric: false-mode reads instance state; true-mode reads each
+        // overlay's identity element.
+        music.notation.expressivity.Velocities velocities = keepAuthentic
+                ? music.notation.expressivity.Velocities.empty()
+                : currentVelocities;
+        music.notation.expressivity.Pedaling pedaling = keepAuthentic
+                ? music.notation.expressivity.Pedaling.empty()
+                : currentPedaling;
+        music.notation.performance.TransposeTransform.Params transposition = keepAuthentic
+                ? music.notation.performance.TransposeTransform.Params.NONE
+                : currentTransposition;
+        SwingSetup swing = keepAuthentic ? SwingSetup.OFF : currentSwing;
+        HumanizerSetup humanizer = keepAuthentic ? HumanizerSetup.OFF : currentHumanizer;
+
+        // Pre-codec Performance-layer transforms (velocities, pedaling,
+        // transposition) flow through buildExportSequence — same chain as
+        // buildLivePieceSequence for live playback.
+        Sequence seq = buildExportSequence(piece, channelSetup, pedaling,
+                /* tempos unused */ null, transposition, velocities,
+                excludedTracks);
+        // Post-codec Sequence-layer transforms (swing, humanizer) wrap the
+        // result. Note: the existing live path applies swing first, then
+        // humanizer — we keep that order so audible outcome is identical.
+        seq = swing.apply(seq);
+        seq = humanizer.apply(seq);
+
+        if (isAudio) {
+            AudioRenderer.renderWav(seq, soundbankSetup, file);
+        } else {
+            int[] types = MidiSystem.getMidiFileTypes(seq);
+            int fileType = (types.length > 1) ? 1 : types[0];
+            MidiSystem.write(seq, fileType, file);
+        }
+    }
+
     private static Sequence buildExportSequence(Piece piece, ChannelSetup channelSetup,
                                                  music.notation.expressivity.Pedaling pedaling,
                                                  music.notation.performance.TempoTrack tempos,
-                                                 music.notation.performance.TransposeTransform.Params transposition)
+                                                 music.notation.performance.TransposeTransform.Params transposition,
+                                                 music.notation.expressivity.Velocities velocities,
+                                                 java.util.Set<music.notation.expressivity.TrackId> excludedTracks)
             throws InvalidMidiDataException {
         try {
             Performance perf = PieceConcretizer.concretize(piece);
+            // Per-track exclusion filter — drop excluded tracks from the score
+            // before any overlay applies. Empty set is a no-op.
+            if (excludedTracks != null && !excludedTracks.isEmpty()) {
+                perf = filterTracks(perf, excludedTracks);
+            }
+            // Pre-codec chain mirrors buildLivePieceSequence exactly so live
+            // and export emit identical bytes for the same (piece, side-channel state):
+            //   velocity overrides → pedaling overrides → transposition
+            perf = applyVelocityOverrides(perf, velocities);
             perf = applyPedalingOverrides(perf, pedaling);
-            // Transposition is LAST in the Performance-layer chain — same
-            // ordering as buildLivePieceSequence so live and export emit
-            // identical bytes for the same (piece, shift) pair.
             perf = music.notation.performance.TransposeTransform.apply(perf, transposition);
             byte[] bytes = MidiCodec.toMidi(perf);
             Sequence noteSeq = MidiSystem.getSequence(new ByteArrayInputStream(bytes));
@@ -1266,6 +1384,52 @@ public final class MidiPlayer {
             throw new InvalidMidiDataException(
                     "buildExportSequence failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * Drop every track in {@code excluded} from {@code perf}. Returns a new
+     * Performance whose score contains only the surviving tracks <em>and</em>
+     * whose side channels (instruments / volume / articulations / pedaling /
+     * velocities) have their per-track entries for the dropped tracks
+     * removed. The Performance constructor validates that every side-channel
+     * key references a track in the score, so the filter must be applied
+     * symmetrically.
+     */
+    private static Performance filterTracks(Performance perf,
+                                            java.util.Set<music.notation.expressivity.TrackId> excluded) {
+        java.util.List<music.notation.performance.Track> kept = new java.util.ArrayList<>();
+        java.util.Set<music.notation.expressivity.TrackId> keptIds = new java.util.HashSet<>();
+        for (music.notation.performance.Track t : perf.score().tracks()) {
+            if (!excluded.contains(t.id())) {
+                kept.add(t);
+                keptIds.add(t.id());
+            }
+        }
+        var newScore = new music.notation.performance.Score(kept);
+
+        return new Performance(
+                newScore,
+                perf.tempo(),
+                new music.notation.performance.Instrumentation(
+                        filterByKey(perf.instruments().byTrack(), keptIds)),
+                new music.notation.expressivity.Volume(
+                        filterByKey(perf.volume().byTrack(), keptIds)),
+                new music.notation.expressivity.Articulations(
+                        filterByKey(perf.articulations().byTrack(), keptIds)),
+                new music.notation.expressivity.Pedaling(
+                        filterByKey(perf.pedaling().byTrack(), keptIds)),
+                new music.notation.expressivity.Velocities(
+                        filterByKey(perf.velocities().byTrack(), keptIds)));
+    }
+
+    private static <K, V> java.util.Map<K, V> filterByKey(java.util.Map<K, V> src,
+                                                           java.util.Set<K> keep) {
+        if (src == null || src.isEmpty()) return java.util.Map.of();
+        java.util.Map<K, V> out = new java.util.LinkedHashMap<>(src.size());
+        for (var entry : src.entrySet()) {
+            if (keep.contains(entry.getKey())) out.put(entry.getKey(), entry.getValue());
+        }
+        return out;
     }
 
     /**
