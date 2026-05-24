@@ -39,9 +39,9 @@ public record SoundBankInstrument(
         return bank > 127 ? bank & 0x7f : 0;
     }
 
-    /** True iff this patch is a drum kit (SF2 bank 128 or higher). */
+    /** True iff this patch is any drum kit (SF2 bank 128 or any of the GM2 kit variants). */
     public boolean isDrumKit() {
-        return bank >= 128 || family == Instrument.DRUM_KIT;
+        return bank >= 128 || family.isDrumKit();
     }
 
     /**
@@ -62,11 +62,20 @@ public record SoundBankInstrument(
      * would otherwise misclassify into a melodic family).
      */
     public static Instrument classifyToGm(int bank, int program, String name) {
-        if (bank >= 128) return Instrument.DRUM_KIT;
-        if (looksLikeDrumKit(name)) return Instrument.DRUM_KIT;
         int p = program & 0x7f;
+        // Drum-bank or name-tagged-as-drum patches resolve to the most-specific
+        // GM2 drum kit whose program matches; fall back to Standard Kit if the
+        // program number doesn't line up with a known variant.
+        if (bank >= 128 || looksLikeDrumKit(name)) {
+            for (var v : Instrument.values()) {
+                if (v.isDrumKit() && v.program() == p) return v;
+            }
+            return Instrument.DRUM_KIT;
+        }
+        // Melodic lookup — skip every drum-kit value because their program
+        // numbers (8, 16, 24, …) overlap with melodic GM programs.
         for (var v : Instrument.values()) {
-            if (v != Instrument.DRUM_KIT && v.program() == p) return v;
+            if (!v.isDrumKit() && v.program() == p) return v;
         }
         return Instrument.ACOUSTIC_GRAND_PIANO;
     }

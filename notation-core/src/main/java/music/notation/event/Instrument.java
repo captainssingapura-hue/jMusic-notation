@@ -2,8 +2,18 @@ package music.notation.event;
 
 /**
  * General MIDI instrument programs (0-based). Complete GM Level 1 set
- * — all 128 melodic programs plus the special {@link #DRUM_KIT}
- * sentinel that flags rhythm-channel routing.
+ * — all 128 melodic programs plus the GM Level 2 standard drum-kit
+ * lineup, all of which route on MIDI channel 10 (zero-indexed 9).
+ *
+ * <h2>Drum-kit values</h2>
+ *
+ * <p>{@link #DRUM_KIT} is the GM Standard Kit (program 0 on channel 10);
+ * the {@code DRUM_KIT_*} variants are the GM2 / GS / XG standard set
+ * (Room=8, Power=16, Electronic=24, TR-808=25, Jazz=32, Brush=40,
+ * Orchestra=48). Most full-fat GM2-compliant SF2 / DLS soundbanks
+ * include all of them; older minimal banks may have only Standard.
+ * Use {@link #isDrumKit()} to test whether a value is any drum kit
+ * rather than comparing to {@link #DRUM_KIT} directly.</p>
  *
  * <p>Soundbank-aware UI surfaces (e.g.
  * {@code SoundBankRegistry.classifyToGm}) match patches to GM families
@@ -172,8 +182,17 @@ public enum Instrument {
     APPLAUSE(126),
     GUNSHOT(127),
 
-    // Drum Kit — MIDI channel 9; program 0 = Standard Kit by GM convention.
-    DRUM_KIT(0);
+    // Drum Kits — MIDI channel 10 (zero-indexed 9). GM Level 2 / GS / XG
+    // standard set of drum-kit programs. Most modern SF2/DLS banks
+    // include all of them; very small banks may only have Standard.
+    DRUM_KIT(0),                 // Standard Kit
+    DRUM_KIT_ROOM(8),            // Room Kit
+    DRUM_KIT_POWER(16),          // Power / Rock Kit
+    DRUM_KIT_ELECTRONIC(24),     // Electronic Kit
+    DRUM_KIT_TR808(25),          // TR-808 / Analog Kit
+    DRUM_KIT_JAZZ(32),           // Jazz Kit
+    DRUM_KIT_BRUSH(40),          // Brush Kit
+    DRUM_KIT_ORCHESTRA(48);      // Orchestra / Symphony Kit
 
     private final int program;
 
@@ -183,5 +202,19 @@ public enum Instrument {
 
     public int program() {
         return program;
+    }
+
+    /**
+     * True for any drum-kit value (Standard or one of the GM2 variants).
+     * Prefer this over {@code instr == DRUM_KIT} when the intent is
+     * "is this routed to channel 10 / treated as percussion."
+     */
+    public boolean isDrumKit() {
+        return switch (this) {
+            case DRUM_KIT, DRUM_KIT_ROOM, DRUM_KIT_POWER, DRUM_KIT_ELECTRONIC,
+                 DRUM_KIT_TR808, DRUM_KIT_JAZZ, DRUM_KIT_BRUSH, DRUM_KIT_ORCHESTRA
+                    -> true;
+            default -> false;
+        };
     }
 }

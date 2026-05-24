@@ -26,7 +26,10 @@ public final class InstrumentMap {
     static {
         var m = new HashMap<Integer, Instrument>();
         for (Instrument inst : Instrument.values()) {
-            if (inst == Instrument.DRUM_KIT) continue;
+            // Skip every drum-kit value — they share program numbers with
+            // melodic GM programs (DRUM_KIT_ROOM = 8 collides with CELESTA, etc.)
+            // and live on channel 10, not the melodic channels this map serves.
+            if (inst.isDrumKit()) continue;
             // First-wins: if two enum constants ever shared a program
             // number, the earlier-declared one stays canonical.
             m.putIfAbsent(inst.program(), inst);

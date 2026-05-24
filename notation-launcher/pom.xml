@@ -10,50 +10,43 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>notation-ui</artifactId>
-    <name>Music Notation UI</name>
-    <description>JavaFX UI for music notation playback</description>
+    <artifactId>notation-launcher</artifactId>
+    <name>Music Notation Launcher</name>
+    <description>
+        Independent tile launcher for the notation app suite. Each tile
+        spawns its target app in a fresh JVM via Maven's javafx:run goal.
+        The launcher has no compile-time dependency on the apps — it
+        constructs and runs the right command line per tile click.
+    </description>
 
     <dependencies>
+        <!--
+          The launcher depends on every app module so that ALL their classes
+          (and transitively, all common deps like JavaFX, notation-play,
+          notation-input, …) end up on its own classpath. At runtime the
+          launcher reads its classpath and passes it verbatim to sub-JVMs,
+          so each spawned app gets a fully-resolved classpath without
+          relying on Maven being installed.
+        -->
         <dependency>
             <groupId>music.notation</groupId>
-            <artifactId>notation-core</artifactId>
+            <artifactId>notation-ui</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>music.notation</groupId>
-            <artifactId>notation-play</artifactId>
+            <artifactId>notation-mixer</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>music.notation</groupId>
-            <artifactId>notation-songs</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>music.notation</groupId>
-            <artifactId>notation-mxl</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>music.notation</groupId>
-            <artifactId>notation-autodrum</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>music.notation</groupId>
-            <artifactId>notation-input</artifactId>
+            <artifactId>notation-recorder</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -64,15 +57,30 @@
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>music.notation.ui.NotationApp</mainClass>
+                    <mainClass>music.notation.launcher.LauncherApp</mainClass>
                     <options>
-                        <option>-Dmusic.collections=${project.basedir}/../collections.json</option>
-                        <!-- Audio export uses Gervill's offline-render API (com.sun.media.sound). -->
+                        <!--
+                          These JVM args are inherited by every sub-app the
+                          launcher spawns (via ManagementFactory.getRuntimeMXBean
+                          .getInputArguments()). Keep them in sync with the
+                          per-app plugin configs in notation-ui/pom.xml etc.
+                        -->
+                        <!-- Gervill offline render (NotationApp's AudioRenderer + SoundbankExplorer). -->
                         <option>--add-exports</option>
                         <option>java.desktop/com.sun.media.sound=ALL-UNNAMED</option>
+                        <!-- PieceLibrary discovery in NotationApp. -->
+                        <option>-Dmusic.collections=${project.basedir}/../collections.json</option>
                     </options>
                 </configuration>
             </plugin>
+            <!--
+              Build an uber-jar so the launcher can be started with
+              `java -jar notation-launcher-<v>.jar`, no Maven needed at
+              runtime. Main-Class is the non-Application wrapper
+              {@link music.notation.launcher.Launcher} so JavaFX's
+              "main class extends Application from module path" check
+              doesn't fire when the jar is on the classpath only.
+            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -86,14 +94,18 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>music.notation.ui.Launcher</mainClass>
+                                    <mainClass>music.notation.launcher.Launcher</mainClass>
                                 </transformer>
+                                <!-- Merge META-INF/services so SPI providers (audio file readers etc.) still resolve. -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
+                                        <!-- module-info.class entries collide when merging multiple modular jars. -->
                                         <exclude>module-info.class</exclude>
+                                        <!-- Signed-jar metadata (some JavaFX jars are signed); invalid after shading. -->
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
@@ -106,22 +118,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>explorer</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.openjfx</groupId>
-                        <artifactId>javafx-maven-plugin</artifactId>
-                        <version>0.0.8</version>
-                        <configuration>
-                            <mainClass>music.notation.ui.explorer.SoundbankExplorer</mainClass>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>

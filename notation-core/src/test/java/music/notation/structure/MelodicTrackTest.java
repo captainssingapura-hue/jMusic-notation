@@ -58,10 +58,25 @@ class MelodicTrackTest {
 
     @Test
     void melodicTrack_rejectsDrumKitInstrument() {
-        var ex = assertThrows(IllegalArgumentException.class,
-                () -> MelodicTrack.of("Bad", Instrument.DRUM_KIT, oneNoteBar()));
-        assertTrue(ex.getMessage().contains("DRUM_KIT"));
-        assertTrue(ex.getMessage().contains("DrumTrack"));
+        // Both the Standard Kit and the GM2 variants must be rejected —
+        // every drum-kit value routes to channel 10 and belongs in a DrumTrack.
+        for (Instrument drumKit : new Instrument[] {
+                Instrument.DRUM_KIT,
+                Instrument.DRUM_KIT_ROOM,
+                Instrument.DRUM_KIT_POWER,
+                Instrument.DRUM_KIT_ELECTRONIC,
+                Instrument.DRUM_KIT_TR808,
+                Instrument.DRUM_KIT_JAZZ,
+                Instrument.DRUM_KIT_BRUSH,
+                Instrument.DRUM_KIT_ORCHESTRA }) {
+            var ex = assertThrows(IllegalArgumentException.class,
+                    () -> MelodicTrack.of("Bad", drumKit, oneNoteBar()),
+                    "MelodicTrack must reject " + drumKit);
+            assertTrue(ex.getMessage().toLowerCase().contains("drum"),
+                    "message should mention 'drum'; got: " + ex.getMessage());
+            assertTrue(ex.getMessage().contains("DrumTrack"),
+                    "message should point to DrumTrack; got: " + ex.getMessage());
+        }
     }
 
     @Test

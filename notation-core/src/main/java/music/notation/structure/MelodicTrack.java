@@ -28,9 +28,9 @@ public record MelodicTrack(
         if (defaultInstrument == null) {
             throw new IllegalArgumentException("MelodicTrack defaultInstrument must not be null");
         }
-        if (defaultInstrument == Instrument.DRUM_KIT) {
+        if (defaultInstrument.isDrumKit()) {
             throw new IllegalArgumentException(
-                    "MelodicTrack '" + name + "' cannot use DRUM_KIT — use DrumTrack instead");
+                    "MelodicTrack '" + name + "' cannot use a drum kit instrument — use DrumTrack instead");
         }
         if (phrase == null) {
             throw new IllegalArgumentException("MelodicTrack phrase must not be null");
