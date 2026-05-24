@@ -78,6 +78,21 @@ public class NotationApp extends Application {
     private boolean animating;
     private final Set<String> disabledVisualizerTracks = new HashSet<>();
 
+    /**
+     * Per-track export-exclusion set, remembered across export operations.
+     * Keys are {@code TrackId.name()}s; storing strings instead of {@link
+     * music.notation.expressivity.TrackId} so they persist cleanly across
+     * piece swaps where the live {@code TrackId} instances are reborn.
+     */
+    private final Set<String> excludedExportTracks = new HashSet<>();
+
+    /**
+     * Per-track pedal mode, remembered across mode picks. Empty map means
+     * "use the global radio choice for every track" — populated lazily by
+     * the per-track pedal dialog.
+     */
+    private final Map<String, ControlsPanel.PedalMode> perTrackPedalMode = new HashMap<>();
+
     // Guitar filter state (persists across recreations)
     private int guitarMinFret = 0;
     private int guitarMaxFret = 15;
@@ -117,13 +132,14 @@ public class NotationApp extends Application {
         // Drawer wired below once the centre StackPane exists.
 
         controls.setOnProviderSelected(p -> onProviderSelected());
-        controls.setOnScaleChanged(this::rebuildPiece);
         controls.setOnBpmReleased(this::onBpmReleased);
         controls.setOnSwingChanged(this::onSwingChanged);
         controls.setOnAutoDrumChanged(this::onAutoDrumChanged);
         controls.setOnEnergyChanged(this::onEnergyChanged);
         controls.setOnHumanizerChanged(this::onHumanizerChanged);
+        controls.setOnTranspositionChanged(this::onTranspositionChanged);
         controls.setOnPedalModeChanged(this::onPedalModeChanged);
+        controls.setOnPedalPerTrack(() -> onPedalPerTrack(stage));
         controls.setOnSoundbankAddRequested(() -> onAddSoundbank(stage));
         controls.setOnSoundbanksChanged(this::onSoundbanksChanged);
         loadPersistedSoundbanks();
@@ -337,6 +353,10 @@ public class NotationApp extends Application {
     private static final String PREF_PEDAL_MODE      = "pedal.mode";
     private static final String PREF_SWING_CHOICE    = "swing.choice";
     private static final String PREF_HUMANIZER       = "humanizer.choice";
+    /** Per-piece prefs node-path prefix. Each piece's per-track choices live
+     *  under a child node hashed from its display name / title via
+     *  {@link PiecePrefs#nodeNameFor}. */
+    private static final String PREF_PIECE_NODE = "piece";
     private final java.util.prefs.Preferences prefs =
             java.util.prefs.Preferences.userNodeForPackage(NotationApp.class);
 
@@ -405,6 +425,57 @@ public class NotationApp extends Application {
                 player.setHumanizer(c.setup);
             } catch (IllegalArgumentException ignored) { /* stale value */ }
         }
+    }
+
+    // ── Per-piece persistence ─────────────────────────────────────────
+
+    /**
+     * Human-readable name for the currently-loaded piece (import display name
+     * if it's a session-only import, otherwise the library title). Returns
+     * {@code null} when no piece is loaded.
+     */
+    private String currentPieceDisplayName() {
+        if (currentImport != null && currentImport.displayName() != null) {
+            return currentImport.displayName();
+        }
+        if (currentPiece != null && currentPiece.title() != null) {
+            return currentPiece.title();
+        }
+        return null;
+    }
+
+    /**
+     * The {@link java.util.prefs.Preferences} sub-node holding per-track
+     * choices for the currently-loaded piece. Returns {@code null} when no
+     * piece is loaded.
+     */
+    private java.util.prefs.Preferences currentPieceNode() {
+        String name = currentPieceDisplayName();
+        if (name == null) return null;
+        return prefs.node(PREF_PIECE_NODE).node(PiecePrefs.nodeNameFor(name));
+    }
+
+    /**
+     * Restore per-track pedal-mode and export-exclusion choices for the
+     * currently-loaded piece. Pieces never seen before yield empty maps —
+     * every track follows the global default, every track included in export.
+     */
+    private void loadPerTrackChoicesForCurrentPiece() {
+        perTrackPedalMode.clear();
+        excludedExportTracks.clear();
+        var node = currentPieceNode();
+        if (node == null) return;
+        perTrackPedalMode.putAll(PiecePrefs.readPedalMap(node));
+        excludedExportTracks.addAll(PiecePrefs.readExcludeSet(node));
+    }
+
+    /** Persist the in-memory per-track maps for the currently-loaded piece. */
+    private void persistPerTrackChoicesForCurrentPiece() {
+        var node = currentPieceNode();
+        if (node == null) return;
+        PiecePrefs.writeTitle(node, currentPieceDisplayName());
+        PiecePrefs.writePedalMap(node, perTrackPedalMode);
+        PiecePrefs.writeExcludeSet(node, excludedExportTracks);
     }
 
     private void onAddSoundbank(Stage stage) {
@@ -503,7 +574,10 @@ public class NotationApp extends Application {
         instrumentButtons.clear();
 
         // Visualisation reads the structural Piece (gets the voice split).
-        currentScrollData = PitchScrollData.fromPiece(currentPiece);
+        // Apply the current transposition so a non-zero shift picks up
+        // against the newly loaded piece (ghost-lane visible from the start).
+        currentScrollData = PitchScrollData.fromPiece(currentPiece)
+                .withTransposition(controls.getTransposition());
         disabledVisualizerTracks.clear();
         pitchScroll.load(currentScrollData);
         if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
@@ -586,11 +660,18 @@ public class NotationApp extends Application {
     }
 
     /**
-     * User picked a different pedal mode. Live-applies if running,
-     * otherwise just stages for the next play.
+     * User picked a different global pedal mode. Acts as a "set all"
+     * shortcut: clears every per-track override so the chosen mode applies
+     * uniformly. Per-track refinements survive only until the next global
+     * pick.
+     *
+     * <p>Live-applies if the player is running, otherwise stages for the
+     * next play.</p>
      */
     private void onPedalModeChanged(ControlsPanel.PedalMode mode) {
         prefs.put(PREF_PEDAL_MODE, mode.name());
+        perTrackPedalMode.clear();   // global pick is the "set all" shortcut
+        persistPerTrackChoicesForCurrentPiece();
         try {
             applyEffectivePedaling();
             // applyPedalEnabled rebuilds the running sequence — only call
@@ -605,6 +686,74 @@ public class NotationApp extends Application {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+    }
+
+    /**
+     * Open the per-track pedal modal. Each track gets its own
+     * SOURCE / AUTO / OFF picker; drum tracks are disabled (no
+     * meaningful pedal). On OK, the per-track overrides are stored and
+     * pushed into the live pedaling timeline.
+     */
+    private void onPedalPerTrack(Stage stage) {
+        if (currentPiece == null) return;
+        Piece dialogPiece = (savedPiece != null) ? savedPiece : currentPiece;
+        java.util.List<music.notation.performance.Track> dialogTracks =
+                music.notation.play.PieceConcretizer.concretize(dialogPiece).score().tracks();
+
+        ControlsPanel.PedalMode globalDefault = controls.getPedalMode();
+        Map<music.notation.expressivity.TrackId, ControlsPanel.PedalMode> initial = new LinkedHashMap<>();
+        for (var t : dialogTracks) {
+            ControlsPanel.PedalMode val = perTrackPedalMode.getOrDefault(t.id().name(), globalDefault);
+            initial.put(t.id(), val);
+        }
+
+        java.util.Optional<Map<music.notation.expressivity.TrackId, ControlsPanel.PedalMode>> result =
+                TrackSelectorDialog.showAndWait(
+                        stage,
+                        "Pedal per track",
+                        "Choose a pedal source for each track. "
+                                + "The global Pedal selector above sets every track at once.",
+                        dialogTracks,
+                        initial,
+                        TrackSelectorDialog.choiceFactory(
+                                java.util.List.of(
+                                        ControlsPanel.PedalMode.SOURCE,
+                                        ControlsPanel.PedalMode.AUTO,
+                                        ControlsPanel.PedalMode.OFF),
+                                this::pedalModeLabel,
+                                globalDefault,
+                                track -> track.kind() == music.notation.performance.TrackKind.DRUM));
+        if (result.isEmpty()) return;
+
+        // Update per-track map. Empty out any pre-existing entries first so
+        // tracks no longer present in the piece are forgotten.
+        perTrackPedalMode.clear();
+        for (var entry : result.get().entrySet()) {
+            perTrackPedalMode.put(entry.getKey().name(), entry.getValue());
+        }
+        persistPerTrackChoicesForCurrentPiece();
+        try {
+            applyEffectivePedaling();
+            // Tint visible when ANY track has pedaling active.
+            boolean anyActive = perTrackPedalMode.values().stream()
+                    .anyMatch(m -> m != ControlsPanel.PedalMode.OFF);
+            if (pitchScroll != null) pitchScroll.setPedalTintEnabled(anyActive);
+            if (player.isPlaying() || player.isPaused()) {
+                player.applyPedalEnabled(anyActive, player.getTickPosition());
+            } else {
+                player.setPedalEnabled(anyActive);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private String pedalModeLabel(ControlsPanel.PedalMode mode) {
+        return switch (mode) {
+            case SOURCE -> "Source";
+            case AUTO   -> "Auto";
+            case OFF    -> "Off";
+        };
     }
 
     /**
@@ -743,13 +892,40 @@ public class NotationApp extends Application {
         return music.notation.performance.AutoPedaling.generate(perf, ts);
     }
 
-    /** Pedaling actually emitted for export / play — depends on the mode picker. */
+    /**
+     * Pedaling actually emitted for export / play. Per-track overrides
+     * (set via the "Per track…" dialog) take precedence; tracks without an
+     * override fall back to the global mode picker.
+     */
     private music.notation.expressivity.Pedaling effectivePedaling() {
-        return switch (controls.getPedalMode()) {
-            case SOURCE -> sourcePedaling();
-            case AUTO   -> autoPedaling();
-            case OFF    -> music.notation.expressivity.Pedaling.empty();
-        };
+        ControlsPanel.PedalMode globalMode = controls.getPedalMode();
+        var source = sourcePedaling();
+        var auto   = autoPedaling();
+        var perf   = currentPerformance();
+        if (perf == null) return music.notation.expressivity.Pedaling.empty();
+
+        java.util.Map<music.notation.expressivity.TrackId, music.notation.expressivity.PedalControl> merged =
+                new LinkedHashMap<>();
+        for (var track : perf.score().tracks()) {
+            ControlsPanel.PedalMode mode =
+                    perTrackPedalMode.getOrDefault(track.id().name(), globalMode);
+            switch (mode) {
+                case SOURCE -> {
+                    var pc = source.byTrack().get(track.id());
+                    if (pc != null) merged.put(track.id(), pc);
+                }
+                case AUTO -> {
+                    var pc = auto.byTrack().get(track.id());
+                    if (pc != null) merged.put(track.id(), pc);
+                }
+                case OFF -> {
+                    // skip — no pedaling for this track
+                }
+            }
+        }
+        return merged.isEmpty()
+                ? music.notation.expressivity.Pedaling.empty()
+                : new music.notation.expressivity.Pedaling(merged);
     }
 
     /**
@@ -818,6 +994,48 @@ public class NotationApp extends Application {
         }
     }
 
+    /**
+     * Transposition spinner changed — stage on the player so the next
+     * play (or live restart) applies the new semitone shift. Identical
+     * pattern to {@link #onHumanizerChanged}.
+     *
+     * <p>No persistence in v1: the value is session-only. Per-piece
+     * sticky transposition can be added later if requested.</p>
+     */
+    private void onTranspositionChanged(int semitoneShift) {
+        var params = music.notation.performance.TransposeTransform.Params.of(semitoneShift);
+        try {
+            if (player.isPlaying() || player.isPaused()) {
+                player.applyTransposition(params, player.getTickPosition());
+            } else {
+                player.setTransposition(params);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        // Rebuild the visualisation data so the pitch-roll shows the new
+        // shifted positions (primary lane) and the original ones (ghost lane).
+        // Rebuild from the source Piece each time — withTransposition applies
+        // the shift functionally; building from the already-shifted state
+        // would double-apply.
+        rebuildPitchScrollForTransposition(semitoneShift);
+    }
+
+    /**
+     * Rebuild {@link #currentScrollData} from the source Piece + a semitone
+     * shift, then push it to every visualisation surface. Called when the
+     * transposition value changes <em>or</em> when a new piece loads (so
+     * the current transposition picks up against the new piece).
+     */
+    private void rebuildPitchScrollForTransposition(int semitoneShift) {
+        if (currentPiece == null) return;
+        currentScrollData = PitchScrollData.fromPiece(currentPiece)
+                .withTransposition(semitoneShift);
+        pitchScroll.load(currentScrollData);
+        if (keyboardDisplay != null) keyboardDisplay.load(currentScrollData);
+        if (guitarTabDisplay != null) guitarTabDisplay.load(currentScrollData);
+    }
+
     /** Energy level change — restage playback piece with the new dynamics. */
     private void onEnergyChanged(music.notation.autodrum.Energy energy) {
         this.currentEnergy = energy == null
@@ -868,6 +1086,15 @@ public class NotationApp extends Application {
     private void setSavedAndCurrent(Piece p) {
         this.savedPiece = p;
         this.currentPiece = augmentWithAutoDrum(p);
+        // Feed the loaded piece's key to the transpose label so it can
+        // render "Original → Target" with the right source-key context.
+        controls.setOriginalKey(p == null ? null : p.key());
+        // Restore per-track choices for the newly-loaded piece. Choices
+        // are saved per-piece (keyed by display name / title) so the
+        // user's last selections for THIS piece come back automatically;
+        // pieces never seen before start with empty maps (every track
+        // follows the global default, every track is included in export).
+        loadPerTrackChoicesForCurrentPiece();
     }
 
     /** Re-augment {@link #currentPiece} from {@link #savedPiece} using the staged strategy. */
@@ -931,50 +1158,6 @@ public class NotationApp extends Application {
         if (authoredBpm <= 0) return;
         int targetBpm = controls.getSelectedBpm();
         player.applyTempo(TempoSetup.atBpm(targetBpm, authoredBpm));
-    }
-
-    /**
-     * Apply scale transposition and tempo override to {@link #originalPiece},
-     * reloading the UI. (Tempo via this path causes a reload; for live tempo,
-     * the BPM slider's own listener calls {@link #onBpmReleased()} instead.)
-     */
-    private void rebuildPiece() {
-        // Imports don't have a Piece to rebuild — scale change is a no-op.
-        if (currentImport != null) return;
-        if (originalPiece == null || controls.getSelectedKey() == null) return;
-        onStop();
-
-        Piece p = originalPiece;
-
-        KeySignature targetKey = controls.getSelectedKey();
-        KeySignature sourceKey = originalPiece.key();
-        boolean sameKey = targetKey.tonic() == sourceKey.tonic()
-                && targetKey.accidental() == sourceKey.accidental()
-                && targetKey.mode() == sourceKey.mode();
-        if (!sameKey) {
-            p = transposePiece(p, sourceKey, targetKey);
-        }
-
-        int targetBpm = controls.getSelectedBpm();
-        if (targetBpm != originalPiece.tempo().bpm()) {
-            p = new Piece(p.title(), p.composer(), p.key(), p.timeSig(),
-                    new Tempo(targetBpm, p.tempo().beatUnit()),
-                    p.tracks());
-        }
-
-        setSavedAndCurrent(p);
-        refreshAutoDrumEnabled();
-        refreshPedalState();
-        loadPiece();
-    }
-
-    /**
-     * Phase 4d transitional: transposition is currently a no-op. Will be
-     * reimplemented as a Bar-level pitch transform once the bar
-     * abstract-note shape stabilises.
-     */
-    private static Piece transposePiece(Piece source, KeySignature sourceKey, KeySignature targetKey) {
-        return source;
     }
 
     /** Effective patch for a track — SBI override if present, else GM(selectedInstruments). */
@@ -1075,7 +1258,6 @@ public class NotationApp extends Application {
 
         originalPiece = provider.create();
 
-        controls.setKey(originalPiece.key());
         controls.setBpm(originalPiece.tempo().bpm());
         controls.setSwing(SwingSetup.OFF);
         currentSwing = SwingSetup.OFF;
@@ -1093,7 +1275,10 @@ public class NotationApp extends Application {
                 currentPiece.timeSig().beats(), currentPiece.timeSig().beatValue(),
                 currentPiece.tempo().bpm()));
 
-        currentScrollData = PitchScrollData.fromPiece(currentPiece);
+        // Apply current transposition so a non-zero shift carries across
+        // piece switches (matches the player's behaviour).
+        currentScrollData = PitchScrollData.fromPiece(currentPiece)
+                .withTransposition(controls.getTransposition());
         disabledVisualizerTracks.clear();
         // Reset per-track state BEFORE rebuilding lanes — the lane factory
         // grows these lists and bakes the indices into button listeners.
@@ -1338,45 +1523,192 @@ public class NotationApp extends Application {
                 .replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fff _-]", "")
                 .replace(' ', '_');
 
+        // ── Step 1: confirm export settings (format + keep-authentic).
+        // Asked first because keep-authentic decides whether the
+        // auto-drum overlay belongs in the exported tracks — and that
+        // changes which tracks the user can pick from in step 2.
+        ExportSettings settings = showExportSettingsDialog(stage);
+        if (settings == null) return;
+        boolean isAudio = settings.isAudio();
+        boolean keepAuthentic = settings.keepAuthentic();
+
+        // Determine the piece whose tracks will be presented and ultimately
+        // exported. Authentic MIDI exports use the source piece (no
+        // auto-drum); WAV and as-heard MIDI use the augmented piece (with
+        // auto-drum). Picking the right piece NOW makes step 2's dialog
+        // honest about what the file will actually contain — and lets the
+        // user opt into "auto-drum only" by un-checking every other track
+        // when the augmented piece is in play.
+        Piece exportPiece = keepAuthentic
+                ? ((savedPiece != null) ? savedPiece : currentPiece)
+                : ((currentPiece != null) ? currentPiece : savedPiece);
+        java.util.List<music.notation.performance.Track> dialogTracks =
+                music.notation.play.PieceConcretizer.concretize(exportPiece).score().tracks();
+
+        // ── Step 2: per-track include modal, against the right piece.
+        Map<music.notation.expressivity.TrackId, Boolean> initialInclude = new LinkedHashMap<>();
+        for (var t : dialogTracks) {
+            initialInclude.put(t.id(), !excludedExportTracks.contains(t.id().name()));
+        }
+        String includePrompt = keepAuthentic
+                ? "Choose which tracks to include in the exported file. "
+                + "Unchecked tracks are dropped entirely. "
+                + "(Authentic mode: no auto-drum is present to include or exclude.)"
+                : "Choose which tracks to include in the exported file. "
+                + "Unchecked tracks are dropped entirely. "
+                + "Tip: uncheck everything except the auto-drum track to export drums only.";
+        java.util.Optional<Map<music.notation.expressivity.TrackId, Boolean>> includes =
+                TrackSelectorDialog.showAndWait(
+                        stage,
+                        "Export tracks",
+                        includePrompt,
+                        dialogTracks,
+                        initialInclude,
+                        TrackSelectorDialog.booleanFactory("Include"));
+        if (includes.isEmpty()) return;     // user cancelled
+
+        // Update remembered exclusions from the user's choices.
+        excludedExportTracks.clear();
+        Set<music.notation.expressivity.TrackId> excludedIds = new HashSet<>();
+        for (var entry : includes.get().entrySet()) {
+            if (!entry.getValue()) {
+                excludedExportTracks.add(entry.getKey().name());
+                excludedIds.add(entry.getKey());
+            }
+        }
+        persistPerTrackChoicesForCurrentPiece();
+        if (excludedIds.size() == dialogTracks.size()) {
+            controls.setStatus("Export cancelled — no tracks selected.");
+            return;
+        }
+
+        // ── Step 3: file picker. One extension filter matching the chosen
+        // format; the user only picks location + name.
+        String extension = isAudio ? ".wav" : ".mid";
+        String filterDesc = isAudio ? "WAV Audio" : "MIDI Files";
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export");
-        chooser.setInitialFileName(safeName + ".mid");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("MIDI Files", "*.mid", "*.midi"),
-                new FileChooser.ExtensionFilter("WAV Audio",  "*.wav"));
+        chooser.setTitle("Save " + (isAudio ? "WAV" : "MIDI") + " As");
+        chooser.setInitialFileName(safeName + extension);
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter(filterDesc, "*" + extension));
         File file = chooser.showSaveDialog(stage);
         if (file == null) return;
 
         ChannelSetup channelSetup = buildChannelSetup();
-        // Export the source piece (no auto-drum overlay)... wait —
-        // for audio export we DO want the auto-drum overlay since the
-        // user is exporting what they hear. Only MIDI export keeps
-        // savedPiece (drum-free) for round-trip cleanliness.
-        Piece exportPiece;
-        boolean isAudio = file.getName().toLowerCase().endsWith(".wav");
-        if (isAudio) {
-            exportPiece = (currentPiece != null) ? currentPiece : savedPiece;
-        } else {
-            exportPiece = (savedPiece != null) ? savedPiece : currentPiece;
-        }
-        music.notation.expressivity.Pedaling pedaling = effectivePedaling();
-        music.notation.performance.TempoTrack tempos = currentTempoTrack();
+
+        // All other live overlays (pedaling, velocities, transposition,
+        // swing, humanizer) are gated INSIDE player.exportPiece via the
+        // keepAuthentic flag — NotationApp doesn't need to pass them
+        // separately.
         try {
             if (isAudio) {
                 controls.setStatus("Rendering " + file.getName() + "...");
-                MidiPlayer.exportWav(exportPiece, channelSetup, file,
-                        pedaling, tempos, new SoundbankSetup(controls.getSoundbanks()));
+            }
+            player.exportPiece(exportPiece, file, isAudio, keepAuthentic,
+                    channelSetup,
+                    isAudio ? new SoundbankSetup(controls.getSoundbanks()) : null,
+                    excludedIds);
+            if (isAudio) {
                 long sizeKb = file.length() / 1024;
                 controls.setStatus("Exported: " + file.getName() + " ("
                         + (sizeKb >= 1024 ? (sizeKb / 1024) + " MB" : sizeKb + " KB") + ")");
             } else {
-                MidiPlayer.exportMidi(exportPiece, channelSetup, file, pedaling, tempos);
-                controls.setStatus("Exported: " + file.getName());
+                controls.setStatus("Exported: " + file.getName()
+                        + (keepAuthentic ? " (authentic)" : ""));
             }
         } catch (Exception ex) {
             controls.setStatus("Export failed: " + ex.getMessage());
             ex.printStackTrace();
         }
+    }
+
+    /** Result of {@link #showExportSettingsDialog}; null if the user cancels. */
+    private record ExportSettings(boolean isAudio, boolean keepAuthentic) {}
+
+    /**
+     * Show our own export-settings confirmation dialog. The user picks
+     * format (MIDI / WAV) and, for MIDI, the keep-authentic flag. Returns
+     * {@code null} when the user cancels.
+     *
+     * <p>This replaces the previous system-{@code Alert}-based flow.
+     * Owning the dialog lets us:</p>
+     * <ul>
+     *   <li>Show format + keep-authentic on one panel, gated cleanly
+     *       (keep-authentic is disabled when WAV is selected, since WAV
+     *       is intrinsically "as heard").</li>
+     *   <li>Use a single-filter {@link FileChooser} downstream — no risk
+     *       of the user picking a different extension than the chosen
+     *       format implied.</li>
+     *   <li>Keep the UX consistent across platforms.</li>
+     * </ul>
+     */
+    private ExportSettings showExportSettingsDialog(Stage owner) {
+        Dialog<ExportSettings> dialog = new Dialog<>();
+        dialog.setTitle("Export");
+        dialog.setHeaderText("Confirm export settings");
+        if (owner != null) dialog.initOwner(owner);
+
+        // ── Format radio group
+        ToggleGroup formatGroup = new ToggleGroup();
+        RadioButton midiRadio = new RadioButton("MIDI (.mid)");
+        midiRadio.setToggleGroup(formatGroup);
+        midiRadio.setSelected(true);
+        RadioButton wavRadio  = new RadioButton("WAV audio (.wav)");
+        wavRadio.setToggleGroup(formatGroup);
+
+        Label midiHint = new Label("Symbolic notes for DAW import or sharing");
+        midiHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        midiHint.setPadding(new Insets(0, 0, 0, 24));
+        Label wavHint = new Label("Rendered audio at 44.1 kHz / 16-bit / stereo");
+        wavHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        wavHint.setPadding(new Insets(0, 0, 0, 24));
+
+        // ── Keep-authentic toggle
+        CheckBox keepAuthBox = new CheckBox("Authentic (source as authored)");
+        Label authHint = new Label(
+                "When off: includes current transposition and auto-drum overlay\n"
+              + "When on:  no transposition, no auto-drum — suitable for re-import");
+        authHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        authHint.setPadding(new Insets(0, 0, 0, 24));
+
+        // WAV is intrinsically "as heard" — disable keep-authentic when WAV
+        // is selected; the toggle resets to off so the export-time read is
+        // safe regardless.
+        wavRadio.selectedProperty().addListener((obs, was, now) -> {
+            if (now) {
+                keepAuthBox.setSelected(false);
+                keepAuthBox.setDisable(true);
+                authHint.setDisable(true);
+            } else {
+                keepAuthBox.setDisable(false);
+                authHint.setDisable(false);
+            }
+        });
+
+        // ── Layout
+        VBox content = new VBox(8,
+                new Label("Format"),
+                midiRadio,
+                midiHint,
+                wavRadio,
+                wavHint,
+                new Separator(),
+                new Label("Options"),
+                keepAuthBox,
+                authHint);
+        content.setPadding(new Insets(8, 4, 8, 4));
+        dialog.getDialogPane().setContent(content);
+
+        // ── Buttons
+        ButtonType continueButton = new ButtonType("Continue…",
+                ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(continueButton, ButtonType.CANCEL);
+
+        dialog.setResultConverter(button -> {
+            if (button != continueButton) return null;
+            return new ExportSettings(wavRadio.isSelected(), keepAuthBox.isSelected());
+        });
+        return dialog.showAndWait().orElse(null);
     }
 
     /** Pad/coerce a per-track value list to the track count, falling back to {@code defaultFor}. */

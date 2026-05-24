@@ -105,6 +105,30 @@ import java.util.TreeMap;
  * convention; pitched tracks fill channels 0–8 then 10–15). Each MIDI
  * track carries a Track Name meta event so {@link TrackId}s round-trip.</p>
  *
+ * <h2>Drum sentinels</h2>
+ *
+ * <p>Some downstream tools — notably vocal-synth editors like ACE Studio —
+ * ignore the channel-10 = drums MIDI convention and import drum tracks as
+ * Piano. To survive those importers, drum tracks carry a stacked sentinel
+ * set in addition to the channel-9 placement:</p>
+ *
+ * <ul>
+ *   <li><b>Track-name suffix.</b> If the track name doesn't already contain
+ *       "drum" / "percussion" / "kit" (case-insensitive), {@code " (Drums)"}
+ *       is appended on write. Already-decorated names pass through.</li>
+ *   <li><b>Instrument Name meta event (0x04).</b> Always emitted as
+ *       {@code "Drum Kit"} on drum tracks at tick 0.</li>
+ *   <li><b>Bank Select MSB → 120</b> (GM drum bank) at tick 0, followed by
+ *       a default Program Change to commit it. If the score already supplies
+ *       Program Changes for the drum track, those run after the bank select
+ *       and inherit the drum-bank setting.</li>
+ * </ul>
+ *
+ * <p>None of the sentinels are read on {@link #fromMidi}: drum identification
+ * stays driven by channel 9 alone, matching the simple write/read contract.
+ * Track-name decoration is the only sentinel that survives a round-trip
+ * (visibly, as a name suffix); the others are silently dropped.</p>
+ *
  * <p>{@link #fromMidi read} accepts both Type 0 (single track, demuxed
  * by channel) and Type 1 (multi-track) inputs. Each (MIDI track, channel)
  * lane with notes or program changes becomes one {@link Track};
@@ -121,8 +145,18 @@ public final class MidiCodec {
     private static final int DRUM_CHANNEL = 9;
     private static final int META_TEMPO = 0x51;
     private static final int META_TRACK_NAME = 0x03;
+    private static final int META_INSTRUMENT_NAME = 0x04;
     private static final int META_TIME_SIGNATURE = 0x58;
     private static final int META_KEY_SIGNATURE = 0x59;
+
+    // ── Drum sentinel set (see “Drum sentinels” in the class javadoc) ──
+    private static final int CC_BANK_SELECT_MSB = 0;
+    /** GM drum bank — read by GM/GM2/GS importers that don't honour channel 10. */
+    private static final int DRUM_BANK_GM = 120;
+    /** Sentinel instrument-name meta event payload for drum tracks. */
+    private static final String DRUM_INSTRUMENT_NAME = "Drum Kit";
+    /** Suffix appended to a drum track's name when it doesn't already say so. */
+    private static final String DRUM_NAME_SUFFIX = " (Drums)";
 
     private MidiCodec() {}
 
@@ -130,7 +164,55 @@ public final class MidiCodec {
     //  WRITE: Performance  →  MIDI bytes
     // ═══════════════════════════════════════════════════════════════════
 
+    /**
+     * Encode a {@link Performance} as a list of MIDI byte arrays — one per
+     * synth slot in the multi-synth fan-out scheme.
+     *
+     * <p>Phase 1: always returns a singleton list. Every track lives on
+     * synth 0 and the byte[] is identical to what {@link #toMidi(Performance)}
+     * produces. The List wrapper is the only structural change — preparation
+     * for Phase 2's actual split.</p>
+     *
+     * <p>Phase 2 (queued): {@link #assignChannels(List)} starts producing
+     * {@link ChannelAddr} addresses. Tracks are partitioned by their
+     * {@code synth} index; this method emits one byte[] per partition. The
+     * order matches {@link ChannelAddr#synth()} (0 = SOURCE_PRIMARY,
+     * 1 = AUTO, 2 = SOURCE_OVERFLOW). Empty partitions are omitted.</p>
+     *
+     * <p>For Phase-1 callers wanting the legacy single-byte[] shape, use
+     * {@link #toMidi(Performance)} which asserts {@code size == 1}.</p>
+     */
+    public static List<byte[]> toMidiSplit(Performance p) {
+        // Phase 1: singleton. Phase 2 will partition by ChannelAddr.synth().
+        return List.of(toMidiInternal(p));
+    }
+
+    /**
+     * Legacy single-byte[] entrypoint. Behaviourally identical to today's
+     * encode path. Internally delegates to {@link #toMidiSplit(Performance)}
+     * and unwraps the singleton.
+     *
+     * <p>Phase 1: always works (every Performance fits one synth). Phase 2:
+     * throws {@link IllegalStateException} when the Performance requires more
+     * than one synth — callers in that situation must migrate to
+     * {@link #toMidiSplit(Performance)}.</p>
+     */
     public static byte[] toMidi(Performance p) {
+        List<byte[]> split = toMidiSplit(p);
+        if (split.size() != 1) {
+            throw new IllegalStateException(
+                    "Legacy toMidi() called on a Performance that requires "
+                            + split.size() + " synths; migrate caller to toMidiSplit()");
+        }
+        return split.get(0);
+    }
+
+    /**
+     * The actual codec body — produces a single MIDI byte[] from the
+     * Performance using the legacy single-synth channel allocation.
+     * Will be split into per-synth invocations during Phase 2.
+     */
+    private static byte[] toMidiInternal(Performance p) {
         try {
             Sequence sequence = new Sequence(Sequence.PPQ, PPQ);
 
@@ -148,14 +230,30 @@ public final class MidiCodec {
             for (Track t : scoreTracks) {
                 javax.sound.midi.Track mt = sequence.createTrack();
                 int channel = channelByTrack.get(t.id());
+                boolean isDrum = t.kind() == TrackKind.DRUM;
 
-                addTrackName(mt, t.id().name());
+                addTrackName(mt, decorateForDrum(t.id().name(), isDrum));
+
+                if (isDrum) {
+                    // Sentinel set for vocal-synth and other tools that don't
+                    // honour channel 10 = drums (e.g. ACE Studio imports drum
+                    // tracks as Piano). Stack three hints: instrument-name
+                    // meta event, Bank Select MSB → GM drum bank, and a
+                    // default Program Change that commits the bank select.
+                    // Any one of these is typically enough; stacking is free.
+                    addInstrumentName(mt, DRUM_INSTRUMENT_NAME);
+                    addBankSelectMsb(mt, channel, DRUM_BANK_GM, 0L);
+                }
 
                 InstrumentControl ic = p.instruments().byTrack().get(t.id());
                 if (ic != null) {
                     for (InstrumentChange change : ic.changes()) {
                         addProgramChange(mt, change, channel, tempoMap);
                     }
+                } else if (isDrum) {
+                    // Commit the Bank Select MSB by emitting a default
+                    // Program Change. Standard kit = program 0 on channel 10.
+                    addProgramChange(mt, new InstrumentChange(0L, 0), channel, tempoMap);
                 }
 
                 VolumeControl vc = p.volume().byTrack().get(t.id());
@@ -233,6 +331,50 @@ public final class MidiCodec {
         MetaMessage msg = new MetaMessage();
         msg.setMessage(META_TRACK_NAME, data, data.length);
         track.add(new MidiEvent(msg, 0L));
+    }
+
+    /**
+     * Append a drum-sentinel suffix to a track name when the track is a
+     * drum track <em>and</em> the existing name doesn't already contain a
+     * drum-recognisable keyword. The track-name meta event is the primary
+     * hint to importers that don't honour channel 10 = drums.
+     *
+     * <p>Pitched tracks pass through unchanged. Drum tracks already named
+     * "Drums" / "drum kit" / "percussion" (case-insensitive) also pass
+     * through, so already-decorated names don't accumulate the suffix
+     * across round-trips.</p>
+     */
+    private static String decorateForDrum(String name, boolean isDrum) {
+        if (!isDrum) return name;
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("drum") || lower.contains("percussion") || lower.contains("kit")) {
+            return name;
+        }
+        return name + DRUM_NAME_SUFFIX;
+    }
+
+    /**
+     * Emit a MIDI Instrument Name meta event (0x04) at tick 0. Used as one
+     * of the drum sentinels — some importers read this in preference to the
+     * track-name meta event.
+     */
+    private static void addInstrumentName(javax.sound.midi.Track track, String name)
+            throws InvalidMidiDataException {
+        byte[] data = name.getBytes(StandardCharsets.UTF_8);
+        MetaMessage msg = new MetaMessage();
+        msg.setMessage(META_INSTRUMENT_NAME, data, data.length);
+        track.add(new MidiEvent(msg, 0L));
+    }
+
+    /**
+     * Emit a Bank Select MSB control change (CC #0). Used to point a drum
+     * track at the GM drum bank (120) so importers that <em>do</em> honour
+     * bank selection but ignore channel 10 still land on a drum kit.
+     */
+    private static void addBankSelectMsb(javax.sound.midi.Track track, int channel,
+                                         int bankValue, long midiTick)
+            throws InvalidMidiDataException {
+        track.add(controlChange(channel, CC_BANK_SELECT_MSB, bankValue, midiTick));
     }
 
     private static void addProgramChange(javax.sound.midi.Track track, InstrumentChange change,
@@ -364,14 +506,20 @@ public final class MidiCodec {
     }
 
     private static int pitchOf(ConcreteNote n) {
+        // PitchedLike.midi() returns the EFFECTIVE midi — for ShiftedNote
+        // that's original + shift; for PitchedNote it's the authored value.
+        // This is the codec's emission point; it treats both uniformly.
         return switch (n) {
-            case PitchedNote pn -> pn.midi();
+            case PitchedLike pl -> pl.midi();
             case DrumNote dn -> dn.piece();
         };
     }
 
     private static boolean isTiedForward(ConcreteNote n) {
-        return n instanceof PitchedNote pn && pn.tiedToNext();
+        // Tied flag is preserved on both PitchedNote and ShiftedNote
+        // (the latter delegates to its original).
+        return n instanceof PitchedLike pl && pl instanceof music.notation.phrase.Tieable t
+                && t.tiedToNext();
     }
 
     // ═══════════════════════════════════════════════════════════════════

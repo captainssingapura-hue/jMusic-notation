@@ -22,13 +22,25 @@
         <module>notation-experiments</module>
         <module>notation-mxl</module>
         <module>notation-autodrum</module>
+        <module>notation-mixer</module>
+        <module>notation-input</module>
+        <module>notation-recorder</module>
+        <module>notation-launcher</module>
     </modules>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <!--
+          Using source/target (not release) because notation-play passes
+          add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED to
+          access Gervill's offline-render API; javac's release flag
+          forbids modifying system-module exports, so we stay on the
+          source/target pair for now. Bumped to 25 for the upcoming FFM
+          (Foreign Function and Memory) integration with FluidSynth.
+        -->
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <javafx.version>21.0.2</javafx.version>
+        <javafx.version>25</javafx.version>
         <slf4j.version>2.0.16</slf4j.version>
         <log4j.version>2.24.1</log4j.version>
     </properties>

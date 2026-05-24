@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>music.notation</groupId>
+        <artifactId>notation-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>notation-input</artifactId>
+    <name>Music Notation Input</name>
+    <description>
+        Reusable library for capturing real-world musical input — vocal mic,
+        MIDI keyboard, file-based test fixtures — and converting it to the
+        ConcreteNote model used by the rest of the notation system. No UI
+        framework dependencies; usable from JavaFX, web frontends, CLI tools,
+        or agent harnesses.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-performance</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

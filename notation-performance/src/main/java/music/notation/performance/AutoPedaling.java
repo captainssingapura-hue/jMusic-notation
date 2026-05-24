@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -116,6 +117,104 @@ public final class AutoPedaling {
                                      TimeSignature ts,
                                      int ignoredReferenceBpm) {
         return generate(performance, ts);
+    }
+
+    /**
+     * Pure transform: returns the input {@link Performance} with an
+     * auto-generated {@link Pedaling} merged into its {@code pedaling()}
+     * side-channel, filtered to sustain-receptive instruments only.
+     *
+     * <p>Behaviour:</p>
+     * <ul>
+     *   <li>If the performance already declares any pedaling, it is
+     *       returned unchanged — user-authored pedaling always wins.</li>
+     *   <li>Otherwise, {@link #generate(Performance, TimeSignature)}
+     *       produces the auto-pedaling for every PITCHED track, then
+     *       {@link #SUSTAIN_FRIENDLY} filters it to tracks whose
+     *       primary {@code <midi-program>} is sustain-receptive
+     *       (pianos, harpsichord, vibraphone, organs, electric piano).
+     *       Strings, voice, brass, woodwinds get no pedal.</li>
+     *   <li>Tracks with no entry in {@code Instrumentation} default
+     *       to program 0 (Acoustic Grand Piano), which is in
+     *       {@link #SUSTAIN_FRIENDLY} — so legacy paths that don't
+     *       populate Instrumentation continue to get pedal as before.</li>
+     * </ul>
+     *
+     * <p>This collapses what was previously a two-step pipeline
+     * ({@code generate(...)} producing a {@link Pedaling}, then a
+     * downstream {@code PedalInjector} mutating a {@code Sequence})
+     * into a single functional transformation: {@link Performance}
+     * → {@link Performance}. The codec emits CC #64 events from
+     * {@code pedaling()} natively.</p>
+     */
+    public static Performance augment(Performance perf, TimeSignature ts) {
+        if (perf == null) return null;
+        if (!perf.pedaling().byTrack().isEmpty()) {
+            return perf;   // user-authored pedaling wins
+        }
+        Pedaling auto = generate(perf, ts);
+        if (auto.byTrack().isEmpty()) return perf;
+        Pedaling filtered = filterToSustainInstruments(auto, perf.instruments());
+        if (filtered.byTrack().isEmpty()) return perf;
+        return perf.withPedaling(filtered);
+    }
+
+    /**
+     * GM program numbers (0-indexed) where a sustain pedal makes
+     * musical sense. Notably excludes strings (40–47), brass (56–63),
+     * reeds (64–71), pipes (72–79), and voice (53–54) — those families
+     * have either intrinsic sustain (no pedal needed) or no resonance
+     * physically simulating a damper.
+     *
+     * <p>Inclusions:</p>
+     * <ul>
+     *   <li>0–7  pianos, harpsichord, electric piano, clavinet</li>
+     *   <li>8–11 chromatic perc — celesta, glockenspiel, music box,
+     *       vibraphone (vibes have a sustain pedal in real life)</li>
+     *   <li>16–21 organs (debatable; included for now — the user's
+     *       repertoire occasionally includes pipe-organ scores where
+     *       a pedal-like phrasing aids realism)</li>
+     * </ul>
+     *
+     * <p>Borderline cases (marimba, accordion, harp) excluded for
+     * now; revisit if a corpus example surfaces.</p>
+     */
+    static final Set<Integer> SUSTAIN_FRIENDLY = Set.of(
+            0, 1, 2, 3, 4, 5, 6, 7,        // pianos / harpsichord / e-piano / clavinet
+            8, 9, 10, 11,                  // chromatic perc — celesta, glock, music box, vibes
+            16, 17, 18, 19, 20, 21         // organs
+    );
+
+    /**
+     * Drop {@link PedalControl} entries for tracks whose primary GM
+     * program isn't in {@link #SUSTAIN_FRIENDLY}.
+     *
+     * <p>Tracks absent from {@link Instrumentation} default to program
+     * 0 (piano) — this preserves backward-compat behaviour for callers
+     * that don't populate the side-channel.</p>
+     */
+    private static Pedaling filterToSustainInstruments(
+            Pedaling auto, Instrumentation instruments) {
+        Map<TrackId, PedalControl> keep = new LinkedHashMap<>();
+        for (Map.Entry<TrackId, PedalControl> e : auto.byTrack().entrySet()) {
+            int program = primaryProgramOf(e.getKey(), instruments);
+            if (SUSTAIN_FRIENDLY.contains(program)) {
+                keep.put(e.getKey(), e.getValue());
+            }
+        }
+        return keep.isEmpty() ? Pedaling.empty() : new Pedaling(keep);
+    }
+
+    /**
+     * The track's first declared {@link InstrumentChange#program()},
+     * or 0 (piano) if none is declared. Mid-piece program changes
+     * are ignored for the purpose of pedal-eligibility — once a track
+     * gets pedal, it stays on pedal.
+     */
+    private static int primaryProgramOf(TrackId id, Instrumentation instruments) {
+        InstrumentControl ic = instruments.byTrack().get(id);
+        if (ic == null || ic.changes().isEmpty()) return 0;
+        return ic.changes().get(0).program();
     }
 
     // ── helpers ─────────────────────────────────────────────────────────

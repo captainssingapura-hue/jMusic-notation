@@ -62,8 +62,7 @@ public class SoundbankExplorer extends Application {
     private Soundbank loadedBank;
     private Instrument selectedInstrument;
     private PatchRef selectedPatch;          // shared selection shape with the main player
-    private MidiDevice openedInput;
-    private Transmitter openedTransmitter;
+    private music.notation.input.MidiInputBinding openedInput;
 
     private final Label fileMetaLabel = new Label("No soundbank loaded");
     private final Label detailLabel = new Label("Select an instrument");
@@ -216,8 +215,7 @@ public class SoundbankExplorer extends Application {
         stage.setTitle("Soundbank Explorer");
         stage.setScene(scene);
         stage.setOnCloseRequest(e -> {
-            if (openedTransmitter != null) try { openedTransmitter.close(); } catch (Exception ignored) {}
-            if (openedInput != null)       try { openedInput.close();       } catch (Exception ignored) {}
+            if (openedInput != null) openedInput.close();
             if (synth != null) synth.close();
             Platform.exit();
         });
@@ -442,13 +440,19 @@ public class SoundbankExplorer extends Application {
 
     /** Map a soundbank instrument to the closest matching GM voice in our core set. */
     private static music.notation.event.Instrument closestGm(Instrument inst) {
-        if (isDrumPatch(inst)) return music.notation.event.Instrument.DRUM_KIT;
         int program = inst.getPatch().getProgram() & 0x7f;
-        var values = music.notation.event.Instrument.values();
-        // The enum is declared in GM program order — values()[program] matches
-        // for programs 0..127. DRUM_KIT comes after; skip when indexing.
-        for (var v : values) {
-            if (v != music.notation.event.Instrument.DRUM_KIT && v.program() == program) return v;
+        if (isDrumPatch(inst)) {
+            // Pick the specific GM2 drum-kit variant whose program matches;
+            // fall back to Standard Kit if not a recognised slot.
+            for (var v : music.notation.event.Instrument.values()) {
+                if (v.isDrumKit() && v.program() == program) return v;
+            }
+            return music.notation.event.Instrument.DRUM_KIT;
+        }
+        // Melodic lookup — skip all drum-kit values (their programs overlap
+        // with melodic GM programs and would mis-route to channel 10).
+        for (var v : music.notation.event.Instrument.values()) {
+            if (!v.isDrumKit() && v.program() == program) return v;
         }
         return music.notation.event.Instrument.ACOUSTIC_GRAND_PIANO;
     }
@@ -493,7 +497,7 @@ public class SoundbankExplorer extends Application {
 
     private void bindChannelToSelected() {
         if (selectedPatch == null) return;
-        boolean drum = selectedPatch.instrument() == music.notation.event.Instrument.DRUM_KIT;
+        boolean drum = selectedPatch.instrument().isDrumKit();
         int chIdx = drum ? 9 : 0;
         MidiChannel ch = synth.getChannels()[chIdx];
         if (drum) {
@@ -511,7 +515,7 @@ public class SoundbankExplorer extends Application {
     private void auditionSelected() {
         if (selectedPatch == null) return;
         bindChannelToSelected();
-        boolean drum = selectedPatch.instrument() == music.notation.event.Instrument.DRUM_KIT;
+        boolean drum = selectedPatch.instrument().isDrumKit();
         int chIdx = drum ? 9 : 0;
         MidiChannel ch = synth.getChannels()[chIdx];
 
@@ -653,7 +657,7 @@ public class SoundbankExplorer extends Application {
     private void playNote(int midi, boolean on) {
         if (synth == null) return;
         int chIdx = (selectedPatch != null
-                && selectedPatch.instrument() == music.notation.event.Instrument.DRUM_KIT)
+                && selectedPatch.instrument().isDrumKit())
                 ? 9 : 0;
         MidiChannel ch = synth.getChannels()[chIdx];
         if (on) ch.noteOn(midi, 100);
@@ -663,31 +667,21 @@ public class SoundbankExplorer extends Application {
     // ── MIDI input device ──────────────────────────────────────────────
 
     private void refreshInputs(ComboBox<MidiDevice.Info> combo) {
-        var items = FXCollections.<MidiDevice.Info>observableArrayList();
-        for (var info : MidiSystem.getMidiDeviceInfo()) {
-            try {
-                MidiDevice dev = MidiSystem.getMidiDevice(info);
-                // Devices that can transmit (have a Transmitter) are inputs.
-                if (dev.getMaxTransmitters() != 0) items.add(info);
-            } catch (Exception ignored) { }
-        }
-        combo.setItems(items);
+        // Delegates to the reusable enumeration in notation-input so the
+        // recorder app and any other consumer use the same device list.
+        combo.setItems(FXCollections.observableArrayList(
+                music.notation.input.MidiInputBinding.listInputs()));
     }
 
     private void bindMidiInput(MidiDevice.Info info) {
         // Close previous binding cleanly.
-        if (openedTransmitter != null) try { openedTransmitter.close(); } catch (Exception ignored) {}
-        if (openedInput != null) try { openedInput.close(); } catch (Exception ignored) {}
-        openedTransmitter = null;
-        openedInput = null;
+        if (openedInput != null) {
+            openedInput.close();
+            openedInput = null;
+        }
         if (info == null) return;
         try {
-            MidiDevice dev = MidiSystem.getMidiDevice(info);
-            if (!dev.isOpen()) dev.open();
-            Transmitter tx = dev.getTransmitter();
-            tx.setReceiver(new ControllerReceiver());
-            openedInput = dev;
-            openedTransmitter = tx;
+            openedInput = music.notation.input.MidiInputBinding.open(info, new ControllerReceiver());
         } catch (Exception ex) {
             ex.printStackTrace();
             fileMetaLabel.setText("MIDI in failed: " + ex.getMessage());
@@ -716,7 +710,7 @@ public class SoundbankExplorer extends Application {
     private void handleNote(int midi, int velocity, boolean on) {
         if (synth == null) return;
         int chIdx = (selectedPatch != null
-                && selectedPatch.instrument() == music.notation.event.Instrument.DRUM_KIT)
+                && selectedPatch.instrument().isDrumKit())
                 ? 9 : 0;
         MidiChannel ch = synth.getChannels()[chIdx];
         if (on) ch.noteOn(midi, Math.max(1, velocity));

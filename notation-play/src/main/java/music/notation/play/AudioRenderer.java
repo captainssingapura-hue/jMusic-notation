@@ -58,8 +58,8 @@ import java.util.List;
  * <p>The renderer consumes whatever {@link Sequence} the caller hands
  * in. Channel setup, side-channel pedaling, velocities, and the
  * soundbank are all already baked into that sequence by
- * {@link MidiPlayer#freezeForExport} and {@link PedalInjector} — same
- * code paths the .mid file export uses. Audio export is therefore
+ * {@link MidiPlayer#freezeForExport} and the codec — same code paths
+ * the .mid file export uses. Audio export is therefore
  * bit-identical-equivalent to playing the .mid through the same SF2
  * in real time.</p>
  */

@@ -46,10 +46,10 @@ public record PatchRef(
         return new PatchRef(sbi.family(), sbi.bank(), sbi.program(), sbi.displayName());
     }
 
-    /** Effective bank: override if present, else 128 for drum kit, else 0. */
+    /** Effective bank: override if present, else 128 for any drum kit, else 0. */
     public int effectiveBank() {
         if (bankOverride != null) return bankOverride;
-        return instrument == Instrument.DRUM_KIT ? 128 : 0;
+        return instrument.isDrumKit() ? 128 : 0;
     }
 
     /** Effective program: override if present, else the GM program. */

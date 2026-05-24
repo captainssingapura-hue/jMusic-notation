@@ -625,6 +625,25 @@ final class PitchScroll extends BorderPane {
 
             // Notes for this track.
             Color auxColor = trackColor.deriveColor(30, 0.55, 1.15, 1.0);
+
+            // Ghost pass: for transposed notes, draw a faded marker at the
+            // ORIGINAL pitch position so the user sees both keys side by
+            // side. Drawn BEFORE the primary pass so the primary renders
+            // on top. Skipped entirely when no notes are shifted.
+            for (NoteRect r : noteRects) {
+                if (!r.trackKey().equals(trackKey)) continue;
+                if (!r.isShifted()) continue;
+                double gx = PADDING_LEFT + r.startTick() * pixelsPerTick;
+                double grw = (r.endTick() - r.startTick()) * pixelsPerTick;
+                double gy = laneY + LANE_HEADER + (data.maxNote() - r.originalMidi()) * notePixelHeight;
+                Color gBase = r.isAux() ? auxColor : trackColor;
+                // Desaturate + translucent so the ghost reads as "underlying."
+                Color ghost = gBase.deriveColor(0, 0.25, 0.7, 0.35);
+                gc.setFill(ghost);
+                gc.fillRoundRect(gx, gy - NOTE_HEIGHT / 2, Math.max(grw, 2), NOTE_HEIGHT, 2, 2);
+            }
+
+            // Primary pass: draw notes at the EFFECTIVE (shifted, if any) pitch.
             for (NoteRect r : noteRects) {
                 if (!r.trackKey().equals(trackKey)) continue;
                 double x = PADDING_LEFT + r.startTick() * pixelsPerTick;

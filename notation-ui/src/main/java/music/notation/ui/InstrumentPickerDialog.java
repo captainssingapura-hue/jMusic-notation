@@ -466,7 +466,11 @@ final class InstrumentPickerDialog {
     }
 
     private static String familyOf(Instrument ins) {
-        if (ins == Instrument.DRUM_KIT) return "Drum Kit";
+        // Every drum-kit value (Standard + GM2 variants) goes under the
+        // "Drum Kit" family — the picker should list them as siblings, not
+        // scatter them across melodic families that happen to share program
+        // numbers (e.g. DRUM_KIT_ROOM(8) vs CELESTA(8)).
+        if (ins.isDrumKit()) return "Drum Kit";
         int p = ins.program();
         for (Family f : FAMILIES) {
             if (f.lo() < 0) continue;
@@ -475,8 +479,24 @@ final class InstrumentPickerDialog {
         return "Sound FX";
     }
 
-    /** Pretty-print "ACOUSTIC_GRAND_PIANO" → "Acoustic Grand Piano". */
+    /** Pretty-print "ACOUSTIC_GRAND_PIANO" → "Acoustic Grand Piano".
+     *  Drum-kit variants get specific human-readable overrides so e.g.
+     *  {@code DRUM_KIT_TR808} renders as "TR-808 Kit" rather than the
+     *  ugly "Drum Kit Tr808" the auto title-case would produce. */
     static String displayName(Instrument ins) {
+        if (ins.isDrumKit()) {
+            return switch (ins) {
+                case DRUM_KIT             -> "Standard Kit";
+                case DRUM_KIT_ROOM        -> "Room Kit";
+                case DRUM_KIT_POWER       -> "Power Kit";
+                case DRUM_KIT_ELECTRONIC  -> "Electronic Kit";
+                case DRUM_KIT_TR808       -> "TR-808 Kit";
+                case DRUM_KIT_JAZZ        -> "Jazz Kit";
+                case DRUM_KIT_BRUSH       -> "Brush Kit";
+                case DRUM_KIT_ORCHESTRA   -> "Orchestra Kit";
+                default                   -> ins.name();   // unreachable but keeps switch exhaustive
+            };
+        }
         String[] parts = ins.name().toLowerCase().split("_");
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < parts.length; i++) {

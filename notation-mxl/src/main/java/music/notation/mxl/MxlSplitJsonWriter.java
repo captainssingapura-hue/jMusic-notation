@@ -30,12 +30,12 @@ import java.util.List;
  * are omitted while empty; future landings will write them as their own files
  * once populated.</p>
  */
-final class MxlSplitJsonWriter {
+public final class MxlSplitJsonWriter {
 
     private MxlSplitJsonWriter() {}
 
     /** Write the import as split files under {@code pieceDir}. Creates the directory if needed. */
-    static List<Path> write(MxlImport imp, Path pieceDir) {
+    public static List<Path> write(MxlImport imp, Path pieceDir) {
         try {
             Files.createDirectories(pieceDir);
         } catch (IOException e) {

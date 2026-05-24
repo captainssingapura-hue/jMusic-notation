@@ -96,4 +96,30 @@ public record Performance(
                 Instrumentation.empty(), Volume.empty(), Articulations.empty(),
                 Pedaling.empty(), Velocities.empty());
     }
+
+    /**
+     * Functional copy with a different {@link Pedaling}. Used by
+     * {@link AutoPedaling#augment(Performance, music.notation.structure.TimeSignature)}
+     * and any other transform that produces a new pedaling timeline.
+     * All other fields are reused by reference (records are immutable).
+     */
+    public Performance withPedaling(Pedaling newPedaling) {
+        Objects.requireNonNull(newPedaling, "newPedaling");
+        return new Performance(score, tempo, instruments, volume,
+                articulations, newPedaling, velocities);
+    }
+
+    /**
+     * Functional copy with a different {@link Score}. Used by
+     * pre-codec transforms that re-shape note tracks (humanizer
+     * jitter, future quantizers). The side-channels carry over —
+     * but note: the new {@code Score}'s {@link TrackId}s must agree
+     * with every side-channel's keys, or the canonical constructor
+     * will reject the result.
+     */
+    public Performance withScore(Score newScore) {
+        Objects.requireNonNull(newScore, "newScore");
+        return new Performance(newScore, tempo, instruments, volume,
+                articulations, pedaling, velocities);
+    }
 }

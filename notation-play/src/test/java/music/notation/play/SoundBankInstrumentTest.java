@@ -14,9 +14,20 @@ class SoundBankInstrumentTest {
     }
 
     @Test
-    void classifyToGm_bank128_isDrumKit() {
-        assertEquals(Instrument.DRUM_KIT, SoundBankInstrument.classifyToGm(128, 0));
-        assertEquals(Instrument.DRUM_KIT, SoundBankInstrument.classifyToGm(128, 16));
+    void classifyToGm_bank128_resolvesToSpecificDrumKitVariant() {
+        // Bank 128 + program 0 → Standard Kit.
+        assertEquals(Instrument.DRUM_KIT,            SoundBankInstrument.classifyToGm(128, 0));
+        // GM Level 2 standard slots resolve to their specific variant…
+        assertEquals(Instrument.DRUM_KIT_ROOM,       SoundBankInstrument.classifyToGm(128, 8));
+        assertEquals(Instrument.DRUM_KIT_POWER,      SoundBankInstrument.classifyToGm(128, 16));
+        assertEquals(Instrument.DRUM_KIT_ELECTRONIC, SoundBankInstrument.classifyToGm(128, 24));
+        assertEquals(Instrument.DRUM_KIT_TR808,      SoundBankInstrument.classifyToGm(128, 25));
+        assertEquals(Instrument.DRUM_KIT_JAZZ,       SoundBankInstrument.classifyToGm(128, 32));
+        assertEquals(Instrument.DRUM_KIT_BRUSH,      SoundBankInstrument.classifyToGm(128, 40));
+        assertEquals(Instrument.DRUM_KIT_ORCHESTRA,  SoundBankInstrument.classifyToGm(128, 48));
+        // …and unknown drum-bank programs fall back to Standard Kit.
+        assertEquals(Instrument.DRUM_KIT,            SoundBankInstrument.classifyToGm(128, 7));
+        assertEquals(Instrument.DRUM_KIT,            SoundBankInstrument.classifyToGm(128, 99));
     }
 
     @Test
@@ -57,13 +68,14 @@ class SoundBankInstrumentTest {
     @Test
     void classifyToGm_withName_catchesDrumKitsStoredOutsideBank128() {
         // Some SF2s store drum kits at bank 0 with weird program numbers; the
-        // name heuristic catches them.
+        // name heuristic catches them. When the program matches a GM2 slot,
+        // the specific variant is returned; otherwise Standard Kit.
         assertEquals(Instrument.DRUM_KIT,
-                SoundBankInstrument.classifyToGm(0, 7, "Don's Std Kit"));
+                SoundBankInstrument.classifyToGm(0, 7, "Don's Std Kit"));   // unrecognised program → Standard
+        assertEquals(Instrument.DRUM_KIT_POWER,
+                SoundBankInstrument.classifyToGm(0, 16, "Power Kit"));      // program 16 → Power
         assertEquals(Instrument.DRUM_KIT,
-                SoundBankInstrument.classifyToGm(0, 16, "Power Kit"));
-        assertEquals(Instrument.DRUM_KIT,
-                SoundBankInstrument.classifyToGm(0, 0, "drum kit"));
+                SoundBankInstrument.classifyToGm(0, 0, "drum kit"));        // program 0 → Standard
     }
 
     @Test
