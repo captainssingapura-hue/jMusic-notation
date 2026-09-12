@@ -38,12 +38,22 @@ public final class DrumBarBuilder {
 
     private DrumBarBuilder() {}
 
-    /** A single percussion strike: onset/duration in ms plus its sound. */
-    public record Hit(long onsetMs, long durationMs, PercussionSound sound) {
+    /**
+     * A single percussion strike: musical onset / length plus its sound.
+     * Post ms→Duration migration this carries rationals directly; the
+     * previous ms-based form has been removed (caller passes
+     * {@code dn.at()} / {@code dn.duration()} from the
+     * {@link DrumNote}).
+     */
+    public record Hit(Duration at, Duration duration, PercussionSound sound) {
         public Hit {
-            if (onsetMs < 0)     throw new IllegalArgumentException("onsetMs must be >= 0");
-            if (durationMs <= 0) throw new IllegalArgumentException("durationMs must be > 0");
-            if (sound == null)   throw new IllegalArgumentException("sound must not be null");
+            if (at == null)        throw new IllegalArgumentException("at must not be null");
+            if (duration == null)  throw new IllegalArgumentException("duration must not be null");
+            if (at.compareDuration(Duration.zero()) < 0)
+                throw new IllegalArgumentException("at must be >= 0");
+            if (duration.compareDuration(Duration.zero()) <= 0)
+                throw new IllegalArgumentException("duration must be > 0");
+            if (sound == null)     throw new IllegalArgumentException("sound must not be null");
         }
     }
 
@@ -51,14 +61,14 @@ public final class DrumBarBuilder {
     public static List<Bar> build(List<Hit> hits, BarBuilder.Config cfg) {
         if (hits.isEmpty()) return List.of();
         var sorted = new ArrayList<>(hits);
-        sorted.sort(Comparator.comparingLong(Hit::onsetMs));
+        sorted.sort(Comparator.comparing(Hit::at, (a, b) -> a.compareDuration(b)));
 
         var state = new State(cfg);
         Duration oneSf = Duration.of(1, 64);   // sub-perceptual stagger unit
 
         for (Hit h : sorted) {
-            Duration onsetRaw = msToFraction(h.onsetMs(), cfg.bpm());
-            Duration rawDur   = msToFraction(h.durationMs(), cfg.bpm());
+            Duration onsetRaw = h.at();
+            Duration rawDur   = h.duration();
             Duration dur      = Quantizer.snap(rawDur, cfg.profile());
             if (dur.numerator() == 0) dur = state.minLegalDuration();
 
@@ -94,12 +104,6 @@ public final class DrumBarBuilder {
             state.emitRest(state.barTotal.minus(state.posInBar));
         }
         return state.bars;
-    }
-
-    // ── helper ──────────────────────────────────────────────────────
-
-    private static Duration msToFraction(long ms, int bpm) {
-        return Duration.of((long) ms * bpm, 240_000L);
     }
 
     // ── internal walker ─────────────────────────────────────────────

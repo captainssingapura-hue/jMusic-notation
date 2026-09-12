@@ -31,7 +31,7 @@ public record Volume(Map<TrackId, VolumeControl> byTrack) {
 
     public static Volume empty() { return new Volume(Map.of()); }
 
-    public static Volume single(TrackId track, int level) {
+    public static Volume single(TrackId track, double level) {
         return new Volume(Map.of(track, VolumeControl.constant(level)));
     }
 }

@@ -397,17 +397,22 @@ public final class MidiPlayer {
     private static Performance applyPedalingOverrides(
             Performance perf, music.notation.expressivity.Pedaling pedaling) {
         if (pedaling == null || pedaling.byTrack().isEmpty()) return perf;
-        // Union all unique (tickMs, state) pairs across the input timelines.
-        java.util.Set<Long> seen = new java.util.LinkedHashSet<>();
+        // Union all unique (at, state) pairs across the input timelines.
+        // Dedup key combines the rational at + state ordinal.
+        record DedupKey(long num, long den, int stateOrd) {}
+        java.util.Set<DedupKey> seen = new java.util.LinkedHashSet<>();
         java.util.List<music.notation.expressivity.PedalChange> unioned = new ArrayList<>();
         for (music.notation.expressivity.PedalControl pc : pedaling.byTrack().values()) {
             for (music.notation.expressivity.PedalChange ch : pc.changes()) {
-                long key = (ch.tickMs() << 2) | ch.state().ordinal();
+                DedupKey key = new DedupKey(
+                        ch.at().numerator(), ch.at().denominator(),
+                        ch.state().ordinal());
                 if (seen.add(key)) unioned.add(ch);
             }
         }
-        unioned.sort(java.util.Comparator.comparingLong(
-                music.notation.expressivity.PedalChange::tickMs));
+        unioned.sort(java.util.Comparator.comparing(
+                music.notation.expressivity.PedalChange::at,
+                (a, b) -> a.compareDuration(b)));
         music.notation.expressivity.PedalControl broadcast =
                 new music.notation.expressivity.PedalControl(unioned);
         Map<TrackId, music.notation.expressivity.PedalControl> map = new LinkedHashMap<>();
@@ -532,7 +537,10 @@ public final class MidiPlayer {
             String pieceName = resolvePieceTrackName(perfName, pieceNames);
             Integer overrideLevel = pieceName == null ? null : levelByPieceName.get(pieceName);
             if (overrideLevel != null) {
-                newVol.put(pt.id(), VolumeControl.constant(overrideLevel));
+                // UI passes raw MIDI CC #7 byte [0,127]; convert to a
+                // synth-agnostic level at this boundary.
+                double level = Math.max(0.0, Math.min(1.0, overrideLevel / 127.0));
+                newVol.put(pt.id(), VolumeControl.constant(level));
             }
         }
 
@@ -921,6 +929,15 @@ public final class MidiPlayer {
     public void setVelocities(music.notation.expressivity.Velocities velocities) {
         this.currentVelocities = (velocities == null)
                 ? music.notation.expressivity.Velocities.empty() : velocities;
+    }
+
+    /**
+     * Read the currently-staged velocities side-channel. Used by the
+     * Enhanced JSON exporter to capture the auto-velocity output as a
+     * sidecar file.
+     */
+    public music.notation.expressivity.Velocities getVelocities() {
+        return currentVelocities;
     }
 
     /** Live pedal toggle on a running sequencer — rebuilds + resumes. */

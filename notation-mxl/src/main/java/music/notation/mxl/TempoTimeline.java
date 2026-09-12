@@ -1,5 +1,6 @@
 package music.notation.mxl;
 
+import music.notation.duration.Duration;
 import music.notation.performance.TempoChange;
 import music.notation.performance.TempoTrack;
 
@@ -10,34 +11,35 @@ import java.util.List;
 /**
  * Piecewise-constant tempo function indexed by MusicXML division position.
  *
- * <p>MusicXML tempo lives in {@code <sound tempo="…">} attributes scattered
- * through {@code <direction>} elements (and occasionally as direct measure
- * children). To compute concrete-note ms positions in the presence of
- * mid-piece tempo changes, we collect all such events with their
- * accumulated divisions-from-piece-start, then convert to millisecond
- * breakpoints by integrating segment-by-segment.</p>
+ * <p>MusicXML tempo lives in {@code <sound tempo="…">} attributes
+ * scattered through {@code <direction>} elements (and occasionally as
+ * direct measure children). To compute musical positions of notes in
+ * the presence of mid-piece tempo changes, we collect tempo events
+ * with their accumulated divisions-from-piece-start. The post-ms→Duration
+ * model only needs the division anchors — the actual bpm values become
+ * payload on the resulting {@link TempoTrack}, never used for position
+ * math.</p>
  *
- * <p>{@link #divToMs(long)} answers "what ms position corresponds to this
- * division?" via binary search + linear interpolation within the segment.
- * {@link #toTempoTrack()} produces the canonical {@link TempoTrack} ready
- * for {@link music.notation.performance.Performance}.</p>
+ * <p>{@link #divToDuration(long)} answers "what musical position
+ * corresponds to this division?" by direct rational construction —
+ * tempo doesn't enter. {@link #toTempoTrack()} produces the canonical
+ * Duration-anchored {@link TempoTrack} ready for
+ * {@link music.notation.performance.Performance}.</p>
  */
 final class TempoTimeline {
 
     private final long[] breakDivs;
-    private final long[] breakMs;
     private final int[]  breakBpms;
     private final int    divisions;
 
-    private TempoTimeline(long[] divs, long[] mss, int[] bpms, int divisions) {
+    private TempoTimeline(long[] divs, int[] bpms, int divisions) {
         this.breakDivs = divs;
-        this.breakMs   = mss;
         this.breakBpms = bpms;
         this.divisions = divisions;
     }
 
     static TempoTimeline constant(int divisions, int bpm) {
-        return new TempoTimeline(new long[]{0L}, new long[]{0L}, new int[]{bpm}, divisions);
+        return new TempoTimeline(new long[]{0L}, new int[]{bpm}, divisions);
     }
 
     static TempoTimeline from(List<TempoEvent> events, int divisions, int defaultBpm) {
@@ -71,48 +73,38 @@ final class TempoTimeline {
             bpmDeduped.add(e);
         }
 
-        // 5. Compute ms anchor at each break by integrating segment durations.
         int n = bpmDeduped.size();
         long[] ds = new long[n];
-        long[] ms = new long[n];
         int[]  bs = new int[n];
-        ds[0] = bpmDeduped.get(0).div();
-        ms[0] = 0L;
-        bs[0] = bpmDeduped.get(0).bpm();
-        for (int i = 1; i < n; i++) {
-            long divSpan = bpmDeduped.get(i).div() - bpmDeduped.get(i - 1).div();
-            long msSpan  = Math.round(divSpan * 60_000.0 / (bs[i - 1] * (double) divisions));
+        for (int i = 0; i < n; i++) {
             ds[i] = bpmDeduped.get(i).div();
-            ms[i] = ms[i - 1] + msSpan;
             bs[i] = bpmDeduped.get(i).bpm();
         }
-        return new TempoTimeline(ds, ms, bs, divisions);
+        return new TempoTimeline(ds, bs, divisions);
     }
 
-    long divToMs(long div) {
-        int idx = segmentIndex(div);
-        long delta = div - breakDivs[idx];
-        return breakMs[idx] + Math.round(delta * 60_000.0 / (breakBpms[idx] * (double) divisions));
+    /**
+     * Convert a MusicXML division position to a musical
+     * {@link Duration}. {@code divisions} is ticks per quarter note,
+     * so {@code div / (divisions × 4)} is the position in whole notes.
+     * Pure rational arithmetic — no tempo involved.
+     */
+    Duration divToDuration(long div) {
+        return Duration.of(div, (long) divisions * 4L);
     }
 
     int initialBpm() { return breakBpms[0]; }
 
+    /**
+     * Produce the canonical {@link TempoTrack} — each break-point's
+     * division position is converted to a musical {@link Duration}.
+     */
     TempoTrack toTempoTrack() {
         List<TempoChange> changes = new ArrayList<>(breakBpms.length);
         for (int i = 0; i < breakBpms.length; i++) {
-            changes.add(new TempoChange(breakMs[i], breakBpms[i]));
+            changes.add(new TempoChange(divToDuration(breakDivs[i]), breakBpms[i]));
         }
         return new TempoTrack(changes);
-    }
-
-    /** Largest index i such that {@code breakDivs[i] <= div}. Assumes ascending divs. */
-    private int segmentIndex(long div) {
-        int lo = 0, hi = breakDivs.length - 1;
-        while (lo < hi) {
-            int mid = (lo + hi + 1) >>> 1;
-            if (breakDivs[mid] <= div) lo = mid; else hi = mid - 1;
-        }
-        return lo;
     }
 
     record TempoEvent(long div, int bpm) {}

@@ -58,8 +58,8 @@ public record ShiftedNote(PitchedNote original, int semitoneShift)
         }
     }
 
-    @Override public long tickMs()         { return original.tickMs(); }
-    @Override public long durationMs()     { return original.durationMs(); }
+    @Override public music.notation.duration.Duration at()       { return original.at(); }
+    @Override public music.notation.duration.Duration duration() { return original.duration(); }
     @Override public int  midi()           { return original.midi() + semitoneShift; }
     @Override public boolean tiedToNext()  { return original.tiedToNext(); }
 

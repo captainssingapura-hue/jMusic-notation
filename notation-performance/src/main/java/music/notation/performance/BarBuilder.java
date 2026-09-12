@@ -67,9 +67,10 @@ public final class BarBuilder {
         var state = new State(cfg);
 
         for (GroupedEvent ev : voice) {
-            // Convert ms → exact rational fraction-of-whole.
-            Duration onsetRaw = msToFraction(ev.onsetMs(), cfg.bpm());
-            Duration durRaw   = msToFraction(ev.durationMs(), cfg.bpm());
+            // Post ms→Duration: GroupedEvent now carries musical
+            // positions directly; no ms↔fraction conversion needed.
+            Duration onsetRaw = ev.at();
+            Duration durRaw   = ev.duration();
             // Snap duration via profile.
             Duration dur = Quantizer.snap(durRaw, cfg.profile());
             if (dur.numerator() == 0) dur = state.minLegalDuration();
@@ -95,12 +96,6 @@ public final class BarBuilder {
             state.emitRest(state.barTotal.minus(state.posInBar));
         }
         return state.bars;
-    }
-
-    // ── Conversion helper: ms × bpm / 240000 = fraction-of-whole ─────
-
-    private static Duration msToFraction(long ms, int bpm) {
-        return Duration.of((long) ms * bpm, 240_000L);
     }
 
     // ── Internal walker ─────────────────────────────────────────────

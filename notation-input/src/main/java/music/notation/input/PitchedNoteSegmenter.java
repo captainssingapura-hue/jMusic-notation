@@ -189,9 +189,19 @@ public final class PitchedNoteSegmenter {
             return;
         }
         int midi = (int) Math.round(currentPitchSum / currentPitchCount);
-        long duration = Math.max(1, endTickMs - currentStartTickMs);
+        long durationMs = Math.max(1, endTickMs - currentStartTickMs);
         int velocity = rmsToVelocity(currentMaxRms);
-        PitchedNote note = new PitchedNote(currentStartTickMs, duration, midi);
+        // TODO (post ms→Duration redesign): audio import emits ms-native
+        // segments; a proper quantizer would snap these to a chosen
+        // musical grid against a reference BPM. For now we project at
+        // a fixed 120 bpm (1 quarter = 500 ms → Duration.of(ms, 2000))
+        // so callers get a Duration-anchored note. Mark this site for
+        // the quantizer follow-up.
+        music.notation.duration.Duration at =
+                music.notation.duration.Duration.of(currentStartTickMs, 2000);
+        music.notation.duration.Duration noteDuration =
+                music.notation.duration.Duration.of(durationMs, 2000);
+        PitchedNote note = new PitchedNote(at, noteDuration, midi);
         listener.onNoteCompleted(note, velocity);
         resetToSilent();
     }

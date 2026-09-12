@@ -86,9 +86,10 @@ public final class GentleClassicalStrategy implements DrumStrategy {
                 emitFallbackVelocity(velocityChanges, cumulativeSf, msPerSixtyFourth);
             } else if (isSourceBarSilent(source, i)) {
                 drumBars.add(quietBarFor(bd));
-                // Single soft kick at bar start.
+                // Single soft kick at bar start (musical position from 64ths).
                 velocityChanges.add(new VelocityChange(
-                        Math.round(cumulativeSf * msPerSixtyFourth), VEL_QUIET_KICK));
+                        music.notation.duration.Duration.ofSixtyFourths((int) cumulativeSf),
+                        LEVEL_QUIET_KICK));
             } else if (bd.unit() == BaseValue.EIGHTH
                     && (bd.unitCount() == 6 || bd.unitCount() == 12)) {
                 // Compound time uses dotted-quarter sub-beats; the
@@ -113,17 +114,20 @@ public final class GentleClassicalStrategy implements DrumStrategy {
     // ── Velocity profile ────────────────────────────────────────────────
     //
     // Gentle Classical is intentionally the quietest strategy — supports
-    // the source without taking attention. Soft kick (≈ 65); subtle
-    // side-stick on off-beats (≈ 55); near-silent kick for gap-filling
-    // bars (≈ 50). All well below mf so the piano stays in front.
-    private static final int VEL_KICK       = 65;
-    private static final int VEL_SIDESTICK  = 55;
-    private static final int VEL_QUIET_KICK = 50;
+    // the source without taking attention. Soft kick (≈ 0.51 = 65/127);
+    // subtle side-stick on off-beats (≈ 0.43 = 55/127); near-silent kick
+    // for gap-filling bars (≈ 0.39 = 50/127). All well below mf so the
+    // piano stays in front.
+    private static final double LEVEL_KICK       = 65.0 / 127.0;
+    private static final double LEVEL_SIDESTICK  = 55.0 / 127.0;
+    private static final double LEVEL_QUIET_KICK = 50.0 / 127.0;
 
     /** Velocity for a fallback bar — single kick on slot 0. */
     private static void emitFallbackVelocity(List<VelocityChange> out,
                                              long cumulativeSf, double msPerSf) {
-        out.add(new VelocityChange(Math.round(cumulativeSf * msPerSf), VEL_KICK));
+        out.add(new VelocityChange(
+                music.notation.duration.Duration.ofSixtyFourths((int) cumulativeSf),
+                LEVEL_KICK));
     }
 
     /** Velocities for the 6/8 or 12/8 dotted-quarter compound bar. */
@@ -133,8 +137,10 @@ public final class GentleClassicalStrategy implements DrumStrategy {
         long dottedSf = BaseValue.EIGHTH.sixtyFourths() * 3L;
         for (int i = 0; i < dottedQuarters; i++) {
             long slotSf = cumulativeSf + i * dottedSf;
-            int vel = (i % 2 == 0) ? VEL_KICK : VEL_SIDESTICK;
-            out.add(new VelocityChange(Math.round(slotSf * msPerSf), vel));
+            double vel = (i % 2 == 0) ? LEVEL_KICK : LEVEL_SIDESTICK;
+            out.add(new VelocityChange(
+                    music.notation.duration.Duration.ofSixtyFourths((int) slotSf),
+                    vel));
         }
     }
 
@@ -145,9 +151,11 @@ public final class GentleClassicalStrategy implements DrumStrategy {
         PercussionSound[] seq = spec.sequence();
         for (int s = 0; s < seq.length; s++) {
             if (seq[s] == null) continue;
-            int vel = (seq[s] == BASS_DRUM) ? VEL_KICK : VEL_SIDESTICK;
+            double vel = (seq[s] == BASS_DRUM) ? LEVEL_KICK : LEVEL_SIDESTICK;
             long slotSf = cumulativeSf + (long) s * unitSf;
-            out.add(new VelocityChange(Math.round(slotSf * msPerSf), vel));
+            out.add(new VelocityChange(
+                    music.notation.duration.Duration.ofSixtyFourths((int) slotSf),
+                    vel));
         }
     }
 

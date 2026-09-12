@@ -137,11 +137,19 @@ public final class Patterns {
                     for (int s = 0; s < seq.length; s++) {
                         if (seq[s] == null) continue;   // rest slot — no NOTE_ON to velocity-tag
                         long slotSf = cumulativeSf + (long) s * unitSf;
-                        long slotMs = Math.round(slotSf * msPerSixtyFourth);
+                        // Post ms→Duration: slots are intrinsically musical
+                        // (sixty-fourths from piece start), so anchor the
+                        // velocity event at that Duration directly.
+                        music.notation.duration.Duration slotAt =
+                                music.notation.duration.Duration.ofSixtyFourths((int) slotSf);
                         int velocity = applyBassAlignmentBoost(
                                 vels[s], seq[s], features,
                                 barSf > 0 ? (double) (s * unitSf) / barSf : 0.0);
-                        velocityChanges.add(new VelocityChange(slotMs, velocity));
+                        // PatternSpec's slotVelocities are authored as MIDI
+                        // bytes [1,127] (an autodrum-internal DSL convention);
+                        // convert to a synth-agnostic level at this boundary.
+                        double level = Math.max(0.0, Math.min(1.0, velocity / 127.0));
+                        velocityChanges.add(new VelocityChange(slotAt, level));
                     }
                 }
             }

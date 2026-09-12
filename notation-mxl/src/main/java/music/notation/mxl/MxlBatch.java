@@ -77,14 +77,26 @@ public final class MxlBatch {
                 MxlImport imp = project.importMxl(mxl);
                 int notes = imp.performance().score().tracks().stream()
                         .mapToInt(t -> t.notes().size()).sum();
-                log.info("        OK · {} tracks · {} notes · {} · {}/{} · {} bpm{}",
+                // Surface mid-piece signature changes so the user sees
+                // they actually landed (each entry past the first at
+                // tick 0 is a real modulation / meter change).
+                int timeSigChanges = Math.max(0,
+                        imp.performance().timeSignatures().changes().size() - 1);
+                int keyChanges = Math.max(0,
+                        imp.performance().keySignatures().changes().size() - 1);
+                String sigSuffix = "";
+                if (timeSigChanges > 0) sigSuffix += " · " + timeSigChanges + " time-sig change(s)";
+                if (keyChanges     > 0) sigSuffix += " · " + keyChanges + " key change(s)";
+
+                log.info("        OK · {} tracks · {} notes · {} · {}/{} · {} bpm{}{}",
                         imp.performance().score().tracks().size(),
                         notes,
                         KeyDisplay.format(imp.key()),
                         imp.timeSig().beats(),
                         imp.timeSig().beatValue(),
                         imp.initialBpm(),
-                        imp.repeatStructure().isEmpty() ? "" : " · with repeats");
+                        imp.repeatStructure().isEmpty() ? "" : " · with repeats",
+                        sigSuffix);
                 ok++;
             } catch (Exception ex) {
                 log.error("        FAILED: {}", ex.getMessage(), ex);

@@ -37,16 +37,23 @@ public record MidiImport(
                 .orElse(120);
     }
 
-    /** Total duration of the imported piece in milliseconds. */
+    /**
+     * Total duration of the imported piece in milliseconds, computed
+     * by walking the Performance's {@link TempoTrack} through a
+     * {@link TimeMapper}. The latest audible-onset's end-position
+     * (rational {@link music.notation.duration.Duration}) is converted
+     * to wall-clock ms at query time — nothing is stored in ms.
+     */
     public long totalMs() {
-        long max = 0;
+        music.notation.duration.Duration maxEnd =
+                music.notation.duration.Duration.zero();
         for (var t : performance.score().tracks()) {
             for (var n : t.notes()) {
-                long end = n.tickMs() + n.durationMs();
-                if (end > max) max = end;
+                music.notation.duration.Duration end = n.endAt();
+                if (end.compareDuration(maxEnd) > 0) maxEnd = end;
             }
         }
-        return max;
+        return new TimeMapper(performance.tempo()).toMs(maxEnd);
     }
 
     public Optional<String> source() {

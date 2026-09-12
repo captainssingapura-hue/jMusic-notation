@@ -140,9 +140,17 @@ public final class MidiToNoteReceiver implements Receiver {
     }
 
     private void emitCompleted(OpenNote open, long endTickMs) {
-        long duration = Math.max(1, endTickMs - open.startTickMs);
+        long durationMs = Math.max(1, endTickMs - open.startTickMs);
+        // TODO (post ms→Duration redesign): live MIDI input is ms-native;
+        // a proper quantizer would snap these onsets to a musical grid
+        // against a reference BPM. For now we project at 120 bpm
+        // (ms × 1/2000 of a whole note) so the model stays Duration-only.
+        music.notation.duration.Duration at =
+                music.notation.duration.Duration.of(open.startTickMs, 2000);
+        music.notation.duration.Duration noteDuration =
+                music.notation.duration.Duration.of(durationMs, 2000);
         listener.onNoteCompleted(
-                new PitchedNote(open.startTickMs, duration, open.pitch),
+                new PitchedNote(at, noteDuration, open.pitch),
                 open.velocity);
     }
 

@@ -176,7 +176,7 @@ public final class PerformanceImporter {
             if (!(n instanceof DrumNote dn)) continue;
             // Unmapped MIDI percussion notes are silently dropped.
             PercussionMap.forNote(dn.piece()).ifPresent(sound ->
-                hits.add(new DrumBarBuilder.Hit(dn.tickMs(), dn.durationMs(), sound)));
+                hits.add(new DrumBarBuilder.Hit(dn.at(), dn.duration(), sound)));
         }
         if (hits.isEmpty()) return List.of();
         var bars = DrumBarBuilder.build(hits, cfg);

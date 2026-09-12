@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,12 +25,20 @@ import java.util.Map;
  * <p>Pairing is by note index within each track. Tracks with an odd note
  * count leave their final note untouched. Tempo, instruments, and
  * articulations pass through unchanged.</p>
+ *
+ * <p>Post-ms→Duration: pair durations are computed as Durations and
+ * the long-fraction is expressed via {@link Duration#times(long)} +
+ * {@link Duration#dividedBy(long)}. We snap to a 64ths grid via
+ * {@code RawDuration} arithmetic to keep equality stable.</p>
  */
 public final class Swing {
 
     public static final double TRIPLET = 2.0 / 3.0;
     public static final double SHUFFLE = 0.60;
     public static final double NONE    = 0.50;
+
+    /** Granularity to which swung positions get snapped. 1/96 = a triplet-32nd. */
+    private static final long SWING_GRID_DENOM = 96;
 
     private Swing() {}
 
@@ -66,13 +76,17 @@ public final class Swing {
             ConcreteNote first = in.get(i);
             if (i + 1 < in.size()) {
                 ConcreteNote second = in.get(i + 1);
-                long pairStart = first.tickMs();
-                long pairEnd = second.offTickMs();
-                long pairDur = pairEnd - pairStart;
+                Duration pairStart = first.at();
+                Duration pairEnd   = second.endAt();
+                Duration pairDur   = pairEnd.minus(pairStart);
 
-                long newFirstDur = Math.max(1L, Math.round(pairDur * longRatio));
-                long newSecondStart = pairStart + newFirstDur;
-                long newSecondDur = Math.max(1L, pairEnd - newSecondStart);
+                Duration newFirstDur = scaleByRatio(pairDur, longRatio);
+                if (newFirstDur.isZero()) newFirstDur = Duration.of(1, SWING_GRID_DENOM);
+                Duration newSecondStart = pairStart.plus(newFirstDur);
+                Duration newSecondDur = pairEnd.minus(newSecondStart);
+                if (newSecondDur.compareDuration(Duration.zero()) <= 0) {
+                    newSecondDur = Duration.of(1, SWING_GRID_DENOM);
+                }
 
                 out.add(retick(first, pairStart, newFirstDur));
                 out.add(retick(second, newSecondStart, newSecondDur));
@@ -84,16 +98,30 @@ public final class Swing {
         return new Track(t.id(), t.kind(), out);
     }
 
-    private static ConcreteNote retick(ConcreteNote n, long newTickMs, long newDurMs) {
+    /**
+     * Scale a Duration by a double ratio, snapped onto a 1 / {@link
+     * #SWING_GRID_DENOM} grid for value-stable equality. We do the
+     * round at the boundary so swung durations stay rational.
+     */
+    private static Duration scaleByRatio(Duration dur, double ratio) {
+        // Express dur in grid-units, then multiply.
+        long durInGrid =
+                Math.round((double) dur.numerator() * SWING_GRID_DENOM
+                           / (double) dur.denominator());
+        long scaledInGrid = Math.round(durInGrid * ratio);
+        return Duration.of(scaledInGrid, SWING_GRID_DENOM);
+    }
+
+    private static ConcreteNote retick(ConcreteNote n, Duration newAt, Duration newDur) {
         return switch (n) {
-            case PitchedNote p -> new PitchedNote(newTickMs, newDurMs, p.midi());
+            case PitchedNote p -> new PitchedNote(newAt, newDur, p.midi());
             // For ShiftedNote we re-tick the inner original and preserve the
             // wrap — Swing is a timing transform, never a pitch transform.
             case ShiftedNote s -> new ShiftedNote(
-                    new PitchedNote(newTickMs, newDurMs,
+                    new PitchedNote(newAt, newDur,
                                      s.original().midi(), s.original().tiedToNext()),
                     s.semitoneShift());
-            case DrumNote d    -> new DrumNote(newTickMs, newDurMs, d.piece());
+            case DrumNote d    -> new DrumNote(newAt, newDur, d.piece());
         };
     }
 

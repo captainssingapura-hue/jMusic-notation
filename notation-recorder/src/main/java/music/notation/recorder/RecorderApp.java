@@ -639,7 +639,10 @@ public final class RecorderApp extends Application {
         List<VelocityChange> velChanges = new ArrayList<>(captured.size());
         for (CapturedNote c : captured) {
             notes.add(c.note());
-            velChanges.add(new VelocityChange(c.note().tickMs(), c.velocity()));
+            // Recorder captures raw MIDI velocity bytes [0,127]; convert
+            // to a synth-agnostic level at this boundary.
+            double level = Math.max(0.0, Math.min(1.0, c.velocity() / 127.0));
+            velChanges.add(new VelocityChange(c.note().tickMs(), level));
         }
         Track track = new Track(trackId, TrackKind.PITCHED, notes);
         Map<TrackId, VelocityControl> velocityMap = new LinkedHashMap<>();

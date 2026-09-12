@@ -88,12 +88,14 @@ public final class PlayChordProgression {
     private static void printPerformanceText(Performance perf) {
         System.out.println("  onset   | off     | pitch | event");
         System.out.println("  --------+---------+-------+---------");
+        var mapper = new music.notation.performance.TimeMapper(perf.tempo());
         for (Track track : perf.score().tracks()) {
             for (ConcreteNote n : track.notes()) {
                 if (n instanceof PitchedNote pn) {
                     System.out.printf(
                             "  %5dms | %5dms | %-5s | note%n",
-                            pn.tickMs(), pn.offTickMs(), noteName(pn.midi()));
+                            mapper.toMs(pn.at()), mapper.toMs(pn.endAt()),
+                            noteName(pn.midi()));
                 }
             }
         }
@@ -112,13 +114,14 @@ public final class PlayChordProgression {
 
             record Dispatch(long timeMs, Runnable action) {}
             var schedule = new ArrayList<Dispatch>();
+            var mapper = new music.notation.performance.TimeMapper(perf.tempo());
 
             for (Track track : perf.score().tracks()) {
                 for (ConcreteNote n : track.notes()) {
                     if (n instanceof PitchedNote pn) {
-                        schedule.add(new Dispatch(pn.tickMs(),
+                        schedule.add(new Dispatch(mapper.toMs(pn.at()),
                                 () -> channel.noteOn(pn.midi(), 80)));
-                        schedule.add(new Dispatch(pn.offTickMs(),
+                        schedule.add(new Dispatch(mapper.toMs(pn.endAt()),
                                 () -> channel.noteOff(pn.midi())));
                     }
                 }
@@ -142,14 +145,21 @@ public final class PlayChordProgression {
         }
     }
 
-    /** Shift a note's tickMs by the given delta (pure relocation). */
+    /**
+     * Shift a note's musical onset by {@code deltaMs} expressed as a
+     * Duration. The chord-progression experiment supplies offsets in
+     * ms; here we project at the default 120 bpm into the Duration
+     * timeline so the resulting Performance is consistently musical.
+     */
     private static ConcreteNote shiftBy(ConcreteNote n, long deltaMs) {
+        music.notation.duration.Duration delta =
+                music.notation.duration.Duration.of(deltaMs, 2000);
         if (n instanceof PitchedNote pn) {
-            return new PitchedNote(pn.tickMs() + deltaMs, pn.durationMs(), pn.midi());
+            return new PitchedNote(pn.at().plus(delta), pn.duration(), pn.midi());
         }
         if (n instanceof music.notation.performance.DrumNote dn) {
             return new music.notation.performance.DrumNote(
-                    dn.tickMs() + deltaMs, dn.durationMs(), dn.piece());
+                    dn.at().plus(delta), dn.duration(), dn.piece());
         }
         throw new IllegalStateException("unknown ConcreteNote: " + n);
     }

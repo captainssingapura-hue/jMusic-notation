@@ -183,8 +183,12 @@ public final class MidiCodec {
      * {@link #toMidi(Performance)} which asserts {@code size == 1}.</p>
      */
     public static List<byte[]> toMidiSplit(Performance p) {
+        // Flatten hairpins to dense Velocities/Volume samples up front
+        // so the codec proper never sees the Hairpins side-channel. The
+        // resolver is a no-op when hairpins is empty.
+        Performance flat = HairpinResolver.flatten(p);
         // Phase 1: singleton. Phase 2 will partition by ChannelAddr.synth().
-        return List.of(toMidiInternal(p));
+        return List.of(toMidiInternal(flat));
     }
 
     /**
@@ -216,12 +220,10 @@ public final class MidiCodec {
         try {
             Sequence sequence = new Sequence(Sequence.PPQ, PPQ);
 
-            TempoMap tempoMap = buildTempoMap(p.tempo());
-
             // Track 0 — conductor: tempo meta events only.
             javax.sound.midi.Track conductor = sequence.createTrack();
             for (TempoChange tc : p.tempo().changes()) {
-                addTempoMeta(conductor, tc, tempoMap);
+                addTempoMeta(conductor, tc);
             }
 
             List<Track> scoreTracks = p.score().tracks();
@@ -240,7 +242,6 @@ public final class MidiCodec {
                     // tracks as Piano). Stack three hints: instrument-name
                     // meta event, Bank Select MSB → GM drum bank, and a
                     // default Program Change that commits the bank select.
-                    // Any one of these is typically enough; stacking is free.
                     addInstrumentName(mt, DRUM_INSTRUMENT_NAME);
                     addBankSelectMsb(mt, channel, DRUM_BANK_GM, 0L);
                 }
@@ -248,30 +249,32 @@ public final class MidiCodec {
                 InstrumentControl ic = p.instruments().byTrack().get(t.id());
                 if (ic != null) {
                     for (InstrumentChange change : ic.changes()) {
-                        addProgramChange(mt, change, channel, tempoMap);
+                        addProgramChange(mt, change, channel);
                     }
                 } else if (isDrum) {
                     // Commit the Bank Select MSB by emitting a default
                     // Program Change. Standard kit = program 0 on channel 10.
-                    addProgramChange(mt, new InstrumentChange(0L, 0), channel, tempoMap);
+                    addProgramChange(mt,
+                            new InstrumentChange(music.notation.duration.Duration.zero(), 0),
+                            channel);
                 }
 
                 VolumeControl vc = p.volume().byTrack().get(t.id());
                 if (vc != null) {
                     for (VolumeChange change : vc.changes()) {
-                        addVolumeChange(mt, change, channel, tempoMap);
+                        addVolumeChange(mt, change, channel);
                     }
                 }
 
                 PedalControl pc = p.pedaling().byTrack().get(t.id());
                 if (pc != null) {
                     for (PedalChange change : pc.changes()) {
-                        addPedalChange(mt, change, channel, tempoMap);
+                        addPedalChange(mt, change, channel);
                     }
                 }
 
                 VelocityControl velocityCtrl = p.velocities().byTrack().get(t.id());
-                emitNotes(mt, t.notes(), channel, tempoMap, velocityCtrl);
+                emitNotes(mt, t.notes(), channel, velocityCtrl);
             }
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -303,17 +306,26 @@ public final class MidiCodec {
         return result;
     }
 
-    private static TempoMap buildTempoMap(TempoTrack tempo) {
-        TempoMap map = new TempoMap(DEFAULT_BPM, PPQ);
-        for (TempoChange c : tempo.changes()) {
-            map.addChange(c.tickMs(), c.bpm());
-        }
-        return map;
+    /**
+     * Convert a musical {@link music.notation.duration.Duration} position
+     * to MIDI ticks at {@link #PPQ} ticks-per-quarter. Tempo plays no
+     * role — in the new model, MIDI ticks <em>are</em> musical positions
+     * scaled by PPQ × 4 (ticks per whole note).
+     */
+    static long ticksFor(music.notation.duration.Duration at) {
+        // ticks = at.num × PPQ × 4 / at.den
+        long ticksPerWhole = (long) PPQ * 4L;
+        return Math.multiplyExact(at.numerator(), ticksPerWhole) / at.denominator();
     }
 
-    private static void addTempoMeta(javax.sound.midi.Track track, TempoChange t, TempoMap map)
+    /** Inverse of {@link #ticksFor} — exact rational; no Math.round. */
+    static music.notation.duration.Duration durationOfTicks(long midiTicks) {
+        return music.notation.duration.Duration.of(midiTicks, (long) PPQ * 4L);
+    }
+
+    private static void addTempoMeta(javax.sound.midi.Track track, TempoChange t)
             throws InvalidMidiDataException {
-        long midiTick = map.msToTick(t.tickMs());
+        long midiTick = ticksFor(t.at());
         int usPerQuarter = 60_000_000 / t.bpm();
         byte[] data = new byte[]{
                 (byte) ((usPerQuarter >> 16) & 0xFF),
@@ -378,9 +390,9 @@ public final class MidiCodec {
     }
 
     private static void addProgramChange(javax.sound.midi.Track track, InstrumentChange change,
-                                         int channel, TempoMap map)
+                                         int channel)
             throws InvalidMidiDataException {
-        long midiTick = map.msToTick(change.tickMs());
+        long midiTick = ticksFor(change.at());
         ShortMessage msg = new ShortMessage();
         msg.setMessage(ShortMessage.PROGRAM_CHANGE, channel, change.program(), 0);
         track.add(new MidiEvent(msg, midiTick));
@@ -393,11 +405,13 @@ public final class MidiCodec {
      * over the codec boundary.
      */
     private static void addVolumeChange(javax.sound.midi.Track track, VolumeChange change,
-                                        int channel, TempoMap map)
+                                        int channel)
             throws InvalidMidiDataException {
-        long midiTick = map.msToTick(change.tickMs());
+        long midiTick = ticksFor(change.at());
+        // Boundary translation: synth-agnostic [0,1] level → CC #7 byte [0,127].
+        int cc7 = Math.max(0, Math.min(127, (int) Math.round(change.level() * 127.0)));
         ShortMessage msg = new ShortMessage();
-        msg.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #7=*/ 7, change.level());
+        msg.setMessage(ShortMessage.CONTROL_CHANGE, channel, /*CC #7=*/ 7, cc7);
         track.add(new MidiEvent(msg, midiTick));
     }
 
@@ -407,20 +421,25 @@ public final class MidiCodec {
      * <ul>
      *   <li>{@link PedalState#DOWN}   → CC #64 = 127</li>
      *   <li>{@link PedalState#UP}     → CC #64 = 0</li>
-     *   <li>{@link PedalState#CHANGE} → CC #64 = 0, then = 127, separated by 1 ms</li>
+     *   <li>{@link PedalState#CHANGE} → CC #64 = 0, then = 127, on adjacent ticks</li>
      * </ul>
      * Per the import doctrine, CC events are silently dropped on read
      * — pedal is a write-only side-channel over the codec boundary.
      */
     private static void addPedalChange(javax.sound.midi.Track track, PedalChange change,
-                                       int channel, TempoMap map)
+                                       int channel)
             throws InvalidMidiDataException {
-        long midiTick = map.msToTick(change.tickMs());
+        long midiTick = ticksFor(change.at());
         if (change.state() == PedalState.CHANGE) {
-            // Quick release+press: emit two events 1 ms apart so the
-            // dampers fully clear before re-engaging.
-            track.add(controlChange(channel, /*CC #64=*/ 64, 0,   midiTick));
-            track.add(controlChange(channel, /*CC #64=*/ 64, 127, map.msToTick(change.tickMs() + 1)));
+            // Quick release+press: emit two events on adjacent ticks so the
+            // dampers fully clear before re-engaging. Adjacent-tick spacing
+            // is unconditional now (the old "tickMs + 1 → ms-tick rounding
+            // hack" is gone — we work directly in ticks, so +1 always means
+            // exactly one tick later, regardless of tempo).
+            long releaseTick = midiTick;
+            long pressTick   = midiTick + 1;
+            track.add(controlChange(channel, /*CC #64=*/ 64, 0,   releaseTick));
+            track.add(controlChange(channel, /*CC #64=*/ 64, 127, pressTick));
             return;
         }
         int level = (change.state() == PedalState.DOWN) ? 127 : 0;
@@ -434,11 +453,13 @@ public final class MidiCodec {
         return new MidiEvent(msg, tick);
     }
 
-    private static void addNotePair(javax.sound.midi.Track track, long tickMs, long durationMs,
-                                    int pitch, int channel, TempoMap map, int velocity)
+    private static void addNotePair(javax.sound.midi.Track track,
+                                    music.notation.duration.Duration at,
+                                    music.notation.duration.Duration duration,
+                                    int pitch, int channel, int velocity)
             throws InvalidMidiDataException {
-        long onTick  = map.msToTick(tickMs);
-        long offTick = map.msToTick(tickMs + durationMs);
+        long onTick  = ticksFor(at);
+        long offTick = ticksFor(at.plus(duration));
 
         ShortMessage on = new ShortMessage();
         on.setMessage(ShortMessage.NOTE_ON, channel, pitch, velocity);
@@ -468,15 +489,15 @@ public final class MidiCodec {
      * emitted as a single NOTE_ON / NOTE_OFF pair.</p>
      */
     private static void emitNotes(javax.sound.midi.Track track, List<ConcreteNote> notes,
-                                  int channel, TempoMap tempoMap,
+                                  int channel,
                                   VelocityControl velocityCtrl)
             throws InvalidMidiDataException {
         int i = 0;
         while (i < notes.size()) {
             ConcreteNote head = notes.get(i);
             int pitch = pitchOf(head);
-            long startTickMs = head.tickMs();
-            long endTickMs = head.offTickMs();
+            music.notation.duration.Duration startAt = head.at();
+            music.notation.duration.Duration endAt = head.endAt();
 
             // Extend chain while head is tied and the next note is a
             // same-pitch, immediately-following PitchedNote.
@@ -485,8 +506,8 @@ public final class MidiCodec {
                 ConcreteNote next = notes.get(j + 1);
                 if (next instanceof PitchedNote nextPn
                         && nextPn.midi() == pitch
-                        && nextPn.tickMs() == endTickMs) {
-                    endTickMs = nextPn.offTickMs();
+                        && nextPn.at().equalsDuration(endAt)) {
+                    endAt = nextPn.endAt();
                     j++;
                 } else {
                     // Chain broken: tie flag set but successor doesn't match.
@@ -496,11 +517,15 @@ public final class MidiCodec {
                 }
             }
 
-            int velocity = (velocityCtrl == null)
-                    ? VelocityControl.DEFAULT_VELOCITY
-                    : velocityCtrl.velocityAt(startTickMs);
-            addNotePair(track, startTickMs, endTickMs - startTickMs,
-                    pitch, channel, tempoMap, velocity);
+            double level = (velocityCtrl == null)
+                    ? VelocityControl.DEFAULT_LEVEL
+                    : velocityCtrl.levelAt(startAt);
+            // Boundary translation: synth-agnostic [0,1] level → NOTE_ON
+            // velocity byte [1,127]. NOTE_ON vel=0 is illegal here (it's a
+            // NOTE_OFF synonym in MIDI); the codec emits NOTE_OFF explicitly.
+            int velocity = Math.max(1, Math.min(127, (int) Math.round(level * 127.0)));
+            addNotePair(track, startAt, endAt.minus(startAt),
+                    pitch, channel, velocity);
             i = j + 1;
         }
     }
@@ -531,9 +556,11 @@ public final class MidiCodec {
             Sequence sequence = MidiSystem.getSequence(new ByteArrayInputStream(bytes));
             int ppq = sequence.getResolution();
 
-            // 1. Build tempo map + raw TempoChange list from all tempo meta events.
-            List<TempoChange> tempoChanges = new ArrayList<>();
-            TempoMap tempoMap = readTempoMap(sequence, ppq, tempoChanges);
+            // 1. Read tempo meta events directly into Duration-anchored
+            //    TempoChanges. MIDI tick is the musical position (ticks /
+            //    PPQ = quarters → /4 = whole-note fractions), so we can
+            //    convert without any ms math.
+            List<TempoChange> tempoChanges = readTempoChanges(sequence, ppq);
 
             // 2. Walk MIDI tracks, collecting lanes keyed by (midi-track-index, channel).
             javax.sound.midi.Track[] midiTracks = sequence.getTracks();
@@ -548,7 +575,7 @@ public final class MidiCodec {
                 for (int i = 0; i < mt.size(); i++) {
                     MidiEvent ev = mt.get(i);
                     long midiTick = ev.getTick();
-                    long tickMs = tempoMap.tickToMs(midiTick);
+                    music.notation.duration.Duration at = durationOfTicksWithPpq(midiTick, ppq);
 
                     switch (ev.getMessage()) {
                         case MetaMessage meta -> {
@@ -562,7 +589,7 @@ public final class MidiCodec {
                             switch (cmd) {
                                 case ShortMessage.PROGRAM_CHANGE -> {
                                     Lane lane = lanes.computeIfAbsent(new LaneKey(ti, channel), k -> new Lane());
-                                    lane.programChanges.add(new InstrumentChange(tickMs, sm.getData1()));
+                                    lane.programChanges.add(new InstrumentChange(at, sm.getData1()));
                                     channelsByTrack.computeIfAbsent(ti, k -> new HashSet<>()).add(channel);
                                 }
                                 case ShortMessage.NOTE_ON -> {
@@ -570,13 +597,13 @@ public final class MidiCodec {
                                     if (sm.getData2() > 0) {
                                         outstanding.computeIfAbsent(
                                                         noteKey(channel, sm.getData1()), k -> new ArrayList<>())
-                                                .add(new Pending(ti, channel, tickMs, sm.getData2()));
+                                                .add(new Pending(ti, channel, at, sm.getData2()));
                                     } else {
-                                        matchOff(outstanding, lanes, channel, sm.getData1(), tickMs);
+                                        matchOff(outstanding, lanes, channel, sm.getData1(), at);
                                     }
                                 }
                                 case ShortMessage.NOTE_OFF ->
-                                        matchOff(outstanding, lanes, channel, sm.getData1(), tickMs);
+                                        matchOff(outstanding, lanes, channel, sm.getData1(), at);
                                 default -> {
                                     // Discard CC, pitch bend, channel pressure, poly aftertouch, etc.
                                 }
@@ -610,7 +637,7 @@ public final class MidiCodec {
 
                 if (key.channel == DRUM_CHANNEL) {
                     for (RawNote rn : lane.notes) {
-                        drumNotes.add(new DrumNote(rn.tickMs, rn.durationMs, rn.pitch));
+                        drumNotes.add(new DrumNote(rn.at, rn.duration, rn.pitch));
                         drumRawNotes.add(rn);
                     }
                     drumProgramChanges.addAll(lane.programChanges);
@@ -632,7 +659,7 @@ public final class MidiCodec {
 
                 List<ConcreteNote> notes = new ArrayList<>(lane.notes.size());
                 for (RawNote rn : lane.notes) {
-                    notes.add(new PitchedNote(rn.tickMs, rn.durationMs, rn.pitch));
+                    notes.add(new PitchedNote(rn.at, rn.duration, rn.pitch));
                 }
                 outTracks.add(new Track(id, TrackKind.PITCHED, notes));
 
@@ -645,9 +672,11 @@ public final class MidiCodec {
 
             // Emit the coalesced drum Track if any drum events were seen.
             if (!drumNotes.isEmpty() || !drumProgramChanges.isEmpty()) {
-                drumNotes.sort(Comparator.comparingLong(ConcreteNote::tickMs));
-                drumRawNotes.sort(Comparator.comparingLong(RawNote::tickMs));
-                drumProgramChanges.sort(Comparator.comparingLong(InstrumentChange::tickMs));
+                Comparator<music.notation.duration.Duration> byPos =
+                        (a, b) -> a.compareDuration(b);
+                drumNotes.sort(Comparator.comparing(ConcreteNote::at, byPos));
+                drumRawNotes.sort(Comparator.comparing((RawNote rn) -> rn.at, byPos));
+                drumProgramChanges.sort(Comparator.comparing(InstrumentChange::at, byPos));
                 String drumName = uniqueName("drums", usedNames);
                 usedNames.add(drumName);
                 TrackId id = new TrackId(drumName);
@@ -679,8 +708,8 @@ public final class MidiCodec {
      * produces just one (or zero) entries.
      *
      * <p>Returns {@link VelocityControl#empty()} when the resulting
-     * control would be trivially default — i.e. one entry at velocity
-     * {@link VelocityControl#DEFAULT_VELOCITY}. This preserves
+     * control would be trivially default — i.e. one entry at level
+     * {@link VelocityControl#DEFAULT_LEVEL}. This preserves
      * {@code Performance} round-trip equality when the source had no
      * explicit per-note dynamics (every NOTE_ON written + read at the
      * codec default).</p>
@@ -688,15 +717,18 @@ public final class MidiCodec {
     private static VelocityControl velocityControlFor(List<RawNote> notes) {
         if (notes.isEmpty()) return VelocityControl.empty();
         List<RawNote> sorted = new ArrayList<>(notes);
-        sorted.sort(Comparator.comparingLong(RawNote::tickMs));
+        sorted.sort(Comparator.comparing((RawNote rn) -> rn.at,
+                (a, b) -> a.compareDuration(b)));
         List<VelocityChange> changes = new ArrayList<>(sorted.size());
         for (RawNote rn : sorted) {
-            changes.add(new VelocityChange(rn.tickMs, rn.velocity));
+            // Boundary translation: MIDI velocity byte [0,127] → level [0,1].
+            double level = Math.max(0.0, Math.min(1.0, rn.velocity / 127.0));
+            changes.add(new VelocityChange(rn.at, level));
         }
-        // VelocityControl's constructor sorts + dedups consecutive same-velocity entries.
+        // VelocityControl's constructor sorts + dedups consecutive same-level entries.
         VelocityControl ctrl = new VelocityControl(changes);
         if (ctrl.changes().size() == 1
-                && ctrl.changes().get(0).velocity() == VelocityControl.DEFAULT_VELOCITY) {
+                && Math.abs(ctrl.changes().get(0).level() - VelocityControl.DEFAULT_LEVEL) < (1.0 / 254.0)) {
             return VelocityControl.empty();
         }
         return ctrl;
@@ -709,31 +741,39 @@ public final class MidiCodec {
         return base + "_" + n;
     }
 
-    private static TempoMap readTempoMap(Sequence sequence, int ppq, List<TempoChange> outChanges) {
-        // Collect raw (tick, bpm) sorted by tick across all MIDI tracks.
+    /**
+     * Read tempo meta events from a {@link Sequence} into a list of
+     * {@link TempoChange}s anchored at musical positions. MIDI tick is
+     * the musical position scaled by PPQ × 4 (ticks per whole note),
+     * so this is a direct rational conversion — no tempo math needed.
+     */
+    private static List<TempoChange> readTempoChanges(Sequence sequence, int ppq) {
+        // Collect raw (tick, bpm). Multiple tempo metas at the same tick:
+        // last wins (matches the ordering that would actually play).
         TreeMap<Long, Integer> byTick = new TreeMap<>();
-        List<long[]> raw = new ArrayList<>();
         for (javax.sound.midi.Track track : sequence.getTracks()) {
             for (int i = 0; i < track.size(); i++) {
                 MidiEvent ev = track.get(i);
                 if (ev.getMessage() instanceof MetaMessage meta && meta.getType() == META_TEMPO) {
-                    raw.add(new long[]{ev.getTick(), bpmFromTempoMeta(meta)});
+                    byTick.put(ev.getTick(), bpmFromTempoMeta(meta));
                 }
             }
         }
-        raw.sort(Comparator.comparingLong(a -> a[0]));
-
-        // Deduplicate by tick — if two tempo metas land on the same tick, last wins
-        // (matches the ordering that would actually play).
-        for (long[] r : raw) byTick.put(r[0], (int) r[1]);
-
-        TempoMap map = new TempoMap(DEFAULT_BPM, ppq);
+        List<TempoChange> out = new ArrayList<>(byTick.size());
         for (Map.Entry<Long, Integer> e : byTick.entrySet()) {
-            long atMs = map.tickToMs(e.getKey());
-            map.addChange(atMs, e.getValue());
-            outChanges.add(new TempoChange(atMs, e.getValue()));
+            out.add(new TempoChange(durationOfTicksWithPpq(e.getKey(), ppq), e.getValue()));
         }
-        return map;
+        return out;
+    }
+
+    /**
+     * Convert a MIDI tick value (with a runtime-provided PPQ) to a
+     * musical {@link music.notation.duration.Duration}. Used on
+     * read, where the PPQ comes from the {@link Sequence}, not the
+     * codec constant.
+     */
+    private static music.notation.duration.Duration durationOfTicksWithPpq(long ticks, int ppq) {
+        return music.notation.duration.Duration.of(ticks, (long) ppq * 4L);
     }
 
     private static int bpmFromTempoMeta(MetaMessage meta) {
@@ -744,22 +784,33 @@ public final class MidiCodec {
 
     private static void matchOff(Map<Integer, List<Pending>> outstanding,
                                  Map<LaneKey, Lane> lanes,
-                                 int channel, int pitch, long offMs) {
+                                 int channel, int pitch,
+                                 music.notation.duration.Duration offAt) {
         List<Pending> list = outstanding.get(noteKey(channel, pitch));
         if (list == null || list.isEmpty()) return;
         Pending pending = list.remove(0);
-        long safeOff = Math.max(offMs, pending.onMs + 1);
-        long duration = safeOff - pending.onMs;
+        music.notation.duration.Duration duration = offAt.minus(pending.onAt);
+        // Floor at one tick (1 / (PPQ × 4) whole) so zero-length notes
+        // from same-tick NOTE_ON/OFF pairs don't violate
+        // PitchedNote's "duration > 0" invariant.
+        music.notation.duration.Duration oneTick =
+                music.notation.duration.Duration.of(1, (long) PPQ * 4L);
+        if (duration.compareDuration(oneTick) < 0) {
+            duration = oneTick;
+        }
         Lane lane = lanes.computeIfAbsent(new LaneKey(pending.midiTrackIndex, pending.channel), k -> new Lane());
-        lane.notes.add(new RawNote(pending.onMs, duration, pitch, pending.velocity));
+        lane.notes.add(new RawNote(pending.onAt, duration, pitch, pending.velocity));
     }
 
     private static int noteKey(int channel, int pitch) {
         return (channel << 8) | pitch;
     }
 
-    private record Pending(int midiTrackIndex, int channel, long onMs, int velocity) {}
-    private record RawNote(long tickMs, long durationMs, int pitch, int velocity) {}
+    private record Pending(int midiTrackIndex, int channel,
+                            music.notation.duration.Duration onAt, int velocity) {}
+    private record RawNote(music.notation.duration.Duration at,
+                            music.notation.duration.Duration duration,
+                            int pitch, int velocity) {}
     private record LaneKey(int midiTrackIndex, int channel) {}
     private static final class Lane {
         final List<RawNote> notes = new ArrayList<>();
@@ -873,67 +924,12 @@ public final class MidiCodec {
         return new music.notation.structure.KeySignature(tonic, acc, music.notation.structure.Mode.MINOR);
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  Tempo map
-    // ═══════════════════════════════════════════════════════════════════
-
-    private static final class TempoMap {
-        private final int ppq;
-        private record Segment(long msAtChange, long tickAtChange, int bpm) {}
-        private final List<Segment> segments = new ArrayList<>();
-
-        TempoMap(int initialBpm, int ppq) {
-            this.ppq = ppq;
-            segments.add(new Segment(0, 0, initialBpm));
-        }
-
-        void addChange(long atMs, int bpm) {
-            Segment prev = segments.get(segments.size() - 1);
-            if (atMs <= prev.msAtChange) {
-                if (segments.size() == 1 && atMs == 0) {
-                    segments.set(0, new Segment(0, 0, bpm));
-                    return;
-                }
-                return;
-            }
-            long tickAtChange = prev.tickAtChange + msToTicksInSegment(prev, atMs - prev.msAtChange);
-            segments.add(new Segment(atMs, tickAtChange, bpm));
-        }
-
-        long msToTick(long ms) {
-            Segment seg = segmentContainingMs(ms);
-            return seg.tickAtChange + msToTicksInSegment(seg, ms - seg.msAtChange);
-        }
-
-        long tickToMs(long tick) {
-            Segment seg = segmentContainingTick(tick);
-            return seg.msAtChange + ticksToMsInSegment(seg, tick - seg.tickAtChange);
-        }
-
-        private Segment segmentContainingMs(long ms) {
-            Segment chosen = segments.get(0);
-            for (Segment s : segments) {
-                if (s.msAtChange <= ms) chosen = s;
-                else break;
-            }
-            return chosen;
-        }
-
-        private Segment segmentContainingTick(long tick) {
-            Segment chosen = segments.get(0);
-            for (Segment s : segments) {
-                if (s.tickAtChange <= tick) chosen = s;
-                else break;
-            }
-            return chosen;
-        }
-
-        private long msToTicksInSegment(Segment s, long deltaMs) {
-            return Math.round((double) deltaMs * s.bpm * ppq / 60_000.0);
-        }
-
-        private long ticksToMsInSegment(Segment s, long deltaTicks) {
-            return Math.round((double) deltaTicks * 60_000.0 / (s.bpm * ppq));
-        }
-    }
+    // ─────────────────────────────────────────────────────────────────
+    //  Position arithmetic — see ticksFor() / durationOfTicks() above.
+    //  The old internal TempoMap (ms↔tick converter) is gone — under
+    //  the Duration-based model, MIDI ticks ARE musical positions
+    //  scaled by PPQ × 4, so no tempo math is needed for positions.
+    //  Wall-clock ms (when needed by a Sequencer / UI playhead) goes
+    //  through TimeMapper, which takes a Duration and a TempoTrack.
+    // ─────────────────────────────────────────────────────────────────
 }

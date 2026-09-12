@@ -63,16 +63,6 @@ public final class MidiMapper {
     public static final long GRACE_NOTE_TICK = TICKS_PER_QUARTER / 8;
 
     public static int toVelocity(Dynamic dynamic) {
-        return switch (dynamic) {
-            case PPP -> 20;
-            case PP -> 35;
-            case P -> 50;
-            case MP -> 65;
-            case MF -> 80;
-            case F -> 100;
-            case FF -> 115;
-            case FFF -> 127;
-            case CRESCENDO, DECRESCENDO -> -1; // marker, not a velocity
-        };
+        return (int) Math.round(dynamic.level() * 127);
     }
 }

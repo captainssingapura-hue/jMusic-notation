@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Landing 1g — robustness on malformed / non-canonical MusicXML inputs:
@@ -134,10 +135,11 @@ class MusicXmlParserEdgeCasesTest {
     }
 
     @Test
-    void graceNoteIsSkippedAndDoesNotAdvanceCursor() {
-        // A grace note before a regular C4 quarter — the grace should be
-        // dropped (count surfaced via SLF4J at end of part); the C4 lands
-        // at tick 0 with no ms shifted by the grace.
+    void graceNoteEmitsAsPreBeatAcciaccatura() {
+        // A grace D4 before a C4 quarter. Place a leading rest (16 divisions
+        // at the default 120 bpm = 500 ms quarter) so the grace has room
+        // to genuinely precede the main note's onset rather than being
+        // clamped to tick 0.
         String xml = wrap("""
                 <measure number="1">
                   <attributes>
@@ -147,21 +149,102 @@ class MusicXmlParserEdgeCasesTest {
                     <staves>1</staves>
                   </attributes>
                   <note>
+                    <rest/><duration>4</duration><voice>1</voice><staff>1</staff>
+                  </note>
+                  <note>
                     <grace/>
                     <pitch><step>D</step><octave>4</octave></pitch>
                     <voice>1</voice><staff>1</staff>
                   </note>
                   <note>
                     <pitch><step>C</step><octave>4</octave></pitch>
-                    <duration>16</duration><voice>1</voice><staff>1</staff>
+                    <duration>4</duration><voice>1</voice><staff>1</staff>
                   </note>
                 </measure>
                 """);
         var result = MusicXmlParser.parse(xml);
         Track t = result.performance().score().tracks().get(0);
-        assertEquals(1, t.notes().size(), "grace note should be skipped");
-        assertEquals(0L, ((PitchedNote) t.notes().get(0)).tickMs(),
-                "main note should still start at tick 0");
-        assertEquals(60, ((PitchedNote) t.notes().get(0)).midi());
+        assertEquals(2, t.notes().size(), "grace + main → two notes (rest is silent)");
+
+        // Look up by midi rather than by index — Track's canonical sort
+        // ((tickMs, midi)) can place a lower-pitched main before a
+        // higher-pitched grace if both share an onset; here they don't
+        // (the rest gives the grace room), but the assertion is more
+        // robust this way.
+        PitchedNote grace = t.notes().stream()
+                .map(n -> (PitchedNote) n).filter(n -> n.midi() == 62).findFirst().orElseThrow();
+        PitchedNote main  = t.notes().stream()
+                .map(n -> (PitchedNote) n).filter(n -> n.midi() == 60).findFirst().orElseThrow();
+
+        // Main note's onset is unaffected by the grace presence — the
+        // grace is squeezed into the lead-in window, not stolen from
+        // the main note's slot.
+        assertTrue(main.tickMs() > 0,
+                "main note onset must still reflect the leading rest");
+        assertTrue(grace.tickMs() < main.tickMs(),
+                "grace must precede the main onset when it has room");
+        assertTrue(grace.tickMs() + grace.durationMs() <= main.tickMs() + 1,
+                "grace must end at or before main onset (±1 ms rounding)");
+    }
+
+    @Test
+    void multipleGraceNotesStackBeforeMain() {
+        // Three graces (C5, D5, E5) before a main C4 at 1000 ms — each grace
+        // occupies one pre-beat slot (~70 ms), so they fan out backwards.
+        // Note the leading rest of 16 divisions (one quarter) to give the
+        // graces room — at the default 120 bpm, the quarter is 500 ms.
+        String xml = wrap("""
+                <measure number="1">
+                  <attributes>
+                    <divisions>4</divisions>
+                    <key><fifths>0</fifths><mode>major</mode></key>
+                    <time><beats>4</beats><beat-type>4</beat-type></time>
+                    <staves>1</staves>
+                  </attributes>
+                  <note>
+                    <rest/><duration>4</duration><voice>1</voice><staff>1</staff>
+                  </note>
+                  <note>
+                    <grace/>
+                    <pitch><step>C</step><octave>5</octave></pitch>
+                    <voice>1</voice><staff>1</staff>
+                  </note>
+                  <note>
+                    <grace/>
+                    <pitch><step>D</step><octave>5</octave></pitch>
+                    <voice>1</voice><staff>1</staff>
+                  </note>
+                  <note>
+                    <grace/>
+                    <pitch><step>E</step><octave>5</octave></pitch>
+                    <voice>1</voice><staff>1</staff>
+                  </note>
+                  <note>
+                    <pitch><step>C</step><octave>4</octave></pitch>
+                    <duration>4</duration><voice>1</voice><staff>1</staff>
+                  </note>
+                </measure>
+                """);
+        var result = MusicXmlParser.parse(xml);
+        Track t = result.performance().score().tracks().get(0);
+        // Just the three graces + the main; the rest is silence.
+        assertEquals(4, t.notes().size());
+
+        PitchedNote g1 = (PitchedNote) t.notes().get(0);
+        PitchedNote g2 = (PitchedNote) t.notes().get(1);
+        PitchedNote g3 = (PitchedNote) t.notes().get(2);
+        PitchedNote main = (PitchedNote) t.notes().get(3);
+
+        assertEquals(72, g1.midi(), "first grace should be C5 — order preserved");
+        assertEquals(74, g2.midi(), "second grace D5");
+        assertEquals(76, g3.midi(), "third grace E5");
+        assertEquals(60, main.midi(), "main note C4");
+
+        // Onsets are strictly increasing across the three graces.
+        assertTrue(g1.tickMs() < g2.tickMs());
+        assertTrue(g2.tickMs() < g3.tickMs());
+        // All three graces sit before the main note.
+        assertTrue(g3.tickMs() + g3.durationMs() <= main.tickMs() + 1,
+                "last grace must end at or before main onset (±1 ms rounding)");
     }
 }

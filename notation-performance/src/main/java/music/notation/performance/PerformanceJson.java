@@ -123,6 +123,47 @@ public final class PerformanceJson {
             }
         });
 
+        // Duration as VALUE: serialise as a compact rational string
+        // "num/den" (e.g. "1/4", "3/8", "1/12", "0/1"). Deserialise
+        // back to a RawDuration via Duration.of(num, den) — the
+        // variant identity (BaseValue / Dotted / Triplet …) is not
+        // preserved across the boundary; equalsDuration sees them as
+        // equal regardless and downstream code reads only the rational
+        // accessors. See note-position-redesign.html for the contract.
+        module.addSerializer(music.notation.duration.Duration.class,
+                new JsonSerializer<music.notation.duration.Duration>() {
+            @Override
+            public void serialize(music.notation.duration.Duration value,
+                                   JsonGenerator gen, SerializerProvider serializers)
+                    throws IOException {
+                gen.writeString(value.numerator() + "/" + value.denominator());
+            }
+        });
+        module.addDeserializer(music.notation.duration.Duration.class,
+                new StdScalarDeserializer<music.notation.duration.Duration>(
+                        music.notation.duration.Duration.class) {
+            @Override
+            public music.notation.duration.Duration deserialize(JsonParser p,
+                                                                  DeserializationContext ctxt)
+                    throws IOException {
+                String s = p.getValueAsString();
+                if (s == null) {
+                    throw new IOException("Duration string required, got null");
+                }
+                int slash = s.indexOf('/');
+                if (slash <= 0) {
+                    throw new IOException("Duration must be 'num/den': got '" + s + "'");
+                }
+                try {
+                    long num = Long.parseLong(s.substring(0, slash));
+                    long den = Long.parseLong(s.substring(slash + 1));
+                    return music.notation.duration.Duration.of(num, den);
+                } catch (NumberFormatException e) {
+                    throw new IOException("Invalid Duration '" + s + "': " + e.getMessage());
+                }
+            }
+        });
+
         m.registerModule(module);
         return m;
     }

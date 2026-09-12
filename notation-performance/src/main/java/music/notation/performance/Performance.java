@@ -10,21 +10,24 @@ import java.util.stream.Collectors;
 /**
  * The codec input/output: composer-authored {@link Score} (pure content) paired
  * with the side-channels (tempo, instruments, volume, articulations, pedaling,
- * velocities) supplied at performance time.
+ * velocities, hairpins, lyrics, time/key signatures) supplied at performance
+ * time.
  *
  * <p>Round-trip parity contract:
  * {@code MidiCodec.fromMidi(MidiCodec.toMidi(p)).equals(p)} holds for any
  * valid {@code p} whose {@link Articulations} is empty, whose
- * {@link Volume} is empty, whose {@link Velocities} is empty, and whose
- * {@link PitchedNote#tiedToNext()} flags are all false. (Articulations
- * are dropped; volume CC #7 events are written but dropped on read;
- * velocities are written but reconstructed densely on read — same
- * audible result, different shape; tied chains coalesce on write and
+ * {@link Volume} is empty, whose {@link Velocities} is empty, whose
+ * {@link Hairpins} is empty, and whose {@link PitchedNote#tiedToNext()}
+ * flags are all false. (Articulations are dropped; volume CC #7 events
+ * are written but dropped on read; velocities are written but
+ * reconstructed densely on read — same audible result, different
+ * shape; hairpins resolve to interpolated set-points on emit and
+ * aren't reconstructed on read; tied chains coalesce on write and
  * the tie flag itself isn't recoverable.)</p>
  *
  * <p>Backwards-compat constructors exist for callers from before
- * volume / pedaling / velocities were added. Each defaults the
- * not-yet-supplied channel to empty.</p>
+ * volume / pedaling / velocities / hairpins were added. Each defaults
+ * the not-yet-supplied channel to empty.</p>
  */
 public record Performance(
         Score score,
@@ -33,7 +36,11 @@ public record Performance(
         Volume volume,
         Articulations articulations,
         Pedaling pedaling,
-        Velocities velocities) {
+        Velocities velocities,
+        Hairpins hairpins,
+        Lyrics lyrics,
+        TimeSignatureTrack timeSignatures,
+        KeySignatureTrack keySignatures) {
     public Performance {
         Objects.requireNonNull(score, "score");
         Objects.requireNonNull(tempo, "tempo");
@@ -42,6 +49,10 @@ public record Performance(
         Objects.requireNonNull(articulations, "articulations");
         Objects.requireNonNull(pedaling, "pedaling");
         Objects.requireNonNull(velocities, "velocities");
+        Objects.requireNonNull(hairpins, "hairpins");
+        Objects.requireNonNull(lyrics, "lyrics");
+        Objects.requireNonNull(timeSignatures, "timeSignatures");
+        Objects.requireNonNull(keySignatures, "keySignatures");
 
         Set<TrackId> scoreIds = score.trackIds();
         validateKeys("instruments",   scoreIds, instruments.byTrack().keySet());
@@ -49,33 +60,72 @@ public record Performance(
         validateKeys("articulations", scoreIds, articulations.byTrack().keySet());
         validateKeys("pedaling",      scoreIds, pedaling.byTrack().keySet());
         validateKeys("velocities",    scoreIds, velocities.byTrack().keySet());
+        validateKeys("hairpins",      scoreIds, hairpins.byTrack().keySet());
+        validateKeys("lyrics",        scoreIds, lyrics.byTrack().keySet());
     }
 
-    /** Backwards-compat: defaults {@link Velocities} to empty. */
+    /** Backwards-compat: defaults {@link Hairpins} to empty. */
+    public Performance(Score score, TempoTrack tempo,
+                       Instrumentation instruments, Volume volume,
+                       Articulations articulations, Pedaling pedaling,
+                       Velocities velocities, Lyrics lyrics,
+                       TimeSignatureTrack timeSignatures, KeySignatureTrack keySignatures) {
+        this(score, tempo, instruments, volume, articulations, pedaling,
+                velocities, Hairpins.empty(), lyrics,
+                timeSignatures, keySignatures);
+    }
+
+    /** Backwards-compat: defaults {@link Hairpins}, {@link TimeSignatureTrack}, and {@link KeySignatureTrack} to empty. */
+    public Performance(Score score, TempoTrack tempo,
+                       Instrumentation instruments, Volume volume,
+                       Articulations articulations, Pedaling pedaling,
+                       Velocities velocities, Lyrics lyrics) {
+        this(score, tempo, instruments, volume, articulations, pedaling,
+                velocities, Hairpins.empty(), lyrics,
+                TimeSignatureTrack.empty(), KeySignatureTrack.empty());
+    }
+
+    /** Backwards-compat: defaults {@link Hairpins}, {@link Lyrics}, {@link TimeSignatureTrack}, and {@link KeySignatureTrack} to empty. */
+    public Performance(Score score, TempoTrack tempo,
+                       Instrumentation instruments, Volume volume,
+                       Articulations articulations, Pedaling pedaling,
+                       Velocities velocities) {
+        this(score, tempo, instruments, volume, articulations, pedaling,
+                velocities, Hairpins.empty(), Lyrics.empty(),
+                TimeSignatureTrack.empty(), KeySignatureTrack.empty());
+    }
+
+    /** Backwards-compat: defaults Velocities, Hairpins, Lyrics, TimeSignatureTrack, KeySignatureTrack to empty. */
     public Performance(Score score, TempoTrack tempo,
                        Instrumentation instruments, Volume volume,
                        Articulations articulations, Pedaling pedaling) {
-        this(score, tempo, instruments, volume, articulations, pedaling, Velocities.empty());
+        this(score, tempo, instruments, volume, articulations, pedaling,
+                Velocities.empty(), Hairpins.empty(), Lyrics.empty(),
+                TimeSignatureTrack.empty(), KeySignatureTrack.empty());
     }
 
-    /** Backwards-compat: defaults {@link Pedaling} and {@link Velocities} to empty. */
+    /** Backwards-compat: defaults Pedaling, Velocities, Hairpins, Lyrics, TimeSignatureTrack, KeySignatureTrack to empty. */
     public Performance(Score score, TempoTrack tempo,
                        Instrumentation instruments, Volume volume,
                        Articulations articulations) {
         this(score, tempo, instruments, volume, articulations,
-                Pedaling.empty(), Velocities.empty());
+                Pedaling.empty(), Velocities.empty(), Hairpins.empty(),
+                Lyrics.empty(),
+                TimeSignatureTrack.empty(), KeySignatureTrack.empty());
     }
 
     /**
-     * Backwards-compat constructor: defaults {@link Volume},
-     * {@link Pedaling}, and {@link Velocities} to empty. Existing
-     * callers (PieceConcretizer, tests, JSON deserialization for older
-     * payloads) keep working unchanged.
+     * Backwards-compat constructor: defaults Volume, Pedaling, Velocities,
+     * Hairpins, Lyrics, TimeSignatureTrack, KeySignatureTrack to empty.
+     * Existing callers (PieceConcretizer, tests, JSON deserialization for
+     * older payloads) keep working unchanged.
      */
     public Performance(Score score, TempoTrack tempo,
                        Instrumentation instruments, Articulations articulations) {
         this(score, tempo, instruments, Volume.empty(), articulations,
-                Pedaling.empty(), Velocities.empty());
+                Pedaling.empty(), Velocities.empty(), Hairpins.empty(),
+                Lyrics.empty(),
+                TimeSignatureTrack.empty(), KeySignatureTrack.empty());
     }
 
     private static void validateKeys(String label, Set<TrackId> scoreIds,
@@ -94,7 +144,9 @@ public record Performance(
     public static Performance of(Score score) {
         return new Performance(score, TempoTrack.empty(),
                 Instrumentation.empty(), Volume.empty(), Articulations.empty(),
-                Pedaling.empty(), Velocities.empty());
+                Pedaling.empty(), Velocities.empty(), Hairpins.empty(),
+                Lyrics.empty(),
+                TimeSignatureTrack.empty(), KeySignatureTrack.empty());
     }
 
     /**
@@ -106,7 +158,35 @@ public record Performance(
     public Performance withPedaling(Pedaling newPedaling) {
         Objects.requireNonNull(newPedaling, "newPedaling");
         return new Performance(score, tempo, instruments, volume,
-                articulations, newPedaling, velocities);
+                articulations, newPedaling, velocities, hairpins, lyrics,
+                timeSignatures, keySignatures);
+    }
+
+    /**
+     * Functional copy with a different {@link Lyrics}. Used by the
+     * lyrics editor and by the {@code LyricsNormalizer → side-channel}
+     * pipeline. All other fields are reused by reference.
+     */
+    public Performance withLyrics(Lyrics newLyrics) {
+        Objects.requireNonNull(newLyrics, "newLyrics");
+        return new Performance(score, tempo, instruments, volume,
+                articulations, pedaling, velocities, hairpins, newLyrics,
+                timeSignatures, keySignatures);
+    }
+
+    /**
+     * Functional copy with different {@link TimeSignatureTrack} /
+     * {@link KeySignatureTrack}. The MXL importer uses this to fold in
+     * mid-piece time and key changes after the rest of the Performance
+     * has been built.
+     */
+    public Performance withSignatures(TimeSignatureTrack newTimeSigs,
+                                       KeySignatureTrack newKeySigs) {
+        Objects.requireNonNull(newTimeSigs, "newTimeSigs");
+        Objects.requireNonNull(newKeySigs, "newKeySigs");
+        return new Performance(score, tempo, instruments, volume,
+                articulations, pedaling, velocities, hairpins, lyrics,
+                newTimeSigs, newKeySigs);
     }
 
     /**
@@ -120,6 +200,19 @@ public record Performance(
     public Performance withScore(Score newScore) {
         Objects.requireNonNull(newScore, "newScore");
         return new Performance(newScore, tempo, instruments, volume,
-                articulations, pedaling, velocities);
+                articulations, pedaling, velocities, hairpins, lyrics,
+                timeSignatures, keySignatures);
+    }
+
+    /**
+     * Functional copy with a different {@link Hairpins}. Used by
+     * pipelines that derive hairpin spans (e.g., a future swell
+     * detector or a hairpin-import path).
+     */
+    public Performance withHairpins(Hairpins newHairpins) {
+        Objects.requireNonNull(newHairpins, "newHairpins");
+        return new Performance(score, tempo, instruments, volume,
+                articulations, pedaling, velocities, newHairpins, lyrics,
+                timeSignatures, keySignatures);
     }
 }

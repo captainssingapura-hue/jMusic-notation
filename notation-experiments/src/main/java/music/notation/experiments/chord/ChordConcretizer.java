@@ -61,8 +61,9 @@ public record ChordConcretizer<N extends ScaleNote>(ScalePitchResolver<N> resolv
 
     private static List<ConcreteNote> block(int[] midis, int durationMs) {
         var notes = new ArrayList<ConcreteNote>(midis.length);
+        music.notation.duration.Duration dur = msToDuration(durationMs);
         for (int midi : midis) {
-            notes.add(new PitchedNote(0L, durationMs, midi));
+            notes.add(new PitchedNote(music.notation.duration.Duration.zero(), dur, midi));
         }
         return notes;
     }
@@ -75,10 +76,20 @@ public record ChordConcretizer<N extends ScaleNote>(ScalePitchResolver<N> resolv
         var notes = new ArrayList<ConcreteNote>(n);
         for (int i = 0; i < n; i++) {
             int srcIdx = reverse ? (n - 1 - i) : i;
-            long on = (long) i * slot;
-            int  dur = (i == n - 1) ? slot + remainder : slot;
-            notes.add(new PitchedNote(on, dur, midis[srcIdx]));
+            long onMs = (long) i * slot;
+            int  durMs = (i == n - 1) ? slot + remainder : slot;
+            notes.add(new PitchedNote(msToDuration(onMs), msToDuration(durMs), midis[srcIdx]));
         }
         return notes;
+    }
+
+    /**
+     * Default 120-bpm projection: ms × 1/2000 of a whole note. The
+     * chord-progression experiments are ms-native by design (chord
+     * durations are user-supplied in ms); this is the boundary where
+     * those ms values enter the Duration-anchored Performance model.
+     */
+    private static music.notation.duration.Duration msToDuration(long ms) {
+        return music.notation.duration.Duration.of(ms, 2000);
     }
 }

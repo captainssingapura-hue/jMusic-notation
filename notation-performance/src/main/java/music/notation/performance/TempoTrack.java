@@ -1,20 +1,24 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Piece-wide sparse tempo timeline. Empty means playback uses a runtime default of
- * 120 bpm and the codec writes no tempo meta event. Consecutive same-bpm entries are
- * deduped to keep representation canonical.
+ * Piece-wide sparse tempo timeline, anchored at musical positions.
+ * Empty means playback uses a runtime default of 120 bpm and the codec
+ * writes no tempo meta event. Consecutive same-bpm entries are deduped
+ * to keep representation canonical.
  */
 public record TempoTrack(List<TempoChange> changes) {
     public TempoTrack {
         Objects.requireNonNull(changes, "changes");
         List<TempoChange> sorted = new ArrayList<>(changes);
-        sorted.sort(Comparator.comparingLong(TempoChange::tickMs));
+        sorted.sort(Comparator.comparing(TempoChange::at,
+                (a, b) -> a.compareDuration(b)));
         List<TempoChange> deduped = new ArrayList<>(sorted.size());
         int last = Integer.MIN_VALUE;
         for (TempoChange c : sorted) {
@@ -29,6 +33,6 @@ public record TempoTrack(List<TempoChange> changes) {
     public static TempoTrack empty() { return new TempoTrack(List.of()); }
 
     public static TempoTrack constant(int bpm) {
-        return new TempoTrack(List.of(new TempoChange(0, bpm)));
+        return new TempoTrack(List.of(new TempoChange(Duration.zero(), bpm)));
     }
 }

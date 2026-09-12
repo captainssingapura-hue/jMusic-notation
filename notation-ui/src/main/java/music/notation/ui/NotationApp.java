@@ -948,9 +948,11 @@ public class NotationApp extends Application {
             var regions = new java.util.ArrayList<PitchScroll.PedalTintRegion>();
             int regionIndex = 0;
             long downAt = -1;
+            final long ticksPerWhole = (long) ppq * 4L;
             for (var change : entry.getValue().changes()) {
-                long tick = music.notation.performance.TempoConversion
-                        .msToTicks(tt, change.tickMs(), ppq);
+                // Direct musical-position → tick (tempo-independent).
+                long tick = Math.multiplyExact(change.at().numerator(), ticksPerWhole)
+                          / change.at().denominator();
                 switch (change.state()) {
                     case DOWN -> downAt = tick;
                     case UP -> {
@@ -1532,6 +1534,14 @@ public class NotationApp extends Application {
         boolean isAudio = settings.isAudio();
         boolean keepAuthentic = settings.keepAuthentic();
 
+        // Enhanced JSON folder export bypasses the per-track / file-picker
+        // flow entirely — it always captures the whole piece + all
+        // auto-augmentations to a sidecar-rich folder.
+        if (settings.isJson()) {
+            exportEnhancedJson(stage, safeName);
+            return;
+        }
+
         // Determine the piece whose tracks will be presented and ultimately
         // exported. Authentic MIDI exports use the source piece (no
         // auto-drum); WAV and as-heard MIDI use the augmented piece (with
@@ -1622,8 +1632,150 @@ public class NotationApp extends Application {
         }
     }
 
+    /**
+     * Export the currently-loaded piece as an "Enhanced JSON folder" — the
+     * standard {@link music.notation.mxl.MxlSplitJsonWriter} split-folder
+     * layout, but with every active auto-augmentation folded into the
+     * exported {@link music.notation.performance.Performance} so the
+     * sidecars (pedaling.json, velocity.json, instruments.json …) capture
+     * exactly what the user is hearing.
+     *
+     * <p>Captures, in this order:</p>
+     * <ol>
+     *   <li>The auto-drum-augmented {@link #currentPiece} (auto-drum is
+     *       already baked in at {@link #setSavedAndCurrent} time).</li>
+     *   <li>{@link #effectivePedaling()} — source / auto / off resolved
+     *       per-track, exactly as the player consumes it.</li>
+     *   <li>The player's current velocities side-channel
+     *       ({@link MidiPlayer#getVelocities()}) — auto-velocity output,
+     *       drum-strategy dynamics, or imported MXL dynamics.</li>
+     * </ol>
+     *
+     * <p>The user's playback {@link #currentTransposition} is intentionally
+     * NOT applied — JSON is the re-import / archive format and should
+     * carry the original pitches. Transposition is a playback-only knob.</p>
+     */
+    private void exportEnhancedJson(Stage stage, String safeName) {
+        if (currentPiece == null) return;
+
+        var folderChooser = new javafx.stage.DirectoryChooser();
+        folderChooser.setTitle("Choose parent folder for " + safeName);
+        File parentDir = folderChooser.showDialog(stage);
+        if (parentDir == null) return;
+
+        try {
+            // Base = current piece (already augmented with auto-drum) →
+            // concretized Performance with full side-channels.
+            music.notation.performance.Performance base =
+                    music.notation.play.PieceConcretizer.concretize(currentPiece);
+
+            // Fold in the effective pedaling (broadcast to every PITCHED
+            // track so a re-importer doesn't need to know our per-track
+            // mode resolution).
+            music.notation.expressivity.Pedaling pedaling = effectivePedaling();
+            if (!pedaling.byTrack().isEmpty()) {
+                pedaling = broadcastPedalingToPitchedTracks(pedaling, base);
+                base = base.withPedaling(pedaling);
+            }
+
+            // Fold in current velocities (auto-velocity + drum strategy
+            // already merged on the player). Drop keys for tracks that
+            // aren't in the base score so the Performance constructor
+            // doesn't reject the result.
+            music.notation.expressivity.Velocities velocities =
+                    player.getVelocities();
+            if (velocities != null && !velocities.byTrack().isEmpty()) {
+                var validIds = base.score().trackIds();
+                var filtered = new java.util.LinkedHashMap<
+                        music.notation.expressivity.TrackId,
+                        music.notation.expressivity.VelocityControl>();
+                for (var e : velocities.byTrack().entrySet()) {
+                    if (validIds.contains(e.getKey())) filtered.put(e.getKey(), e.getValue());
+                }
+                if (!filtered.isEmpty()) {
+                    base = new music.notation.performance.Performance(
+                            base.score(), base.tempo(), base.instruments(),
+                            base.volume(), base.articulations(), base.pedaling(),
+                            new music.notation.expressivity.Velocities(filtered));
+                }
+            }
+
+            // Wrap in an MxlImport so we can reuse MxlSplitJsonWriter. For
+            // DSL / non-MXL pieces sourceXml is empty — the reader tolerates
+            // its absence. Only an actual MxlImport carries sourceXml /
+            // repeatStructure / transpositions; other MusicalImport sources
+            // get the empty defaults.
+            var ts  = currentTimeSig();
+            music.notation.mxl.MxlImport mxlSource =
+                    (currentImport instanceof music.notation.mxl.MxlImport mi) ? mi : null;
+            var key = (mxlSource != null) ? mxlSource.key() : currentPiece.key();
+            var imp = new music.notation.mxl.MxlImport(
+                    safeName, base, ts, key,
+                    (mxlSource != null) ? mxlSource.sourceXml() : "",
+                    (mxlSource != null) ? mxlSource.repeatStructure()
+                                        : music.notation.mxl.RepeatStructure.empty(),
+                    (mxlSource != null) ? mxlSource.transpositions()
+                                        : music.notation.mxl.Transpositions.empty());
+
+            java.nio.file.Path pieceDir = parentDir.toPath().resolve(safeName);
+            var written = music.notation.mxl.MxlSplitJsonWriter.write(imp, pieceDir);
+            controls.setStatus("Exported Enhanced JSON: " + pieceDir.getFileName()
+                    + " (" + written.size() + " files)");
+        } catch (Exception ex) {
+            controls.setStatus("JSON export failed: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
+    /**
+     * Broadcast a {@link music.notation.expressivity.Pedaling} (which may
+     * be keyed by an arbitrary subset of tracks, or use track ids that
+     * don't appear in {@code base.score()}) to every PITCHED track in
+     * {@code base}. Matches the {@code applyPedalingOverrides} semantics
+     * in {@code MidiPlayer} so the JSON sidecar captures the same shape
+     * the codec sees at play time.
+     */
+    private static music.notation.expressivity.Pedaling broadcastPedalingToPitchedTracks(
+            music.notation.expressivity.Pedaling source,
+            music.notation.performance.Performance base) {
+        // Union all unique (at, state) pairs across the input.
+        // Dedup key combines the rational position + state ordinal.
+        record DedupKey(long num, long den, int stateOrd) {}
+        java.util.Set<DedupKey> seen = new java.util.LinkedHashSet<>();
+        java.util.List<music.notation.expressivity.PedalChange> unioned = new ArrayList<>();
+        for (var pc : source.byTrack().values()) {
+            for (var ch : pc.changes()) {
+                DedupKey key = new DedupKey(
+                        ch.at().numerator(), ch.at().denominator(),
+                        ch.state().ordinal());
+                if (seen.add(key)) unioned.add(ch);
+            }
+        }
+        unioned.sort(java.util.Comparator.comparing(
+                music.notation.expressivity.PedalChange::at,
+                (a, b) -> a.compareDuration(b)));
+        var broadcast = new music.notation.expressivity.PedalControl(unioned);
+        var map = new LinkedHashMap<
+                music.notation.expressivity.TrackId,
+                music.notation.expressivity.PedalControl>();
+        for (var t : base.score().tracks()) {
+            if (t.kind() == music.notation.performance.TrackKind.PITCHED) {
+                map.put(t.id(), broadcast);
+            }
+        }
+        return map.isEmpty()
+                ? music.notation.expressivity.Pedaling.empty()
+                : new music.notation.expressivity.Pedaling(map);
+    }
+
+    /** Export output format. */
+    private enum ExportFormat { MIDI, WAV, ENHANCED_JSON }
+
     /** Result of {@link #showExportSettingsDialog}; null if the user cancels. */
-    private record ExportSettings(boolean isAudio, boolean keepAuthentic) {}
+    private record ExportSettings(ExportFormat format, boolean keepAuthentic) {
+        boolean isAudio() { return format == ExportFormat.WAV; }
+        boolean isJson()  { return format == ExportFormat.ENHANCED_JSON; }
+    }
 
     /**
      * Show our own export-settings confirmation dialog. The user picks
@@ -1655,6 +1807,8 @@ public class NotationApp extends Application {
         midiRadio.setSelected(true);
         RadioButton wavRadio  = new RadioButton("WAV audio (.wav)");
         wavRadio.setToggleGroup(formatGroup);
+        RadioButton jsonRadio = new RadioButton("Enhanced JSON folder");
+        jsonRadio.setToggleGroup(formatGroup);
 
         Label midiHint = new Label("Symbolic notes for DAW import or sharing");
         midiHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
@@ -1662,6 +1816,12 @@ public class NotationApp extends Application {
         Label wavHint = new Label("Rendered audio at 44.1 kHz / 16-bit / stereo");
         wavHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
         wavHint.setPadding(new Insets(0, 0, 0, 24));
+        Label jsonHint = new Label(
+                "Split-folder JSON re-import format — captures the piece PLUS\n"
+              + "current auto-enhancements (auto-drum, auto-pedaling, auto-velocity)\n"
+              + "as sidecar files so a future import replays exactly what you hear.");
+        jsonHint.setStyle("-fx-text-fill: #888; -fx-font-size: 11;");
+        jsonHint.setPadding(new Insets(0, 0, 0, 24));
 
         // ── Keep-authentic toggle
         CheckBox keepAuthBox = new CheckBox("Authentic (source as authored)");
@@ -1673,9 +1833,11 @@ public class NotationApp extends Application {
 
         // WAV is intrinsically "as heard" — disable keep-authentic when WAV
         // is selected; the toggle resets to off so the export-time read is
-        // safe regardless.
-        wavRadio.selectedProperty().addListener((obs, was, now) -> {
-            if (now) {
+        // safe regardless. Enhanced JSON is intrinsically "as heard"
+        // (captures the auto-augmentations the user is hearing) — same
+        // treatment: keep-authentic is irrelevant and disabled.
+        java.util.function.Consumer<Boolean> updateAuthGate = asHeard -> {
+            if (asHeard) {
                 keepAuthBox.setSelected(false);
                 keepAuthBox.setDisable(true);
                 authHint.setDisable(true);
@@ -1683,7 +1845,9 @@ public class NotationApp extends Application {
                 keepAuthBox.setDisable(false);
                 authHint.setDisable(false);
             }
-        });
+        };
+        wavRadio .selectedProperty().addListener((obs, was, now) -> updateAuthGate.accept(now || jsonRadio.isSelected()));
+        jsonRadio.selectedProperty().addListener((obs, was, now) -> updateAuthGate.accept(now || wavRadio .isSelected()));
 
         // ── Layout
         VBox content = new VBox(8,
@@ -1692,6 +1856,8 @@ public class NotationApp extends Application {
                 midiHint,
                 wavRadio,
                 wavHint,
+                jsonRadio,
+                jsonHint,
                 new Separator(),
                 new Label("Options"),
                 keepAuthBox,
@@ -1706,7 +1872,10 @@ public class NotationApp extends Application {
 
         dialog.setResultConverter(button -> {
             if (button != continueButton) return null;
-            return new ExportSettings(wavRadio.isSelected(), keepAuthBox.isSelected());
+            ExportFormat fmt = wavRadio.isSelected()  ? ExportFormat.WAV
+                             : jsonRadio.isSelected() ? ExportFormat.ENHANCED_JSON
+                                                      : ExportFormat.MIDI;
+            return new ExportSettings(fmt, keepAuthBox.isSelected());
         });
         return dialog.showAndWait().orElse(null);
     }
