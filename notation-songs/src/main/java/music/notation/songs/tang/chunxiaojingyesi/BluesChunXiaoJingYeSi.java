@@ -215,13 +215,141 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     // ════════════════════════════════════════════════════════════════
-    //  Voice — placeholder, one silent phrase per section (phase 2)
+    //  Voice — the two poems. Two bars per line, 2+3 syllable split
+    //  across the bar pair. Prosody drives the rhythm: 入聲 (不 覺 落
+    //  月) are short and off the beat; 春晓's 上聲 rhymes (曉 鳥 少) are
+    //  short and scooped from below with a grace note; 静夜思's 平聲
+    //  rhymes (光 霜 鄉) sustain on the fifth, and 鄉 hangs on B over
+    //  Em — never the tonic. Lyric attachment is a later infra step;
+    //  syllables are noted inline.
     // ════════════════════════════════════════════════════════════════
 
     private List<AuthorPhrase> voicePhrases() {
-        var out = new ArrayList<AuthorPhrase>();
-        for (Sec s : Sec.values()) out.add(silent(s.bars));
-        return out;
+        return List.of(
+                silent(Sec.INTRO.bars),
+                chunxiao(Third.MAJOR),                 // §2  春晓 I — morning intact
+                silent(Sec.GUITAR_SOLO.bars),
+                chunxiao(Third.MINOR),                 // §4  春晓 II — the door: F♮ under 夜來風雨聲
+                jingyesi(Lift.NONE),                   // §5  静夜思 I
+                jingyesi(Lift.MOON),                   // §6  静夜思 II — 舉頭 to G5
+                silent(Sec.RHODES_SOLO.bars),
+                jingyesiStripped(),                    // §8  静夜思 III — head stays down
+                chunxiao(Third.MAJOR),                 // §9  春晓 III — lines 1–3, then stop-time
+                coda());                               // §10 花落知多少
+    }
+
+    /** Which third the door line takes — the one note that changes between §2/§9 and §4. */
+    private enum Third { MAJOR, MINOR }
+
+    /** Whether 舉頭 lifts to the moon (§6, over C) or stays level (§5, over Dm). */
+    private enum Lift { NONE, MOON }
+
+    /**
+     * 春晓 lines 1–3 over bars 1–6 of form A / A′; bars 7–8 are the
+     * guitar's to answer. Line 4 is withheld until the coda.
+     * <pre>
+     *  1 (A)   春 眠 ·           E4 ♩ · C♯4 𝅗𝅥 · rest
+     *  2 (A)   不 覺 曉          off-beat E4 F♯4 ♪ · grace G♯4 → A4 ♩ · rest   (曉 scooped, short)
+     *  3 (A7)  處 處 ·           E4 ♩ · G♮4 ♩ · rest 𝅗𝅥
+     *  4 (A7)  聞 啼 鳥          A4 ♩ · B4 ♩ · grace B4 → C♮5 ♩ · rest      (鳥 on the ♭3)
+     *  5 (D/Dm) 夜 來 ·          D4 ♩ · F♯4 / F♮4 𝅗𝅥 · rest                    (the door)
+     *  6 (D/Dm) 風 雨 聲         E4 ♩ · D4 ♪ rest ♪ · A4 𝅗𝅥
+     *  7–8     —                rest (guitar answers)
+     * </pre>
+     */
+    private MelodicPhrase chunxiao(Third third) {
+        Note comeHome = third == Third.MAJOR ? F : F.n();     // 來 — the one note the door turns
+        return b()
+                .bar().o4(QUARTER, E).o4(HALF, C).r(QUARTER).done()                        // 春 眠
+                .bar().r(EIGHTH).o4(EIGHTH, E).r(EIGHTH).o4(EIGHTH, F)                      // 不 覺
+                      .grace(G, 4).main(QUARTER, 4, A).r(QUARTER).done()                    // 曉
+                .bar().o4(QUARTER, E).o4(QUARTER, G.n()).r(HALF).done()                     // 處 處
+                .bar().o4(QUARTER, A).o4(QUARTER, B)                                        // 聞 啼
+                      .grace(B, 4).main(QUARTER, 5, C.n()).r(QUARTER).done()                // 鳥
+                .bar().o4(QUARTER, D).o4(HALF, comeHome).r(QUARTER).done()                  // 夜 來
+                .bar().o4(QUARTER, E).o4(EIGHTH, D).r(EIGHTH).o4(HALF, A).done()            // 風 雨 聲
+                .bar().r(WHOLE).done()
+                .bar().r(WHOLE).done()
+                .build(attacca());
+    }
+
+    /**
+     * 静夜思, all four lines over form B / B′. Lines 1–2 sit low
+     * (A3–E4); line 3 lifts the octave — literally, as the head comes
+     * up. In §6 the lift goes one step further, to G5 over Cmaj7.
+     * <pre>
+     *  1 (Am)    床 前 ·          A3 ♩ · B3 𝅗𝅥.
+     *  2 (Am)    明 月 光         C4 ♩ · D4 ♪ rest ♪ · E4 𝅗𝅥                (光 sustained on 5)
+     *  3 (Am7)   疑 是 ·          E4 ♩ · G4 ♪ rest ♪ · rest 𝅗𝅥
+     *  4 (Am7)   地 上 霜         rest ♪ A4 ♪ G4 ♪ rest ♪ · E4 𝅗𝅥         (霜 sustained on 5)
+     *  5 (Dm/C)  舉 頭 ·          A4 ♩ · D5 𝅗𝅥.   /  A4 ♩ · E5 𝅗𝅥.          (the lift)
+     *  6 (Dm/Cmaj7) 望 明 月      E5 ♩ D5 ♩ C5 ♪ rest ♪ rest ♩  /  G5 ♩ E5 ♩ D5 ♪ rest ♪ rest ♩   (breath on 月)
+     *  7 (Fmaj7) 低 頭 ·          C5 ♩ · A4 𝅗𝅥.                            (the head goes down)
+     *  8 (Em)    思 故 鄉         G4 ♩ · A4 ♪ rest ♪ · B4 𝅗𝅥                (鄉 hangs on B)
+     * </pre>
+     */
+    private MelodicPhrase jingyesi(Lift lift) {
+        var bb = b();
+        line1(bb); line2(bb);
+        if (lift == Lift.MOON) {
+            bb.bar().o4(QUARTER, A).o5(HALF.dot(), E).done()                                  // 舉 頭 → E5
+              .bar().o5(QUARTER, G.n()).o5(QUARTER, E).o5(EIGHTH, D).r(EIGHTH).r(QUARTER).done(); // 望 明 月
+        } else {
+            bb.bar().o4(QUARTER, A).o5(HALF.dot(), D).done()                                  // 舉 頭
+              .bar().o5(QUARTER, E).o5(QUARTER, D).o5(EIGHTH, C.n()).r(EIGHTH).r(QUARTER).done(); // 望 明 月
+        }
+        line4(bb);
+        return bb.build(attacca());
+    }
+
+    /**
+     * §8, stripped: the head never lifts again. Lines 1–2 as before,
+     * then 低頭思故鄉 twice — over Dm/Dm and again over Fmaj7/Em — in
+     * place of 舉頭望明月. Solo voice; bass and drums are out.
+     */
+    private MelodicPhrase jingyesiStripped() {
+        var bb = b();
+        line1(bb); line2(bb);
+        line4(bb);          // over Dm Dm — 鄉 on B is the 6th, hanging
+        line4(bb);          // over Fmaj7 Em — 鄉 on B, the fifth of Em
+        return bb.build(attacca());
+    }
+
+    private static void line1(StaffPhraseBuilderTyped bb) {
+        bb.bar().o3(QUARTER, A).o3(HALF.dot(), B).done()                                      // 床 前
+          .bar().o4(QUARTER, C.n()).o4(EIGHTH, D).r(EIGHTH).o4(HALF, E).done();               // 明 月 光
+    }
+
+    private static void line2(StaffPhraseBuilderTyped bb) {
+        bb.bar().o4(QUARTER, E).o4(EIGHTH, G.n()).r(EIGHTH).r(HALF).done()                    // 疑 是
+          .bar().r(EIGHTH).o4(EIGHTH, A).o4(EIGHTH, G.n()).r(EIGHTH).o4(HALF, E).done();      // 地 上 霜
+    }
+
+    private static void line4(StaffPhraseBuilderTyped bb) {
+        bb.bar().o5(QUARTER, C.n()).o4(HALF.dot(), A).done()                                  // 低 頭
+          .bar().o4(QUARTER, G.n()).o4(EIGHTH, A).r(EIGHTH).o4(HALF, B).done();               // 思 故 鄉
+    }
+
+    /**
+     * Coda: 花落知多少 at last, one phrase across A · Dm · Fmaj7 · Em,
+     * then four bars of E7sus4 with the voice silent. 少 is scooped
+     * from G♮ to A over Em — the fourth, not a resolution.
+     * <pre>
+     *  1 (A)     花 ·        C♯5 𝅗𝅥 · rest
+     *  2 (Dm)    落 知       rest ♪ A4 ♪ · F♮4 ♩ · rest 𝅗𝅥     (落 入聲, off-beat)
+     *  3 (Fmaj7) 多          E4 𝅗𝅥 · rest
+     *  4 (Em)    少          grace G♮4 → A4 ♩ · rest 𝅗𝅥.
+     *  5–8       —           rest
+     * </pre>
+     */
+    private MelodicPhrase coda() {
+        var bb = b()
+                .bar().o5(HALF, C).r(HALF).done()                                             // 花
+                .bar().r(EIGHTH).o4(EIGHTH, A).o4(QUARTER, F.n()).r(HALF).done()              // 落 知
+                .bar().o4(HALF, E).r(HALF).done()                                             // 多
+                .bar().grace(G.n(), 4).main(QUARTER, 4, A).r(HALF.dot()).done();              // 少
+        for (int i = 0; i < 4; i++) bb.bar().r(WHOLE).done();
+        return bb.build(attacca());
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -360,8 +488,9 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
             var bar_ = bb.bar();
             switch (s) {
                 case INTRO, CHUNXIAO_1, CHUNXIAO_2 -> riff(bar_, ch);
-                case GUITAR_SOLO -> pick(bar_, ch);          // lively under the solo
-                case JINGYESI_1, JINGYESI_2, RHODES_SOLO, JINGYESI_3 -> rest(bar_);
+                case GUITAR_SOLO -> rest(bar_);              // soloing — Rhodes takes the harmony
+                case RHODES_SOLO -> pick(bar_, ch);          // Rhodes soloing — guitar takes the harmony
+                case JINGYESI_1, JINGYESI_2, JINGYESI_3 -> rest(bar_);
                 case CHUNXIAO_3 -> {
                     if (cb == 7) stopTime(bar_, ch);    // bar 80: hit and stop
                     else         riff(bar_, ch);
@@ -455,7 +584,8 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
             var bar_ = bb.bar();
             switch (s) {
                 case JINGYESI_1, JINGYESI_2 -> nightRiff(bar_, chordAt(bar));
-                case RHODES_SOLO -> roll(bar_, chordAt(bar));   // left hand keeps moving under the solo
+                case GUITAR_SOLO -> roll(bar_, chordAt(bar));   // guitar soloing — Rhodes takes the harmony
+                case RHODES_SOLO -> rest(bar_);                 // soloing — guitar takes the harmony
                 case JINGYESI_3, CODA -> held(bar_, chordAt(bar));   // stripped / held
                 default -> rest(bar_);
             }
