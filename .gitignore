@@ -2,4 +2,4 @@
 target/
 /.idea/
 /.claude/
-/.docs/
+/.docs//notation-launcher/dependency-reduced-pom.xml

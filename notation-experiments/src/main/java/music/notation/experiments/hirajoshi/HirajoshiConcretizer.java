@@ -41,6 +41,6 @@ public record HirajoshiConcretizer(int tonicPitchClass)
 
     @Override
     public PitchedNote concretize(TimedNote<HirajoshiNote> tn) {
-        return new PitchedNote(0, tn.durationMillis(), midi(tn.note()));
+        return new PitchedNote(music.notation.duration.Duration.zero(), music.notation.duration.Duration.of(tn.durationMillis(), 2000), midi(tn.note()));
     }
 }

@@ -152,73 +152,26 @@ record PitchScrollData(
 
     /**
      * Build visualisation data from an imported MIDI {@link music.notation.performance.MidiImport}.
-     * Notes are projected ms → musical-quarters → display-ticks via the
-     * imported {@link music.notation.performance.TempoTrack}, so tempo
-     * changes are honoured: bars line up with the actual downbeats no
-     * matter how many tempo events the source MIDI carries.
+     * Notes are projected directly from their musical
+     * {@link music.notation.duration.Duration} position to display
+     * ticks (PPQ × 4 = ticks per whole note). Tempo plays no role in
+     * the layout — bars always line up because positions are
+     * intrinsically musical, not wall-clock.
      */
     static PitchScrollData fromImport(music.notation.performance.MidiImport imp) {
         var rects = new ArrayList<NoteRect>();
         var names = new ArrayList<String>();
 
-        // Build cumulative-quarters segments from the imported tempo timeline.
-        // Each segment records (msAtStart, quartersAtStart, bpm); converting a
-        // ms reading walks linearly inside its segment.
-        var tempoChanges = imp.performance().tempo().changes();
-        var segments = new ArrayList<double[]>();
-        if (tempoChanges.isEmpty()) {
-            segments.add(new double[] { 0.0, 0.0, 120.0 });
-        } else {
-            double cumQuarters = 0;
-            double prevMs = 0;
-            int prevBpm = tempoChanges.get(0).bpm();
-            for (int i = 0; i < tempoChanges.size(); i++) {
-                var tc = tempoChanges.get(i);
-                if (i > 0) {
-                    double segMs = tc.tickMs() - prevMs;
-                    cumQuarters += segMs * prevBpm / 60_000.0;
-                }
-                segments.add(new double[] { tc.tickMs(), cumQuarters, tc.bpm() });
-                prevMs = tc.tickMs();
-                prevBpm = tc.bpm();
-            }
-            // If the timeline doesn't start at 0, prepend a 120 bpm segment so
-            // pre-first-event content still projects sensibly.
-            if (segments.get(0)[0] > 0) {
-                segments.add(0, new double[] { 0.0, 0.0, 120.0 });
-                // Re-stitch quarters offsets after the prepend.
-                double cum = 0;
-                double prev = 0;
-                int pBpm = 120;
-                for (int i = 0; i < segments.size(); i++) {
-                    var s = segments.get(i);
-                    if (i > 0) cum += (s[0] - prev) * pBpm / 60_000.0;
-                    segments.set(i, new double[] { s[0], cum, s[2] });
-                    prev = s[0];
-                    pBpm = (int) s[2];
-                }
-            }
-        }
-        var segs = segments;  // effectively-final reference for the lambda
-
-        java.util.function.DoubleUnaryOperator msToQuarters = ms -> {
-            double[] seg = segs.get(0);
-            for (var s : segs) {
-                if (s[0] <= ms) seg = s;
-                else break;
-            }
-            double extra = (ms - seg[0]) * seg[2] / 60_000.0;
-            return seg[1] + extra;
-        };
+        final long TICKS_PER_WHOLE = (long) MidiMapper.TICKS_PER_QUARTER * 4L;
+        java.util.function.ToLongFunction<music.notation.duration.Duration> durationToTicks =
+                d -> Math.multiplyExact(d.numerator(), TICKS_PER_WHOLE) / d.denominator();
 
         for (var track : imp.performance().score().tracks()) {
             String name = track.id().name();
             names.add(name);
             for (var note : track.notes()) {
-                double qStart = msToQuarters.applyAsDouble(note.tickMs());
-                double qEnd = msToQuarters.applyAsDouble(note.tickMs() + note.durationMs());
-                long startTick = Math.round(qStart * MidiMapper.TICKS_PER_QUARTER);
-                long endTick = Math.round(qEnd * MidiMapper.TICKS_PER_QUARTER);
+                long startTick = durationToTicks.applyAsLong(note.at());
+                long endTick = durationToTicks.applyAsLong(note.endAt());
                 // ShiftedNote first — it's a PitchedLike, so the broader
                 // check below would also match, but we want its originalMidi
                 // for ghost rendering.
@@ -259,16 +212,15 @@ record PitchScrollData(
         long barTickWidth = (long) imp.timeSig().barSixtyFourths() * MidiMapper.TICKS_PER_QUARTER / 16;
 
         // Build tempo segments in display-tick space using the same projector.
+        var tempoChanges = imp.performance().tempo().changes();
         var tempoSegments = new ArrayList<TempoSegment>();
         if (!tempoChanges.isEmpty()) {
-            double finalMs = imp.totalMs() > 0 ? imp.totalMs() : tempoChanges.get(tempoChanges.size() - 1).tickMs() + 1;
-            long endOfPiece = Math.round(msToQuarters.applyAsDouble(finalMs) * MidiMapper.TICKS_PER_QUARTER);
             for (int i = 0; i < tempoChanges.size(); i++) {
                 var tc = tempoChanges.get(i);
-                long segStart = Math.round(msToQuarters.applyAsDouble(tc.tickMs()) * MidiMapper.TICKS_PER_QUARTER);
+                long segStart = durationToTicks.applyAsLong(tc.at());
                 long segEnd = (i + 1 < tempoChanges.size())
-                        ? Math.round(msToQuarters.applyAsDouble(tempoChanges.get(i + 1).tickMs()) * MidiMapper.TICKS_PER_QUARTER)
-                        : Math.max(endOfPiece, segStart + 1);
+                        ? durationToTicks.applyAsLong(tempoChanges.get(i + 1).at())
+                        : Math.max(totalTicks, segStart + 1);
                 tempoSegments.add(new TempoSegment(segStart, segEnd, tc.bpm()));
             }
         } else {
@@ -322,6 +274,11 @@ record PitchScrollData(
             case music.notation.phrase.TempoTransitionStartNode t -> {}
             case music.notation.phrase.TempoTransitionEndNode t -> {}
             case music.notation.phrase.SubPhrase sp -> { /* legacy nesting dropped */ }
+            // Lyrics advance the cursor (so subsequent notes line up) but
+            // produce no rect — the piano roll shows pitched / drum notes
+            // only. A dedicated lyric strip can render them later.
+            case music.notation.phrase.LyricNode l ->
+                    tick += MidiMapper.toTicks(l.duration());
         }
         return tick;
     }

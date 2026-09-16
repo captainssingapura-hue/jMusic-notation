@@ -73,13 +73,16 @@ public final class ScaleDemoPlayer {
             List<TimedNote<From>> motif,
             Function<From, To> toScale,
             ScalePitchResolver<To> pitchResolver) {
-        long cursor = 0;
+        // Default 120-bpm projection: ms × 1/2000 of a whole.
+        music.notation.duration.Duration cursor = music.notation.duration.Duration.zero();
         var notes = new ArrayList<ConcreteNote>(motif.size());
         for (var tn : motif) {
             To target = toScale.apply(tn.note());
             int midi = pitchResolver.midi(target);
-            notes.add(new PitchedNote(cursor, tn.durationMillis(), midi));
-            cursor += tn.durationMillis();
+            music.notation.duration.Duration dur =
+                    music.notation.duration.Duration.of(tn.durationMillis(), 2000);
+            notes.add(new PitchedNote(cursor, dur, midi));
+            cursor = cursor.plus(dur);
         }
         Track track = new Track(DEMO_TRACK_ID, TrackKind.PITCHED, notes);
         Score score = new Score(List.of(track));
@@ -99,13 +102,16 @@ public final class ScaleDemoPlayer {
             channel.programChange(GM_PROGRAM_KOTO);
 
             long now = 0;
+            var mapper = new music.notation.performance.TimeMapper(performance.tempo());
             for (Track track : performance.score().tracks()) {
                 for (ConcreteNote n : track.notes()) {
                     if (!(n instanceof PitchedNote note)) continue;
+                    long onMs  = mapper.toMs(note.at());
+                    long offMs = mapper.toMs(note.endAt());
 
-                    if (note.tickMs() > now) {
-                        pause(note.tickMs() - now);
-                        now = note.tickMs();
+                    if (onMs > now) {
+                        pause(onMs - now);
+                        now = onMs;
                     }
                     channel.noteOn(note.midi(), 80);
                     roll.printAttack(note);
@@ -113,7 +119,7 @@ public final class ScaleDemoPlayer {
                     long rowCursor = now + PianoRollDisplay.ROW_MILLIS;
                     pause(PianoRollDisplay.ROW_MILLIS);
                     now += PianoRollDisplay.ROW_MILLIS;
-                    while (rowCursor < note.offTickMs()) {
+                    while (rowCursor < offMs) {
                         roll.printSustain(note, rowCursor);
                         pause(PianoRollDisplay.ROW_MILLIS);
                         rowCursor += PianoRollDisplay.ROW_MILLIS;

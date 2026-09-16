@@ -77,8 +77,8 @@ public final class PitchBandSplitter {
                 if (p >= cutoff) hp.add(p);
                 else             lp.add(p);
             }
-            if (!hp.isEmpty()) high.add(new GroupedEvent(ev.onsetMs(), ev.durationMs(), hp));
-            if (!lp.isEmpty()) low .add(new GroupedEvent(ev.onsetMs(), ev.durationMs(), lp));
+            if (!hp.isEmpty()) high.add(new GroupedEvent(ev.at(), ev.duration(), hp));
+            if (!lp.isEmpty()) low .add(new GroupedEvent(ev.at(), ev.duration(), lp));
         }
         return new SplitResult(high, low);
     }

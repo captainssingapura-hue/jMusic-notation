@@ -85,6 +85,22 @@ public final class MxlSplitJsonWriter {
             written.add(writeJson(pieceDir.resolve("velocity.json"),
                     imp.performance().velocities()));
         }
+        if (!imp.performance().hairpins().byTrack().isEmpty()) {
+            written.add(writeJson(pieceDir.resolve("hairpins.json"),
+                    imp.performance().hairpins()));
+        }
+        if (!imp.performance().lyrics().byTrack().isEmpty()) {
+            written.add(writeJson(pieceDir.resolve("lyrics.json"),
+                    imp.performance().lyrics()));
+        }
+        if (!imp.performance().timeSignatures().changes().isEmpty()) {
+            written.add(writeJson(pieceDir.resolve("time-signatures.json"),
+                    imp.performance().timeSignatures()));
+        }
+        if (!imp.performance().keySignatures().changes().isEmpty()) {
+            written.add(writeJson(pieceDir.resolve("key-signatures.json"),
+                    imp.performance().keySignatures()));
+        }
         if (!imp.repeatStructure().isEmpty()) {
             written.add(writeJson(pieceDir.resolve("repeats.json"),
                     imp.repeatStructure()));
@@ -123,6 +139,14 @@ public final class MxlSplitJsonWriter {
                 imp.performance().pedaling().byTrack().isEmpty());
         deleteIfEmpty(pieceDir.resolve("velocity.json"),
                 imp.performance().velocities().byTrack().isEmpty());
+        deleteIfEmpty(pieceDir.resolve("hairpins.json"),
+                imp.performance().hairpins().byTrack().isEmpty());
+        deleteIfEmpty(pieceDir.resolve("lyrics.json"),
+                imp.performance().lyrics().byTrack().isEmpty());
+        deleteIfEmpty(pieceDir.resolve("time-signatures.json"),
+                imp.performance().timeSignatures().changes().isEmpty());
+        deleteIfEmpty(pieceDir.resolve("key-signatures.json"),
+                imp.performance().keySignatures().changes().isEmpty());
         deleteIfEmpty(pieceDir.resolve("repeats.json"),
                 imp.repeatStructure().isEmpty());
         deleteIfEmpty(pieceDir.resolve("transpositions.json"),

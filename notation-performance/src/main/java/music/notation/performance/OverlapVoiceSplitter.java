@@ -71,7 +71,8 @@ public final class OverlapVoiceSplitter {
 
         // Defensive: ensure events are in onset order.
         var sorted = new ArrayList<>(events);
-        sorted.sort(Comparator.comparingLong(GroupedEvent::onsetMs));
+        sorted.sort(Comparator.comparing(GroupedEvent::at,
+                (a, b) -> a.compareDuration(b)));
 
         var voices = new ArrayList<VoiceTracker>();
 
@@ -106,8 +107,13 @@ public final class OverlapVoiceSplitter {
                 bestAnyPitchD = pitchD;
                 bestAny = v;
             }
-            if (v.lastEndMs <= ev.onsetMs()) {   // voice is free
-                double timeGap = ev.onsetMs() - v.lastEndMs;
+            // "Voice is free" — Duration-rational comparison.
+            if (v.lastEndAt == null || v.lastEndAt.compareDuration(ev.at()) <= 0) {
+                // Cost weighting uses a double approximation of the gap
+                // (this is a heuristic — strict rational equality isn't
+                // needed here).
+                double timeGap = (v.lastEndAt == null) ? 0.0
+                        : asDouble(ev.at().minus(v.lastEndAt));
                 double cost    = timeGap * cfg.timeWeight()
                                + pitchD  * cfg.pitchWeight();
                 if (cost < bestFreeCost) {
@@ -137,15 +143,17 @@ public final class OverlapVoiceSplitter {
     /** Mutable per-voice scratch: events + cached "last end" + "last pitch centroid". */
     private static final class VoiceTracker {
         final List<GroupedEvent> events = new ArrayList<>();
-        long lastEndMs = Long.MIN_VALUE;
+        music.notation.duration.Duration lastEndAt = null; // null = no notes yet
         double lastCentroid = 0;
         double pitchSum = 0;
         int    pitchCount = 0;
 
         void append(GroupedEvent ev) {
             events.add(ev);
-            long end = ev.onsetMs() + ev.durationMs();
-            if (end > lastEndMs) lastEndMs = end;
+            music.notation.duration.Duration end = ev.at().plus(ev.duration());
+            if (lastEndAt == null || end.compareDuration(lastEndAt) > 0) {
+                lastEndAt = end;
+            }
             lastCentroid = ev.centroid();
             pitchSum   += ev.centroid();
             pitchCount += 1;
@@ -154,5 +162,10 @@ public final class OverlapVoiceSplitter {
         double meanPitch() {
             return pitchCount == 0 ? 0 : pitchSum / pitchCount;
         }
+    }
+
+    /** Convert a Duration to a double whole-note fraction (heuristic use only). */
+    private static double asDouble(music.notation.duration.Duration d) {
+        return (double) d.numerator() / (double) d.denominator();
     }
 }

@@ -1,5 +1,7 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -13,31 +15,30 @@ import java.util.Random;
  *
  * <h2>Semantics</h2>
  * <ul>
- *   <li>Each note's {@code tickMs} is shifted by a Gaussian sample
- *       with mean 0 and σ = {@code maxJitterMs / 3} (so &gt;99.7% of
- *       jitter falls within ±{@code maxJitterMs}).</li>
- *   <li>Note {@code durationMs} is left untouched, so duration is
- *       preserved — much simpler than the legacy approach which
- *       had to track NOTE_ON/NOTE_OFF pairs across MIDI events.</li>
+ *   <li>Each note's onset is shifted by a Gaussian sample with mean 0
+ *       and σ = {@code maxJitterMs / 3} (so &gt;99.7% of jitter falls
+ *       within ±{@code maxJitterMs}).</li>
+ *   <li>Note duration is left untouched, so length is preserved.</li>
  *   <li>{@code drumsOnly = true} jitters only DRUM-kind tracks; other
  *       tracks pass through unchanged.</li>
  *   <li>{@code seed = 0} uses a fresh non-deterministic RNG (matches
  *       legacy convention). Any non-zero seed produces deterministic
  *       output — same input + same seed ⇒ byte-identical jittered
  *       Performance.</li>
- *   <li>Resulting {@code tickMs} is clamped to ≥ 0 — a Gaussian
- *       sample of −50 ms on a note at tickMs=10 lands the note at 0,
- *       not −40.</li>
+ *   <li>Resulting onset is clamped to ≥ 0 — a Gaussian sample of
+ *       −50 ms on a note at 10 ms lands the note at 0, not −40.</li>
  * </ul>
  *
- * <h2>Why ms-anchored is cleaner than the legacy</h2>
+ * <h2>How wall-clock ms enters a Duration-anchored model</h2>
  *
- * <p>Legacy {@code HumanizerSetup.apply(Sequence)} interpreted
- * {@code maxJitterMs} at 120 bpm and let real-time jitter scale with
- * playback tempo (a piece at 60 bpm heard 2× the jitter). At the
- * {@link Performance} layer we work in real ms anchored by
- * {@link TempoTrack} — there's no PPQ fudge, jitter is exactly the
- * declared σ in real wall-clock terms regardless of tempo.</p>
+ * <p>Notes carry musical {@link Duration} positions, not ms. Jitter is
+ * perceptual, so it's expressed in ms. The transform bridges with a
+ * {@link TimeMapper} built from the Performance's
+ * {@link TempoTrack}: each note's musical position is converted to ms
+ * (forward), the jitter is added in ms space, then the new ms is
+ * converted back to a musical position (inverse). At constant tempo
+ * the back-and-forth is value-preserving; under tempo changes the
+ * jitter remains exactly the declared σ in wall-clock terms.</p>
  */
 public final class HumanizerTransform {
 
@@ -49,8 +50,6 @@ public final class HumanizerTransform {
      * @param maxJitterMs   3σ envelope of the timing jitter, in ms.
      *                      0 = no jitter (apply is a no-op).
      * @param drumsOnly     when true, only DRUM-kind tracks are jittered.
-     *                      Pitched-only humanisation is unusual but supported
-     *                      by setting drumsOnly = false.
      * @param seed          0 = non-deterministic (fresh Random); non-zero
      *                      = deterministic (seeded Random).
      */
@@ -62,19 +61,15 @@ public final class HumanizerTransform {
 
         public boolean isOff() { return maxJitterMs <= 0; }
 
-        /** No humanisation. */
         public static final Params OFF    = new Params(0,  true, 0);
-        /** ±5 ms jitter on drums. */
         public static final Params LIGHT  = new Params(5,  true, 0);
-        /** ±10 ms jitter on drums. */
         public static final Params MEDIUM = new Params(10, true, 0);
-        /** ±20 ms jitter on drums. */
         public static final Params LOOSE  = new Params(20, true, 0);
     }
 
     /**
-     * Return a copy of {@code perf} whose every note's {@code tickMs}
-     * is shifted by a Gaussian sample with σ = {@code params.maxJitterMs / 3}.
+     * Return a copy of {@code perf} whose every note's onset is shifted
+     * by a Gaussian sample with σ = {@code params.maxJitterMs / 3}.
      * Returns the input unchanged when {@code params.isOff()} or when
      * {@code perf} is null.
      */
@@ -84,6 +79,7 @@ public final class HumanizerTransform {
 
         Random rng = (params.seed == 0) ? new Random() : new Random(params.seed);
         double sigmaMs = params.maxJitterMs / 3.0;
+        TimeMapper mapper = new TimeMapper(perf.tempo());
 
         List<Track> jittered = new ArrayList<>(perf.score().tracks().size());
         boolean anyChange = false;
@@ -92,7 +88,7 @@ public final class HumanizerTransform {
                 jittered.add(t);
                 continue;
             }
-            Track newTrack = jitterTrack(t, rng, sigmaMs);
+            Track newTrack = jitterTrack(t, rng, sigmaMs, mapper);
             jittered.add(newTrack);
             if (newTrack != t) anyChange = true;
         }
@@ -100,37 +96,43 @@ public final class HumanizerTransform {
         return perf.withScore(new Score(jittered));
     }
 
-    private static Track jitterTrack(Track t, Random rng, double sigmaMs) {
+    private static Track jitterTrack(Track t, Random rng, double sigmaMs, TimeMapper mapper) {
         List<ConcreteNote> notes = t.notes();
         List<ConcreteNote> out = new ArrayList<>(notes.size());
         for (ConcreteNote n : notes) {
-            long offset = Math.round(rng.nextGaussian() * sigmaMs);
-            long newTick = Math.max(0, n.tickMs() + offset);
-            if (newTick == n.tickMs()) {
+            long offsetMs = Math.round(rng.nextGaussian() * sigmaMs);
+            if (offsetMs == 0) {
                 out.add(n);
                 continue;
             }
-            out.add(shifted(n, newTick));
+            long currentMs = mapper.toMs(n.at());
+            long newMs = Math.max(0, currentMs + offsetMs);
+            if (newMs == currentMs) {
+                out.add(n);
+                continue;
+            }
+            Duration newAt = mapper.toDuration(newMs);
+            out.add(shifted(n, newAt));
         }
         return new Track(t.id(), t.kind(), out);
     }
 
     /**
-     * Return a copy of {@code n} at the new tickMs. Duration and pitch
-     * are preserved verbatim. Switch on the sealed type:
+     * Return a copy of {@code n} at the new musical position. Duration
+     * and pitch are preserved verbatim. Switch on the sealed type:
      * {@link PitchedNote} (canonical), {@link ShiftedNote} (transposed
-     * view — the wrap is preserved; only the inner original's tickMs
+     * view — the wrap is preserved; only the inner original's position
      * shifts), and {@link DrumNote}.
      */
-    private static ConcreteNote shifted(ConcreteNote n, long newTick) {
+    private static ConcreteNote shifted(ConcreteNote n, Duration newAt) {
         return switch (n) {
-            case PitchedNote pn -> new PitchedNote(newTick, pn.durationMs(),
+            case PitchedNote pn -> new PitchedNote(newAt, pn.duration(),
                                                    pn.midi(), pn.tiedToNext());
             case ShiftedNote sn -> new ShiftedNote(
-                    new PitchedNote(newTick, sn.original().durationMs(),
+                    new PitchedNote(newAt, sn.original().duration(),
                                      sn.original().midi(), sn.original().tiedToNext()),
                     sn.semitoneShift());
-            case DrumNote dn    -> new DrumNote(newTick, dn.durationMs(), dn.piece());
+            case DrumNote dn    -> new DrumNote(newAt, dn.duration(), dn.piece());
         };
     }
 }

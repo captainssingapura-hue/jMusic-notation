@@ -64,7 +64,9 @@ public final class PieceConcretizer {
 
         List<TempoChange> tempoChanges = new ArrayList<>();
         for (Map.Entry<Long, Integer> e : tempoTimeline.entries()) {
-            tempoChanges.add(new TempoChange(tempoMap.tickToMs(e.getKey()), e.getValue()));
+            // Post ms→Duration: ticks ARE musical positions scaled by
+            // PPQ × 4. No tempo math needed for positions.
+            tempoChanges.add(new TempoChange(ticksToDuration(e.getKey()), e.getValue()));
         }
         TempoTrack tempoTrack = new TempoTrack(tempoChanges);
 
@@ -88,10 +90,9 @@ public final class PieceConcretizer {
                 drumTrackCount++;
                 singleDrumName = te.name;     // last-seen, used only if count == 1
                 for (DrumTickNote n : te.drums) {
-                    long onMs = tempoMap.tickToMs(n.tick);
-                    long offMs = tempoMap.tickToMs(n.tick + n.dur);
-                    long durMs = Math.max(1, offMs - onMs);
-                    mergedDrums.add(new DrumNote(onMs, durMs, n.piece));
+                    music.notation.duration.Duration at  = ticksToDuration(n.tick);
+                    music.notation.duration.Duration dur = ticksToDuration(Math.max(1, n.dur));
+                    mergedDrums.add(new DrumNote(at, dur, n.piece));
                 }
                 continue;
             }
@@ -102,10 +103,9 @@ public final class PieceConcretizer {
             }
             List<ConcreteNote> notes = new ArrayList<>();
             for (PitchedTickNote n : te.pitched) {
-                long onMs = tempoMap.tickToMs(n.tick);
-                long offMs = tempoMap.tickToMs(n.tick + n.dur);
-                long durMs = Math.max(1, offMs - onMs);
-                notes.add(new PitchedNote(onMs, durMs, n.midi, n.tiedToNext));
+                music.notation.duration.Duration at  = ticksToDuration(n.tick);
+                music.notation.duration.Duration dur = ticksToDuration(Math.max(1, n.dur));
+                notes.add(new PitchedNote(at, dur, n.midi, n.tiedToNext));
             }
             outTracks.add(new Track(id, te.kind, notes));
             instrMap.put(id, InstrumentControl.constant(te.program));
@@ -120,6 +120,15 @@ public final class PieceConcretizer {
         Score score = new Score(outTracks);
         return new Performance(score, tempoTrack, new Instrumentation(instrMap),
                 Articulations.empty());
+    }
+
+    /**
+     * Convert an internal MIDI tick (PPQ = {@link #PPQ}) to a musical
+     * {@link music.notation.duration.Duration}. Ticks per whole note
+     * are {@code PPQ × 4}; this is exact rational, no tempo math.
+     */
+    private static music.notation.duration.Duration ticksToDuration(long ticks) {
+        return music.notation.duration.Duration.of(ticks, (long) PPQ * 4L);
     }
 
     /** Pick a non-colliding TrackId name (appends suffix until unique). */
@@ -310,6 +319,11 @@ public final class PieceConcretizer {
                     }
                     currentBpm = t.targetBpm();
                 }
+                // Lyrics are display-only — silent in playback. Advance the
+                // cursor by the glyph's duration so subsequent notes stay
+                // aligned, but emit no audio events.
+                case music.notation.phrase.LyricNode l ->
+                        tick += MidiMapper.toTicks(l.duration());
             }
         }
 

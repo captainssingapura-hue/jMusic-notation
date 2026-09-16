@@ -20,6 +20,27 @@
         played" rather than "what's notated" lands here.</description>
 
     <dependencies>
+        <!--
+          notation-core gives us Duration — the rational-fraction time unit
+          used by every side-channel event after the ms→musical-position
+          migration. No cycle: notation-core has no notation-* deps.
+        -->
+        <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--
+          Jackson annotations only (no databind) — lets side-channel records
+          like LyricEvent mark derived accessors @JsonIgnore so they don't
+          fight the record-component serialization used by PerformanceJson
+          (which lives in notation-performance and pulls in databind).
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>2.18.2</version>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

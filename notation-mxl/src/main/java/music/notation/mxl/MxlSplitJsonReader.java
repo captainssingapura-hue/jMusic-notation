@@ -8,8 +8,11 @@ import music.notation.performance.PerformanceJson;
 import music.notation.performance.Score;
 import music.notation.performance.TempoTrack;
 import music.notation.performance.Track;
+import music.notation.expressivity.Lyrics;
 import music.notation.expressivity.Velocities;
 import music.notation.expressivity.Volume;
+import music.notation.performance.KeySignatureTrack;
+import music.notation.performance.TimeSignatureTrack;
 import music.notation.structure.KeySignature;
 import music.notation.structure.TimeSignature;
 
@@ -64,6 +67,17 @@ public final class MxlSplitJsonReader {
         Velocities velocities = Files.exists(pieceDir.resolve("velocity.json"))
                 ? readJson(pieceDir.resolve("velocity.json"), Velocities.class)
                 : Velocities.empty();
+        Lyrics lyrics = Files.exists(pieceDir.resolve("lyrics.json"))
+                ? readJson(pieceDir.resolve("lyrics.json"), Lyrics.class)
+                : Lyrics.empty();
+        TimeSignatureTrack timeSignatures =
+                Files.exists(pieceDir.resolve("time-signatures.json"))
+                        ? readJson(pieceDir.resolve("time-signatures.json"), TimeSignatureTrack.class)
+                        : TimeSignatureTrack.empty();
+        KeySignatureTrack keySignatures =
+                Files.exists(pieceDir.resolve("key-signatures.json"))
+                        ? readJson(pieceDir.resolve("key-signatures.json"), KeySignatureTrack.class)
+                        : KeySignatureTrack.empty();
         RepeatStructure repeats = Files.exists(pieceDir.resolve("repeats.json"))
                 ? readJson(pieceDir.resolve("repeats.json"), RepeatStructure.class)
                 : RepeatStructure.empty();
@@ -78,7 +92,10 @@ public final class MxlSplitJsonReader {
                 volume,
                 articulations,
                 pedaling,
-                velocities);
+                velocities,
+                lyrics,
+                timeSignatures,
+                keySignatures);
 
         TimeSignature ts = new TimeSignature(meta.timeSig().beats(),
                                              meta.timeSig().beatValue());

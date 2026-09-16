@@ -25,6 +25,7 @@
         <module>notation-mixer</module>
         <module>notation-input</module>
         <module>notation-recorder</module>
+        <module>notation-lyrics</module>
         <module>notation-launcher</module>
     </modules>
 

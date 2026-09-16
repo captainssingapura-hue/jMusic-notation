@@ -1,5 +1,7 @@
 package music.notation.expressivity;
 
+import music.notation.duration.Duration;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -18,7 +20,8 @@ public record PedalControl(List<PedalChange> changes) {
     public PedalControl {
         Objects.requireNonNull(changes, "changes");
         List<PedalChange> sorted = new ArrayList<>(changes);
-        sorted.sort(Comparator.comparingLong(PedalChange::tickMs));
+        sorted.sort(Comparator.comparing(PedalChange::at,
+                (a, b) -> a.compareDuration(b)));
         List<PedalChange> deduped = new ArrayList<>(sorted.size());
         PedalState last = null;
         for (PedalChange c : sorted) {
@@ -35,6 +38,6 @@ public record PedalControl(List<PedalChange> changes) {
     public static PedalControl empty() { return new PedalControl(List.of()); }
 
     public static PedalControl constant(PedalState state) {
-        return new PedalControl(List.of(new PedalChange(0, state)));
+        return new PedalControl(List.of(new PedalChange(Duration.zero(), state)));
     }
 }

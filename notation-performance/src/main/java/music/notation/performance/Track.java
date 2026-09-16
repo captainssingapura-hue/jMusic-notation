@@ -53,12 +53,15 @@ public record Track(TrackId id, TrackKind kind, List<ConcreteNote> notes, boolea
         this(id, kind, notes, false);
     }
 
-    // Canonical sort order: by tick, then by kind (pitched before drum),
-    // then by effective midi (or drum-piece) so notes-at-same-tick have a
-    // deterministic ordering. The kind-2 ternary lifts to PitchedLike so
-    // ShiftedNote sorts alongside PitchedNote.
+    // Canonical sort order: by musical position, then by kind (pitched
+    // before drum), then by effective midi (or drum-piece) so notes at
+    // the same position have a deterministic ordering. The kind-2
+    // ternary lifts to PitchedLike so ShiftedNote sorts alongside
+    // PitchedNote. Duration comparison is value-based via
+    // Duration.compareDuration — variant type doesn't matter.
     private static final Comparator<ConcreteNote> CANONICAL =
-            Comparator.<ConcreteNote>comparingLong(ConcreteNote::tickMs)
+            Comparator.comparing((ConcreteNote n) -> n.at(),
+                            (a, b) -> a.compareDuration(b))
                     .thenComparingInt(n -> n instanceof PitchedLike ? 0 : 1)
                     .thenComparingInt(n -> switch (n) {
                         case PitchedLike pl -> pl.midi();

@@ -108,6 +108,7 @@ public record Bar(BarDuration expectedDuration, List<PhraseNode> nodes) {
             case TempoTransitionEndNode t -> new music.notation.duration.RawDuration(0, 1);
             case PaddingNode p -> p.duration();
             case SubPhrase s -> phraseDuration(s.phrase());
+            case LyricNode l -> l.duration();
         };
     }
 

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>music.notation</groupId>
+        <artifactId>notation-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>notation-lyrics</artifactId>
+    <name>Music Notation Lyrics Editor</name>
+    <description>
+        Dedicated JavaFX app for attaching lyrics to a monophonic melodic
+        track. Two synchronised views — a sentence/phrase chip strip plus
+        a per-note grid — both backed by a single LyricLine model. Saves
+        back through the standard JSON-folder format as a `lyrics.json`
+        sidecar.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-mxl</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-play</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>music.notation.lyrics.LyricsEditorApp</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

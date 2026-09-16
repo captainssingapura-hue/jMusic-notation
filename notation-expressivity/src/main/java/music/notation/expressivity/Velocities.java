@@ -7,7 +7,7 @@ import java.util.Objects;
 /**
  * Per-track velocity timelines indexed by {@link TrackId}. A track
  * present in a {@code Score} but absent from this map renders with the
- * codec-default velocity ({@value VelocityControl#DEFAULT_VELOCITY}) —
+ * codec-default velocity ({@value VelocityControl#DEFAULT_LEVEL}) —
  * the explicit way to say "I don't care about per-note dynamics on this
  * track."
  *

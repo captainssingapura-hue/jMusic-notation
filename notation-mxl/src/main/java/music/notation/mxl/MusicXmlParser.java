@@ -9,6 +9,12 @@ import music.notation.performance.DrumNote;
 import music.notation.performance.InstrumentChange;
 import music.notation.performance.InstrumentControl;
 import music.notation.performance.Instrumentation;
+import music.notation.performance.KeySignatureChange;
+import music.notation.performance.KeySignatureTrack;
+import music.notation.performance.TimeSignatureChange;
+import music.notation.performance.TimeSignatureTrack;
+import music.notation.expressivity.Direction;
+import music.notation.expressivity.HairpinSpan;
 import music.notation.expressivity.PedalChange;
 import music.notation.expressivity.PedalControl;
 import music.notation.expressivity.PedalState;
@@ -120,15 +126,37 @@ public final class MusicXmlParser {
         Map<TrackKey, TrackBucket> buckets = new LinkedHashMap<>();
         List<DynamicsEvent> dynamicsEvents = new ArrayList<>();
         List<PedalEvent> pedalEvents = new ArrayList<>();
+        List<WedgeEvent> wedgeEvents = new ArrayList<>();
         Map<String, Transpose> partTranspose = new LinkedHashMap<>();
         List<DrumNote> drumNotes = new ArrayList<>();
+        // Score-wide signature changes. Multiple parts in a typical
+        // MusicXML score declare the same time/key at the same measure,
+        // so we dedup by tickMs using TreeMap's first-write-wins put.
+        // The static initial values from {@code meta} seed the change at
+        // tick 0; subsequent mid-piece changes appear later in the map.
+        // Post ms→Duration: signature changes are anchored at musical
+        // positions, keyed by Duration with a value-based comparator
+        // (so 1/4 and 2/8 collide as the same position).
+        java.util.Comparator<music.notation.duration.Duration> byPos =
+                (a, b) -> a.compareDuration(b);
+        java.util.TreeMap<music.notation.duration.Duration, TimeSignature> timeSigByAt =
+                new java.util.TreeMap<>(byPos);
+        java.util.TreeMap<music.notation.duration.Duration, KeySignature> keyByAt =
+                new java.util.TreeMap<>(byPos);
+        timeSigByAt.put(music.notation.duration.Duration.zero(), meta.timeSig);
+        keyByAt.put(music.notation.duration.Duration.zero(), meta.key);
+
         for (Element partEl : children(root, "part")) {
             walkPart(partEl, tempos, schedule, buckets, dynamicsEvents, pedalEvents,
-                    partInstruments, partTranspose, drumNotes);
+                    wedgeEvents,
+                    partInstruments, partTranspose, drumNotes,
+                    timeSigByAt, keyByAt);
         }
 
         return assemble(meta, tempos, buckets, dynamicsEvents, pedalEvents,
-                repeatResult.structure(), partTranspose, drumNotes, partMidi);
+                wedgeEvents,
+                repeatResult.structure(), partTranspose, drumNotes, partMidi,
+                timeSigByAt, keyByAt);
     }
 
     /** Build the {@link Performance} + side-channels from the per-part walk results. */
@@ -136,10 +164,20 @@ public final class MusicXmlParser {
                                     Map<TrackKey, TrackBucket> buckets,
                                     List<DynamicsEvent> dynamicsEvents,
                                     List<PedalEvent> pedalEvents,
+                                    List<WedgeEvent> wedgeEvents,
                                     RepeatStructure repeatStructure,
                                     Map<String, Transpose> partTranspose,
                                     List<DrumNote> drumNotes,
-                                    Map<String, PartMidi> partMidi) {
+                                    Map<String, PartMidi> partMidi,
+                                    java.util.TreeMap<music.notation.duration.Duration, TimeSignature> timeSigByAt,
+                                    java.util.TreeMap<music.notation.duration.Duration, KeySignature> keyByAt) {
+        // Pair wedge starts with stops by (partId, number) into HairpinSpans.
+        // Stops that don't match an open start, and starts with no matching
+        // stop, are logged and skipped. Sort by start position so the
+        // matching algorithm is deterministic when nested numbers reuse
+        // the same id.
+        Map<String, List<HairpinSpan>> hairpinsByPart =
+                pairWedgesIntoSpans(wedgeEvents, tempos);
         // Order tracks by descending average MIDI pitch so the highest-
         // sounding voice (typically the melody) lands on top in the UI's
         // pitch-roll lanes. Ties broken by document insertion order.
@@ -158,6 +196,7 @@ public final class MusicXmlParser {
         Map<TrackId, ArticulationControl> articMap = new LinkedHashMap<>();
         Map<TrackId, Transpose> transposeMap = new LinkedHashMap<>();
         Map<TrackId, PedalControl> pedalingMap = new LinkedHashMap<>();
+        Map<TrackId, music.notation.expressivity.HairpinControl> hairpinsMap = new LinkedHashMap<>();
 
         for (var entry : ordered) {
             TrackKey key = entry.getKey();
@@ -171,20 +210,32 @@ public final class MusicXmlParser {
             if (pm != null && pm.program != null) {
                 int gm = clamp(pm.program - 1, 0, 127);
                 instrumentMap.put(bucket.id,
-                        new InstrumentControl(List.of(new InstrumentChange(0L, gm))));
+                        new InstrumentControl(List.of(new InstrumentChange(
+                                music.notation.duration.Duration.zero(), gm))));
             }
 
             List<VolumeChange> volChanges = new ArrayList<>();
             List<VelocityChange> velChanges = new ArrayList<>();
             for (DynamicsEvent ev : dynamicsEvents) {
                 if (!ev.partId().equals(key.partId)) continue;
-                if (ev.staff() != null && ev.staff() != key.staff) continue;
-                long ms = tempos.divToMs(ev.div());
-                volChanges.add(new VolumeChange(ms, ev.cc7()));
-                // Same dynamic value drives both channel volume (CC #7)
-                // and per-note attack velocity. Clamp to [1,127] — vel 0
-                // is illegal in the model (NOTE_OFF synonym).
-                velChanges.add(new VelocityChange(ms, clamp(ev.cc7(), 1, 127)));
+                // <staff> in a <direction> is *visual anchoring* (which
+                // staff the marking is drawn beside) — NOT musical scope.
+                // Dynamics apply to the whole part, so we fan out to
+                // every track in the part regardless of the staff
+                // attribute. (For genuinely staff-specific dynamics —
+                // e.g., one hand loud, the other quiet — MusicXML offers
+                // no clean encoding; conventional practice is that both
+                // hands take the same dynamic and the engraver shows it
+                // once between staves.)
+                music.notation.duration.Duration at = tempos.divToDuration(ev.div());
+                // Same authored dynamic drives both channel volume and
+                // per-note attack velocity. The Loudness payload preserves
+                // whether the source was symbolic (Named) or numeric (Raw)
+                // so engravers can re-emit the glyph and the codec just
+                // calls level() at the MIDI boundary. The codec floors
+                // velocity to MIDI 1 on emit (NOTE_OFF-vel-0 is illegal).
+                volChanges.add(new VolumeChange(at, ev.loudness()));
+                velChanges.add(new VelocityChange(at, ev.loudness()));
             }
             // <part-list><midi-instrument><volume> — when no <dynamics>
             // events override, seed a single VolumeChange/VelocityChange at
@@ -193,9 +244,12 @@ public final class MusicXmlParser {
             // user's explicit shaping intent and the static <volume>
             // becomes redundant.
             if (volChanges.isEmpty() && pm != null && pm.volume != null) {
-                int v = clamp(pm.volume, 0, 127);
-                volChanges.add(new VolumeChange(0L, v));
-                velChanges.add(new VelocityChange(0L, clamp(v, 1, 127)));
+                // MusicXML <volume> is a percentage [0,100]; convert to
+                // synth-agnostic level [0,1].
+                double level = Math.max(0.0, Math.min(1.0, pm.volume / 100.0));
+                volChanges.add(new VolumeChange(music.notation.duration.Duration.zero(), level));
+                velChanges.add(new VelocityChange(music.notation.duration.Duration.zero(),
+                        level));
             }
             if (!volChanges.isEmpty()) {
                 volumeMap.put(bucket.id, new VolumeControl(volChanges));
@@ -219,10 +273,19 @@ public final class MusicXmlParser {
             List<PedalChange> pedalChanges = new ArrayList<>();
             for (PedalEvent ev : pedalEvents) {
                 if (!ev.partId().equals(key.partId)) continue;
-                pedalChanges.add(new PedalChange(tempos.divToMs(ev.div()), ev.state()));
+                pedalChanges.add(new PedalChange(tempos.divToDuration(ev.div()), ev.state()));
             }
             if (!pedalChanges.isEmpty()) {
                 pedalingMap.put(bucket.id, new PedalControl(pedalChanges));
+            }
+
+            // Hairpins are part-level (same rule as dynamics): every
+            // track of the part shares the spans. Skipped when the part
+            // has no hairpins.
+            List<HairpinSpan> partSpans = hairpinsByPart.get(key.partId);
+            if (partSpans != null && !partSpans.isEmpty()) {
+                hairpinsMap.put(bucket.id,
+                        new music.notation.expressivity.HairpinControl(partSpans));
             }
         }
 
@@ -237,6 +300,18 @@ public final class MusicXmlParser {
         Instrumentation instrumentation = instrumentMap.isEmpty()
                 ? Instrumentation.empty()
                 : new Instrumentation(instrumentMap);
+        // Fold the score-wide signature changes into their tracks.
+        // The track records canonicalise (sort + dedup adjacent same-value),
+        // so duplicate first entries collapse harmlessly.
+        List<TimeSignatureChange> timeSigChangeList = new ArrayList<>();
+        for (var e : timeSigByAt.entrySet()) {
+            timeSigChangeList.add(new TimeSignatureChange(e.getKey(), e.getValue()));
+        }
+        List<KeySignatureChange> keyChangeList = new ArrayList<>();
+        for (var e : keyByAt.entrySet()) {
+            keyChangeList.add(new KeySignatureChange(e.getKey(), e.getValue()));
+        }
+
         Performance perf = new Performance(
                 new Score(tracks),
                 tempos.toTempoTrack(),
@@ -244,7 +319,11 @@ public final class MusicXmlParser {
                 new Volume(volumeMap),
                 new Articulations(articMap),
                 new Pedaling(pedalingMap),
-                new Velocities(velocityMap));
+                new Velocities(velocityMap),
+                new music.notation.expressivity.Hairpins(hairpinsMap),
+                music.notation.expressivity.Lyrics.empty(),
+                new TimeSignatureTrack(timeSigChangeList),
+                new KeySignatureTrack(keyChangeList));
         return new Result(perf, meta.timeSig, meta.key, repeatStructure,
                 new Transpositions(transposeMap));
     }
@@ -294,6 +373,48 @@ public final class MusicXmlParser {
      * tracks fall through to the synth default.</p>
      */
     private record PartMidi(Integer program, Integer volume) {}
+
+    /**
+     * Map every {@code <part-list><score-part><midi-instrument id="…">
+     * <midi-program>N</midi-program></midi-instrument>} into
+     * {@code partId → instrumentId → GM-0-based program}. Used by the
+     * note-walker to translate a per-note
+     * {@code <instrument id="…"/>} reference into a runtime program
+     * change — i.e. mid-piece instrument changes.
+     *
+     * <p>Mirrors {@link #scanPartList} (which builds the analogous map
+     * for percussion <code>&lt;midi-unpitched&gt;</code>); both could
+     * be folded into one pass, but the current pair stays explicit so
+     * each is independently traceable.</p>
+     */
+    private static Map<String, Map<String, Integer>> scanPartInstrumentPrograms(Element root) {
+        Map<String, Map<String, Integer>> out = new LinkedHashMap<>();
+        Element partList = firstChild(root, "part-list");
+        if (partList == null) return out;
+        for (Element scorePart : children(partList, "score-part")) {
+            String partId = scorePart.getAttribute("id");
+            if (partId == null || partId.isBlank()) continue;
+            Map<String, Integer> instrMap = new LinkedHashMap<>();
+            for (Element mi : children(scorePart, "midi-instrument")) {
+                String iid = mi.getAttribute("id");
+                if (iid == null || iid.isBlank()) continue;
+                // Skip drum entries (already in the percussion map).
+                if (firstChild(mi, "midi-unpitched") != null) continue;
+                String prog = textOf(firstChild(mi, "midi-program"));
+                if (prog == null || prog.isBlank()) continue;
+                try {
+                    int gm1 = Integer.parseInt(prog.trim());
+                    // MusicXML <midi-program> is 1-indexed (1..128); GM is 0..127.
+                    instrMap.put(iid, clamp(gm1 - 1, 0, 127));
+                } catch (NumberFormatException ignored) {
+                    LOG.warn("ignored non-integer <midi-program> for {}/{}: {}",
+                            partId, iid, prog);
+                }
+            }
+            if (!instrMap.isEmpty()) out.put(partId, instrMap);
+        }
+        return out;
+    }
 
     /**
      * Scan {@code <part-list><score-part><midi-instrument>} for melodic
@@ -437,9 +558,8 @@ public final class MusicXmlParser {
 
             Element timeEl = firstChild(attributes, "time");
             if (timeEl != null) {
-                int beats = Integer.parseInt(textOf(firstChild(timeEl, "beats")).trim());
-                int beatType = Integer.parseInt(textOf(firstChild(timeEl, "beat-type")).trim());
-                timeSig = new TimeSignature(beats, beatType);
+                TimeSignature parsed = parseTimeSignature(timeEl);
+                if (parsed != null) timeSig = parsed;
             }
 
             Element keyEl = firstChild(attributes, "key");
@@ -467,6 +587,26 @@ public final class MusicXmlParser {
             return parseTempoAttr(soundDirect);
         }
         return null;
+    }
+
+    /**
+     * Parse a {@code <time>} element into a {@link TimeSignature}.
+     * Returns {@code null} if the required {@code <beats>}/{@code <beat-type>}
+     * children are missing or non-numeric — caller falls back to the
+     * static default.
+     */
+    private static TimeSignature parseTimeSignature(Element timeEl) {
+        String beatsTxt = textOf(firstChild(timeEl, "beats"));
+        String beatTypeTxt = textOf(firstChild(timeEl, "beat-type"));
+        if (beatsTxt == null || beatTypeTxt == null) return null;
+        try {
+            int beats = Integer.parseInt(beatsTxt.trim());
+            int beatType = Integer.parseInt(beatTypeTxt.trim());
+            return new TimeSignature(beats, beatType);
+        } catch (NumberFormatException ex) {
+            LOG.warn("ignored non-numeric <time>: beats='{}' beat-type='{}'", beatsTxt, beatTypeTxt);
+            return null;
+        }
     }
 
     private static KeySignature parseKey(Element keyEl) {
@@ -500,9 +640,12 @@ public final class MusicXmlParser {
                                   Map<TrackKey, TrackBucket> buckets,
                                   List<DynamicsEvent> dynamicsEvents,
                                   List<PedalEvent> pedalEvents,
+                                  List<WedgeEvent> wedgeEvents,
                                   Map<String, Map<String, Integer>> partInstruments,
                                   Map<String, Transpose> partTranspose,
-                                  List<DrumNote> drumNotes) {
+                                  List<DrumNote> drumNotes,
+                                  java.util.TreeMap<music.notation.duration.Duration, TimeSignature> timeSigByAt,
+                                  java.util.TreeMap<music.notation.duration.Duration, KeySignature> keyByAt) {
         String partId = partEl.getAttribute("id");
         PartCursor cursor = new PartCursor(tempos);
         Map<String, Integer> instrumentMap = partInstruments.getOrDefault(partId, Map.of());
@@ -511,14 +654,23 @@ public final class MusicXmlParser {
         for (int idx : schedule) {
             if (idx < 0 || idx >= measures.size()) continue;
             walkMeasure(measures.get(idx), partId, cursor, buckets, dynamicsEvents,
-                    pedalEvents, instrumentMap, partTranspose, drumNotes);
+                    pedalEvents, wedgeEvents, instrumentMap, partTranspose, drumNotes,
+                    timeSigByAt, keyByAt);
+        }
+
+        // End-of-part: flush any orphan grace notes (graces with no
+        // following main note). Emit them at the cursor's current ms so
+        // they still play; better than silent loss.
+        if (!cursor.pendingGraces.isEmpty()) {
+            flushPendingGraces(cursor.divToDuration(cursor.cursorDiv), cursor,
+                    partId, buckets, partTranspose);
         }
 
         // Per-part diagnostic summary: surface counts of skipped/dropped notes
         // so the user knows what was lost without cluttering the per-note log.
-        if (cursor.graceNotesSkipped > 0) {
-            LOG.warn("Part {} — skipped {} grace note(s) (deferred per plan)",
-                    partId, cursor.graceNotesSkipped);
+        if (cursor.graceNotesEmitted > 0) {
+            LOG.info("Part {} — emitted {} grace note(s) as pre-beat acciaccaturas",
+                    partId, cursor.graceNotesEmitted);
         }
         if (cursor.unmappedPercussionDropped > 0) {
             LOG.warn("Part {} — dropped {} unpitched note(s) due to missing instrument map",
@@ -530,20 +682,24 @@ public final class MusicXmlParser {
                                      Map<TrackKey, TrackBucket> buckets,
                                      List<DynamicsEvent> dynamicsEvents,
                                      List<PedalEvent> pedalEvents,
+                                     List<WedgeEvent> wedgeEvents,
                                      Map<String, Integer> instrumentMap,
                                      Map<String, Transpose> partTranspose,
-                                     List<DrumNote> drumNotes) {
+                                     List<DrumNote> drumNotes,
+                                     java.util.TreeMap<music.notation.duration.Duration, TimeSignature> timeSigByAt,
+                                     java.util.TreeMap<music.notation.duration.Duration, KeySignature> keyByAt) {
         for (Node n = measureEl.getFirstChild(); n != null; n = n.getNextSibling()) {
             if (n.getNodeType() != Node.ELEMENT_NODE) continue;
             Element el = (Element) n;
             switch (localName(el)) {
-                case "attributes" -> applyAttributes(el, partId, cursor, partTranspose);
+                case "attributes" -> applyAttributes(el, partId, cursor, partTranspose,
+                        timeSigByAt, keyByAt);
                 case "note"       -> emitNote(el, partId, cursor, buckets,
                                                 instrumentMap, partTranspose, drumNotes);
                 case "backup"     -> cursor.cursorDiv -= readDuration(el);
                 case "forward"    -> cursor.cursorDiv += readDuration(el);
                 case "direction"  -> handleDirection(el, partId, cursor,
-                                                     dynamicsEvents, pedalEvents);
+                                                     dynamicsEvents, pedalEvents, wedgeEvents);
                 default           -> { /* barline, print, top-level sound (already in tempo pre-pass), … */ }
             }
         }
@@ -556,7 +712,8 @@ public final class MusicXmlParser {
      */
     private static void handleDirection(Element direction, String partId, PartCursor cursor,
                                          List<DynamicsEvent> events,
-                                         List<PedalEvent> pedalEvents) {
+                                         List<PedalEvent> pedalEvents,
+                                         List<WedgeEvent> wedgeEvents) {
         // Pedal: <direction-type><pedal type="start|stop|change|continue|discontinue"/>
         Element dt = firstChild(direction, "direction-type");
         if (dt != null) {
@@ -567,10 +724,95 @@ public final class MusicXmlParser {
                     pedalEvents.add(new PedalEvent(cursor.cursorDiv, partId, state));
                 }
             }
+
+            // Wedge: <direction-type><wedge type="crescendo|diminuendo|stop|continue" number="N"/>
+            // Starts (crescendo/diminuendo) and stops are paired by `number`
+            // in assemble() to form HairpinSpans. `continue` is a visual
+            // continuation across system breaks — no state change.
+            Element wedge = firstChild(dt, "wedge");
+            if (wedge != null) {
+                WedgeKind kind = mapWedgeType(wedge.getAttribute("type"));
+                if (kind != null) {
+                    Integer number = parseWedgeNumber(wedge.getAttribute("number"));
+                    wedgeEvents.add(new WedgeEvent(cursor.cursorDiv, partId, number, kind));
+                }
+            }
         }
 
         // Dynamics — original handler logic preserved below.
         addDynamicsFromDirection(direction, partId, cursor, events);
+    }
+
+    /**
+     * Pair wedge starts with their stops by {@code (partId, number)} into
+     * {@link HairpinSpan}s. The MusicXML convention: a {@code crescendo}
+     * or {@code diminuendo} starts a wedge identified by {@code number};
+     * a later {@code stop} with the same number ends it. Walks events in
+     * document order and maintains one open start per
+     * {@code (partId, number)} key.
+     *
+     * <p>Unmatched events (a stop with no open start, or a start with no
+     * later stop) are logged at warn-level and discarded — the model
+     * stays consistent rather than carrying half-spans.</p>
+     */
+    private static Map<String, List<HairpinSpan>> pairWedgesIntoSpans(
+            List<WedgeEvent> wedges, TempoTimeline tempos) {
+        Map<String, List<HairpinSpan>> byPart = new LinkedHashMap<>();
+        record OpenKey(String partId, Integer number) {}
+        Map<OpenKey, WedgeEvent> open = new LinkedHashMap<>();
+        for (WedgeEvent ev : wedges) {
+            OpenKey k = new OpenKey(ev.partId(), ev.number());
+            if (ev.kind() == WedgeKind.STOP) {
+                WedgeEvent start = open.remove(k);
+                if (start == null) {
+                    LOG.warn("wedge stop with no open start: part={} number={} div={}",
+                            ev.partId(), ev.number(), ev.div());
+                    continue;
+                }
+                Direction direction = (start.kind() == WedgeKind.CRESCENDO)
+                        ? Direction.CRESCENDO : Direction.DECRESCENDO;
+                music.notation.duration.Duration from = tempos.divToDuration(start.div());
+                music.notation.duration.Duration to   = tempos.divToDuration(ev.div());
+                if (to.compareDuration(from) <= 0) {
+                    LOG.warn("wedge span has non-positive length: part={} from={} to={} — skipped",
+                            ev.partId(), from, to);
+                    continue;
+                }
+                byPart.computeIfAbsent(ev.partId(), p -> new ArrayList<>())
+                        .add(new HairpinSpan(from, to, direction));
+            } else {
+                WedgeEvent prior = open.put(k, ev);
+                if (prior != null) {
+                    LOG.warn("wedge start replacing un-stopped earlier start: part={} number={} prior-div={} new-div={}",
+                            ev.partId(), ev.number(), prior.div(), ev.div());
+                }
+            }
+        }
+        for (var e : open.entrySet()) {
+            LOG.warn("wedge start with no matching stop: part={} number={} div={} — skipped",
+                    e.getKey().partId(), e.getKey().number(), e.getValue().div());
+        }
+        return byPart;
+    }
+
+    /** Map a MusicXML {@code <wedge type>} to {@link WedgeKind}, or null for visual-only. */
+    private static WedgeKind mapWedgeType(String type) {
+        if (type == null) return null;
+        return switch (type) {
+            case "crescendo"  -> WedgeKind.CRESCENDO;
+            case "diminuendo" -> WedgeKind.DECRESCENDO;
+            case "stop"       -> WedgeKind.STOP;
+            // "continue" — visual continuation across system breaks, no
+            // state change. Skip.
+            default           -> null;
+        };
+    }
+
+    /** Parse the {@code number} attribute on a {@code <wedge>}; defaults to 1 when missing/blank. */
+    private static Integer parseWedgeNumber(String s) {
+        if (s == null || s.isBlank()) return 1;
+        try { return Integer.parseInt(s.trim()); }
+        catch (NumberFormatException ex) { return 1; }
     }
 
     /** Map a MusicXML {@code <pedal type>} attribute to {@link PedalState}, or {@code null} for visual-only. */
@@ -586,69 +828,98 @@ public final class MusicXmlParser {
         };
     }
 
-    /** Original {@code handleDirection} body — extracted for clarity. */
+    /**
+     * Extract a dynamics set-point from a {@code <direction>}. The
+     * authored shape is preserved:
+     * <ul>
+     *   <li>{@code <direction-type><dynamics><f/></dynamics>} →
+     *       {@link music.notation.expressivity.Loudness.Named} carrying
+     *       {@link music.notation.event.Dynamic#F} — the glyph survives
+     *       end-to-end and an engraver can re-emit it verbatim.</li>
+     *   <li>{@code <sound dynamics="54.44"/>} (a numeric percentage)
+     *       → {@link music.notation.expressivity.Loudness.Raw} with the
+     *       level in {@code [0.0, 1.0]}. No symbol is fabricated.</li>
+     * </ul>
+     * Special markings ({@code sf}, {@code fp}, …) without a clean
+     * named-Dynamic equivalent collapse to {@code Named(F)} — they're
+     * forte-class accents and the codec treats them as such; future
+     * work can introduce a distinct accent side-channel.
+     */
     private static void addDynamicsFromDirection(Element direction, String partId,
                                                    PartCursor cursor,
                                                    List<DynamicsEvent> events) {
         Integer staff = childIntOrNull(direction, "staff");
 
-        Integer cc7 = null;
-        Element sound = firstChild(direction, "sound");
-        if (sound != null) {
-            String dyn = sound.getAttribute("dynamics");
-            if (!dyn.isBlank()) {
-                try {
-                    double pct = Double.parseDouble(dyn);
-                    cc7 = clamp((int) Math.round(pct * 90.0 / 100.0), 1, 127);
-                } catch (NumberFormatException ex) {
-                    LOG.warn("ignored non-numeric <sound dynamics>: '{}'", dyn);
+        music.notation.expressivity.Loudness loudness = null;
+
+        // Prefer the symbolic mark when present — it carries authorial intent.
+        Element dt = firstChild(direction, "direction-type");
+        if (dt != null) {
+            Element dynEl = firstChild(dt, "dynamics");
+            if (dynEl != null) {
+                loudness = symbolicDynamic(dynEl);
+            }
+        }
+
+        // Fall back to numeric <sound dynamics="..."> percentage.
+        if (loudness == null) {
+            Element sound = firstChild(direction, "sound");
+            if (sound != null) {
+                String dyn = sound.getAttribute("dynamics");
+                if (!dyn.isBlank()) {
+                    try {
+                        // MusicXML <sound dynamics> is a percentage where
+                        // 100 ≈ forte. Treat it as percent-of-max and clamp
+                        // to a synth-agnostic level [0.0, 1.0].
+                        double pct = Double.parseDouble(dyn);
+                        double level = Math.max(0.0, Math.min(1.0, pct / 100.0));
+                        loudness = music.notation.expressivity.Loudness.of(level);
+                    } catch (NumberFormatException ex) {
+                        LOG.warn("ignored non-numeric <sound dynamics>: '{}'", dyn);
+                    }
                 }
             }
         }
-        if (cc7 == null) {
-            Element dt = firstChild(direction, "direction-type");
-            if (dt != null) {
-                Element dynEl = firstChild(dt, "dynamics");
-                if (dynEl != null) {
-                    Integer fromSym = symbolicDynamic(dynEl);
-                    if (fromSym != null) cc7 = fromSym;
-                }
-            }
-        }
-        if (cc7 != null) {
-            events.add(new DynamicsEvent(cursor.cursorDiv, partId, staff, cc7));
+
+        if (loudness != null) {
+            events.add(new DynamicsEvent(cursor.cursorDiv, partId, staff, loudness));
         }
     }
 
-    /** First known symbolic-dynamic child of {@code <dynamics>} → CC #7 value, else null. */
-    private static Integer symbolicDynamic(Element dynamicsEl) {
+    /** First known symbolic-dynamic child of {@code <dynamics>} → {@link Loudness.Named}, else null. */
+    private static music.notation.expressivity.Loudness symbolicDynamic(Element dynamicsEl) {
         for (Node n = dynamicsEl.getFirstChild(); n != null; n = n.getNextSibling()) {
             if (n.getNodeType() != Node.ELEMENT_NODE) continue;
-            Integer mapped = SYMBOLIC_DYNAMICS.get(localName((Element) n));
-            if (mapped != null) return mapped;
+            music.notation.event.Dynamic mark = SYMBOLIC_DYNAMICS.get(localName((Element) n));
+            if (mark != null) return music.notation.expressivity.Loudness.of(mark);
         }
         return null;
     }
 
-    /** Standard symbolic → CC #7 mapping. Special markings (sf*, fp, …) collapse to f. */
-    private static final Map<String, Integer> SYMBOLIC_DYNAMICS = Map.ofEntries(
-            Map.entry("pppp", 16),
-            Map.entry("ppp",  24),
-            Map.entry("pp",   33),
-            Map.entry("p",    49),
-            Map.entry("mp",   64),
-            Map.entry("mf",   80),
-            Map.entry("f",    96),
-            Map.entry("ff",   108),
-            Map.entry("fff",  120),
-            Map.entry("ffff", 127),
-            Map.entry("sf",   96),
-            Map.entry("sfp",  96),
-            Map.entry("sfz",  96),
-            Map.entry("fp",   96),
-            Map.entry("fz",   96),
-            Map.entry("rf",   96),
-            Map.entry("rfz",  96)
+    /**
+     * MusicXML symbolic-dynamic tag → {@link music.notation.event.Dynamic} enum value.
+     * Authored marks survive verbatim through the model. Special markings
+     * (sf*, fp, …) collapse to {@link music.notation.event.Dynamic#F}
+     * pending a dedicated accent side-channel.
+     */
+    private static final Map<String, music.notation.event.Dynamic> SYMBOLIC_DYNAMICS = Map.ofEntries(
+            Map.entry("pppp", music.notation.event.Dynamic.PPPP),
+            Map.entry("ppp",  music.notation.event.Dynamic.PPP),
+            Map.entry("pp",   music.notation.event.Dynamic.PP),
+            Map.entry("p",    music.notation.event.Dynamic.P),
+            Map.entry("mp",   music.notation.event.Dynamic.MP),
+            Map.entry("mf",   music.notation.event.Dynamic.MF),
+            Map.entry("f",    music.notation.event.Dynamic.F),
+            Map.entry("ff",   music.notation.event.Dynamic.FF),
+            Map.entry("fff",  music.notation.event.Dynamic.FFF),
+            Map.entry("ffff", music.notation.event.Dynamic.FFFF),
+            Map.entry("sf",   music.notation.event.Dynamic.F),
+            Map.entry("sfp",  music.notation.event.Dynamic.F),
+            Map.entry("sfz",  music.notation.event.Dynamic.F),
+            Map.entry("fp",   music.notation.event.Dynamic.F),
+            Map.entry("fz",   music.notation.event.Dynamic.F),
+            Map.entry("rf",   music.notation.event.Dynamic.F),
+            Map.entry("rfz",  music.notation.event.Dynamic.F)
     );
 
     private static int clamp(int v, int lo, int hi) {
@@ -661,11 +932,13 @@ public final class MusicXmlParser {
     }
 
     private static void applyAttributes(Element attributes, String partId, PartCursor cursor,
-                                         Map<String, Transpose> partTranspose) {
-        // <divisions>, <time>, <key> changes are not honoured yet — the
-        // TempoTimeline + score-level meta lock in the first occurrence.
-        // Distinguish the initial declaration (silent) from mid-piece
-        // changes (warn) via per-part "seen" flags on the cursor.
+                                         Map<String, Transpose> partTranspose,
+                                         java.util.TreeMap<music.notation.duration.Duration, TimeSignature> timeSigByAt,
+                                         java.util.TreeMap<music.notation.duration.Duration, KeySignature> keyByAt) {
+        // <divisions> changes still warn — the TempoTimeline locks in
+        // the first <divisions> for the part. <time> and <key>
+        // changes are now captured into the score-wide signature
+        // tracks instead of being dropped.
         if (firstChild(attributes, "divisions") != null) {
             if (cursor.seenInitialDivisions) {
                 LOG.warn("mid-piece <divisions> change in part {} ignored "
@@ -674,21 +947,25 @@ public final class MusicXmlParser {
                 cursor.seenInitialDivisions = true;
             }
         }
-        if (firstChild(attributes, "time") != null) {
-            if (cursor.seenInitialTime) {
-                LOG.warn("mid-piece <time> change in part {} ignored "
-                        + "(single-time-sig limitation, see plan doc)", partId);
-            } else {
-                cursor.seenInitialTime = true;
+        Element timeEl = firstChild(attributes, "time");
+        if (timeEl != null) {
+            TimeSignature ts = parseTimeSignature(timeEl);
+            if (ts != null) {
+                music.notation.duration.Duration at = cursor.divToDuration(cursor.cursorDiv);
+                // Multiple parts in a typical score declare the same
+                // signature at the same measure; first part wins.
+                timeSigByAt.putIfAbsent(at, ts);
             }
+            cursor.seenInitialTime = true;
         }
-        if (firstChild(attributes, "key") != null) {
-            if (cursor.seenInitialKey) {
-                LOG.warn("mid-piece <key> change in part {} ignored "
-                        + "(single-key-sig limitation, see plan doc)", partId);
-            } else {
-                cursor.seenInitialKey = true;
+        Element keyEl = firstChild(attributes, "key");
+        if (keyEl != null) {
+            KeySignature ks = parseKey(keyEl);
+            if (ks != null) {
+                music.notation.duration.Duration at = cursor.divToDuration(cursor.cursorDiv);
+                keyByAt.putIfAbsent(at, ks);
             }
+            cursor.seenInitialKey = true;
         }
         Element transpose = firstChild(attributes, "transpose");
         if (transpose != null) {
@@ -721,7 +998,10 @@ public final class MusicXmlParser {
                                   Map<String, Transpose> partTranspose,
                                   List<DrumNote> drumNotes) {
         if (firstChild(noteEl, "grace") != null) {
-            cursor.graceNotesSkipped++;
+            // Buffer the grace note. It will be emitted just before the
+            // next non-grace note's onset, with a short fixed duration —
+            // the standard pre-beat acciaccatura interpretation.
+            bufferGraceNote(noteEl, cursor);
             return;
         }
 
@@ -739,21 +1019,49 @@ public final class MusicXmlParser {
             cursor.cursorDiv += durationDiv;
         }
 
+        music.notation.duration.Duration onsetAt = cursor.divToDuration(onsetDiv);
+
+        // Flush any pending grace notes onto the lead-in of THIS note
+        // (chord-members re-use the previous onset so we only flush on
+        // the first member to avoid duplicate grace runs).
+        if (!isChord && !cursor.pendingGraces.isEmpty()) {
+            flushPendingGraces(onsetAt, cursor, partId, buckets, partTranspose);
+        }
+
         if (isRest) return;
 
-        long onsetMs    = cursor.divToMs(onsetDiv);
-        long durationMs = Math.max(1, cursor.divToMs(onsetDiv + durationDiv) - onsetMs);
+        // Note duration: end-div minus start-div, both translated to Duration.
+        music.notation.duration.Duration endAt = cursor.divToDuration(onsetDiv + durationDiv);
+        music.notation.duration.Duration noteDuration = endAt.minus(onsetAt);
+        if (noteDuration.compareDuration(music.notation.duration.Duration.zero()) <= 0) {
+            // Floor: a zero-duration note isn't legal in PitchedNote;
+            // give it the smallest sensible Duration (a 128th note).
+            noteDuration = music.notation.duration.Duration.of(1, 128);
+        }
 
         if (isUnpitched) {
-            emitDrumNote(noteEl, partId, onsetMs, durationMs, instrumentMap, drumNotes, cursor);
+            emitDrumNote(noteEl, partId, onsetAt, noteDuration, instrumentMap, drumNotes, cursor);
             return;
         }
 
         Element pitch = firstChild(noteEl, "pitch");
         if (pitch == null) return;
-        int writtenMidi = midiFromPitch(pitch);
+        Spelling sp = spellingFromPitch(pitch);
         Transpose t = partTranspose.getOrDefault(partId, Transpose.NONE);
-        int midi = clamp(writtenMidi + t.totalSemitones(), 0, 127);
+        // Preserve authored spelling when the part isn't transposing —
+        // covers piano, voice, strings (non-transposing). For
+        // transposing instruments (clarinets, horns, ...) the shifted
+        // pitch has no canonical re-spelling without key-aware logic,
+        // so fall back to RawMidi. A future key-aware speller can lift
+        // RawMidi → Spelled when context is available.
+        music.notation.performance.Pitch pitchValue;
+        if (t.totalSemitones() == 0) {
+            pitchValue = music.notation.performance.Pitch.of(sp.step, sp.alter, sp.octave);
+        } else {
+            int writtenMidi = (sp.octave + 1) * 12 + sp.step.semitoneFromC() + sp.alter;
+            int shifted = clamp(writtenMidi + t.totalSemitones(), 0, 127);
+            pitchValue = music.notation.performance.Pitch.of(shifted);
+        }
 
         boolean tiedToNext = hasTie(noteEl, "start");
         int staff = intText(noteEl, "staff", 1);
@@ -762,10 +1070,128 @@ public final class MusicXmlParser {
         TrackKey key = new TrackKey(partId, staff, voice);
         TrackBucket bucket = buckets.computeIfAbsent(key,
                 k -> new TrackBucket(new TrackId(trackName(k))));
-        bucket.notes.add(new PitchedNote(onsetMs, durationMs, midi, tiedToNext));
+        bucket.notes.add(new PitchedNote(onsetAt, noteDuration, pitchValue, tiedToNext));
 
-        if (!isChord) updateArticulationState(bucket, noteEl, onsetMs);
+        if (!isChord) updateArticulationState(bucket, noteEl, onsetAt);
     }
+
+    /**
+     * Per-grace acciaccatura duration as a musical {@link
+     * music.notation.duration.Duration}. A 32nd note — short enough to
+     * read as ornamental, long enough to be audible. Three or four
+     * stacked graces will collide with the main note; the flush logic
+     * clamps the start to the available pre-beat window.
+     */
+    private static final music.notation.duration.Duration GRACE_PER_NOTE =
+            music.notation.duration.Duration.of(1, 32);
+
+    /**
+     * Floor on emitted grace-note duration. A 128th note — protects
+     * against zero-length notes when graces stack against a very early
+     * main note.
+     */
+    private static final music.notation.duration.Duration GRACE_MIN_DURATION =
+            music.notation.duration.Duration.of(1, 128);
+
+    /**
+     * Buffer a {@code <grace>} note into the cursor. Multiple consecutive
+     * graces queue up; the next non-grace note triggers a flush that
+     * places them as pre-beat acciaccaturas. Chord graces (marked with
+     * {@code <chord/>} inside the grace block) are grouped so they
+     * sound simultaneously rather than stacking sequentially.
+     */
+    private static void bufferGraceNote(Element noteEl, PartCursor cursor) {
+        Element pitch = firstChild(noteEl, "pitch");
+        if (pitch == null) return;       // tied / rest graces — ignore for now
+        Spelling sp = spellingFromPitch(pitch);
+        Element grace = firstChild(noteEl, "grace");
+        // <grace slash="yes"/> marks an acciaccatura — visually crossed
+        // through. We don't currently model the slash distinction in
+        // playback (both flavours play as pre-beat) but record it on
+        // the buffered entry so future renderers can differentiate.
+        boolean accented = grace != null
+                && "yes".equalsIgnoreCase(grace.getAttribute("slash"));
+        int staff = intText(noteEl, "staff", 1);
+        int voice = intText(noteEl, "voice", 1);
+        boolean chordedWithPrev = firstChild(noteEl, "chord") != null;
+        cursor.pendingGraces.add(new PendingGrace(
+                sp, accented, staff, voice, chordedWithPrev));
+    }
+
+    /**
+     * Emit the cursor's buffered graces as {@link PitchedNote}s just
+     * before {@code mainOnsetAt}. Sequential graces stack pre-beat;
+     * chord graces play simultaneously within a slot. Each emitted
+     * note's length is {@link #GRACE_PER_NOTE} clamped against the
+     * available pre-beat window.
+     */
+    private static void flushPendingGraces(music.notation.duration.Duration mainOnsetAt,
+                                            PartCursor cursor,
+                                            String partId,
+                                            Map<TrackKey, TrackBucket> buckets,
+                                            Map<String, Transpose> partTranspose) {
+        if (cursor.pendingGraces.isEmpty()) return;
+
+        // Group consecutive chord-graces (sound at the same slot).
+        java.util.List<java.util.List<PendingGrace>> slots = new java.util.ArrayList<>();
+        for (PendingGrace pg : cursor.pendingGraces) {
+            if (pg.chordedWithPrev() && !slots.isEmpty()) {
+                slots.get(slots.size() - 1).add(pg);
+            } else {
+                java.util.List<PendingGrace> slot = new java.util.ArrayList<>();
+                slot.add(pg);
+                slots.add(slot);
+            }
+        }
+
+        int slotCount = slots.size();
+        music.notation.duration.Duration totalLead = GRACE_PER_NOTE.times(slotCount);
+        music.notation.duration.Duration startAt;
+        if (mainOnsetAt.compareDuration(totalLead) >= 0) {
+            startAt = mainOnsetAt.minus(totalLead);
+        } else {
+            startAt = music.notation.duration.Duration.zero();
+        }
+        music.notation.duration.Duration slotAt = startAt;
+
+        Transpose t = partTranspose.getOrDefault(partId, Transpose.NONE);
+
+        for (java.util.List<PendingGrace> slot : slots) {
+            // Available window for this slot — never push past the main note.
+            music.notation.duration.Duration slotEnd =
+                    slotAt.plus(GRACE_PER_NOTE).compareDuration(mainOnsetAt) <= 0
+                            ? slotAt.plus(GRACE_PER_NOTE) : mainOnsetAt;
+            music.notation.duration.Duration slotDur = slotEnd.minus(slotAt);
+            if (slotDur.compareDuration(GRACE_MIN_DURATION) < 0) slotDur = GRACE_MIN_DURATION;
+            for (PendingGrace pg : slot) {
+                music.notation.performance.Pitch pitchValue;
+                if (t.totalSemitones() == 0) {
+                    pitchValue = music.notation.performance.Pitch.of(
+                            pg.spelling().step, pg.spelling().alter, pg.spelling().octave);
+                } else {
+                    int writtenMidi = (pg.spelling().octave + 1) * 12
+                            + pg.spelling().step.semitoneFromC()
+                            + pg.spelling().alter;
+                    pitchValue = music.notation.performance.Pitch.of(
+                            clamp(writtenMidi + t.totalSemitones(), 0, 127));
+                }
+                TrackKey key = new TrackKey(partId, pg.staff(), pg.voice());
+                TrackBucket bucket = buckets.computeIfAbsent(key,
+                        k -> new TrackBucket(new TrackId(trackName(k))));
+                bucket.notes.add(new PitchedNote(slotAt, slotDur, pitchValue, false));
+                cursor.graceNotesEmitted++;
+            }
+            slotAt = slotAt.plus(GRACE_PER_NOTE);
+        }
+        cursor.pendingGraces.clear();
+    }
+
+    /** One buffered grace note awaiting flush onto the next main onset.
+     *  Carries authorial {@link Spelling} so spelling survives through
+     *  the grace → main-note flush; the codec/render path only cares
+     *  about the resolved MIDI, but engravers need the glyph. */
+    private record PendingGrace(Spelling spelling, boolean accented,
+                                  int staff, int voice, boolean chordedWithPrev) {}
 
     /**
      * Resolve a {@code <unpitched>} note to a GM percussion {@link DrumNote}
@@ -774,7 +1200,8 @@ public final class MusicXmlParser {
      * id is absent or unmapped.
      */
     private static void emitDrumNote(Element noteEl, String partId,
-                                      long onsetMs, long durationMs,
+                                      music.notation.duration.Duration onsetAt,
+                                      music.notation.duration.Duration noteDuration,
                                       Map<String, Integer> instrumentMap,
                                       List<DrumNote> drumNotes,
                                       PartCursor cursor) {
@@ -795,7 +1222,7 @@ public final class MusicXmlParser {
                 return;
             }
         }
-        drumNotes.add(new DrumNote(onsetMs, durationMs, midi));
+        drumNotes.add(new DrumNote(onsetAt, noteDuration, midi));
     }
 
     /**
@@ -804,7 +1231,8 @@ public final class MusicXmlParser {
      * notation. A change is appended only when the kind actually flips, so the
      * resulting {@link ArticulationControl} stays canonical.
      */
-    private static void updateArticulationState(TrackBucket bucket, Element noteEl, long onsetMs) {
+    private static void updateArticulationState(TrackBucket bucket, Element noteEl,
+                                                 music.notation.duration.Duration onsetAt) {
         boolean slurStartsHere = hasSlurType(noteEl, "start");
         boolean slurEndsHere   = hasSlurType(noteEl, "stop");
         boolean thisNoteInSlur = bucket.inSlur || slurStartsHere;
@@ -814,7 +1242,7 @@ public final class MusicXmlParser {
                 : articulationFromNotations(noteEl);
 
         if (kind != bucket.currentArtic) {
-            bucket.articChanges.add(new ArticulationChange(onsetMs, kind));
+            bucket.articChanges.add(new ArticulationChange(onsetAt, kind));
             bucket.currentArtic = kind;
         }
 
@@ -844,12 +1272,23 @@ public final class MusicXmlParser {
         return false;
     }
 
-    private static int midiFromPitch(Element pitch) {
-        String step = textOf(firstChild(pitch, "step")).trim();
+    /** Extracted authorial spelling — diatonic step letter, chromatic alter, scientific octave. */
+    private record Spelling(music.notation.event.Step step, int alter, int octave) {}
+
+    private static Spelling spellingFromPitch(Element pitch) {
+        String stepStr = textOf(firstChild(pitch, "step")).trim();
+        music.notation.event.Step step = music.notation.event.Step.valueOf(stepStr);
         Element alterEl = firstChild(pitch, "alter");
         int alter = (alterEl == null) ? 0 : (int) Math.round(Double.parseDouble(textOf(alterEl).trim()));
         int octave = Integer.parseInt(textOf(firstChild(pitch, "octave")).trim());
-        return PitchMath.toMidi(step, alter, octave);
+        return new Spelling(step, alter, octave);
+    }
+
+    /** Legacy MIDI-only resolution path used by the chord-grouping code that
+     *  still expects an int — kept thin around {@link #spellingFromPitch}. */
+    private static int midiFromPitch(Element pitch) {
+        Spelling sp = spellingFromPitch(pitch);
+        return (sp.octave + 1) * 12 + sp.step.semitoneFromC() + sp.alter;
     }
 
     private static boolean hasTie(Element noteEl, String type) {
@@ -933,11 +1372,22 @@ public final class MusicXmlParser {
 
     private record TrackKey(String partId, int staff, int voice) {}
 
-    /** Dynamic marking emitted into the {@link Volume} side-channel. */
-    private record DynamicsEvent(long div, String partId, Integer staff, int cc7) {}
+    /** Dynamic marking emitted into the {@link Volume} side-channel.
+     *  {@code loudness} preserves whether the mark was authored as a
+     *  symbolic Dynamic ({@link music.notation.expressivity.Loudness.Named})
+     *  or a numeric percentage ({@link music.notation.expressivity.Loudness.Raw}). */
+    private record DynamicsEvent(long div, String partId, Integer staff,
+                                 music.notation.expressivity.Loudness loudness) {}
 
     /** Sustain-pedal event emitted into the {@link Pedaling} side-channel. */
     private record PedalEvent(long div, String partId, PedalState state) {}
+
+    /** A single wedge (hairpin) endpoint: a {@code <wedge>} element at
+     *  some musical position. Starts (CRESCENDO/DECRESCENDO) are paired
+     *  with later stops by {@code number} inside the same part. */
+    private record WedgeEvent(long div, String partId, Integer number, WedgeKind kind) {}
+
+    private enum WedgeKind { CRESCENDO, DECRESCENDO, STOP }
 
     /** Mean MIDI pitch of pitched notes in a bucket (0 when empty). */
     private static double averagePitch(TrackBucket bucket) {
@@ -980,15 +1430,21 @@ public final class MusicXmlParser {
         boolean seenInitialTime = false;
         boolean seenInitialKey = false;
         boolean seenInitialDivisions = false;
-        int graceNotesSkipped = 0;
+
+        // Grace notes buffered between their <grace> elements and the
+        // following non-grace note. The flush logic in
+        // {@link MusicXmlParser#flushPendingGraces} consumes this list.
+        final java.util.List<PendingGrace> pendingGraces = new java.util.ArrayList<>();
+        int graceNotesEmitted = 0;
+
         int unmappedPercussionDropped = 0;
 
         PartCursor(TempoTimeline tempos) {
             this.tempos = tempos;
         }
 
-        long divToMs(long div) {
-            return tempos.divToMs(div);
+        music.notation.duration.Duration divToDuration(long div) {
+            return tempos.divToDuration(div);
         }
     }
 }

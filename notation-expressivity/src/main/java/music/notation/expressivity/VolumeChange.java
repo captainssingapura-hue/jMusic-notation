@@ -1,14 +1,42 @@
 package music.notation.expressivity;
 
+import music.notation.duration.Duration;
+
+import java.util.Objects;
+
 /**
- * A single volume set-point on a track, anchored at a millisecond tick.
+ * A single channel-volume set-point on a track, anchored at a musical
+ * position from the start of the owning track. The {@link #loudness}
+ * payload is a {@link Loudness} sum type so authored symbolic marks
+ * ({@link Loudness.Named}) survive round-trip while numeric values
+ * ({@link Loudness.Raw}) stay continuous. The model carries no MIDI
+ * CC #7 byte (a synth-specific 7-bit value).
  *
- * <p>{@code level} is in MIDI CC #7 range, 0–127, where 0 is silence and
- * 127 is full. Values outside the range throw at construction.</p>
+ * <p>Output mapping at the codec boundary:</p>
+ * <ul>
+ *   <li>MIDI {@code CC #7 = round(loudness.level() × 127)} clamped to
+ *       {@code [0, 127]}. CC #7 = 0 is valid silence.</li>
+ * </ul>
  */
-public record VolumeChange(long tickMs, int level) {
+public record VolumeChange(Duration at, Loudness loudness) {
     public VolumeChange {
-        if (tickMs < 0) throw new IllegalArgumentException("tickMs must be >= 0: " + tickMs);
-        if (level < 0 || level > 127) throw new IllegalArgumentException("level must be in [0,127]: " + level);
+        Objects.requireNonNull(at, "at");
+        Objects.requireNonNull(loudness, "loudness");
+        if (at.compareDuration(Duration.zero()) < 0) {
+            throw new IllegalArgumentException("at must be >= 0: " + at);
+        }
     }
+
+    /** Convenience for {@code new VolumeChange(at, Loudness.of(level))}. */
+    public VolumeChange(Duration at, double level) {
+        this(at, Loudness.of(level));
+    }
+
+    /** Convenience for {@code new VolumeChange(at, Loudness.of(mark))}. */
+    public VolumeChange(Duration at, music.notation.event.Dynamic mark) {
+        this(at, Loudness.of(mark));
+    }
+
+    /** Resolved loudness in {@code [0.0, 1.0]}. */
+    public double level() { return loudness.level(); }
 }

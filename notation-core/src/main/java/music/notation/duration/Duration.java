@@ -128,6 +128,23 @@ public sealed interface Duration permits BaseValue, Dotted, Triplet, RawTuplet, 
         return new RawDuration(numerator, denominator);
     }
 
+    /**
+     * Zero duration — the rational 0/1. Used as the "start of track" /
+     * "no length" sentinel after the wall-clock-ms removal. Any
+     * arithmetic with this is well-defined under {@link #plus} and
+     * {@link #compareDuration}; the zero is non-canonical (denominator
+     * is preserved through arithmetic) but compares equal to any other
+     * zero-valued Duration via {@link #equalsDuration}.
+     */
+    static Duration zero() {
+        return new RawDuration(0, 1);
+    }
+
+    /** True when this duration's value is exactly zero (regardless of variant). */
+    default boolean isZero() {
+        return numerator() == 0;
+    }
+
     /** Raw duration from a sixty-fourths count (used for tied/merged notes). */
     static Duration ofSixtyFourths(int sixtyFourths) {
         return new RawDuration(sixtyFourths, 64);

@@ -83,6 +83,9 @@ public final class LauncherApp extends Application {
             new AppEntry("Recorder", "🎤",
                     "Capture mic / MIDI keyboard / audio file → JSON piece folder.",
                     "music.notation.recorder.RecorderApp"),
+            new AppEntry("Lyrics", "📝",
+                    "Attach lyrics to a monophonic melody, one glyph per note.",
+                    "music.notation.lyrics.LyricsEditorApp"),
             new AppEntry("Soundbanks", "🎻",
                     "Browse GM instruments across loaded SF2 banks; audition via MIDI keyboard.",
                     "music.notation.ui.explorer.SoundbankExplorer")
