@@ -5,6 +5,7 @@ import music.notation.performance.DrumNote;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 import music.notation.play.MidiPlayer;
 import music.notation.play.PieceConcretizer;
@@ -94,6 +95,8 @@ class PieceConcretizerCorpusParityTest {
                     + ", midiPath=" + b.score().tracks().size());
             return diffs;
         }
+        var ma = new TimeMapper(a.tempo());
+        var mb = new TimeMapper(b.tempo());
         int n = a.score().tracks().size();
         for (int i = 0; i < n; i++) {
             Track ta = a.score().tracks().get(i);
@@ -112,7 +115,7 @@ class PieceConcretizerCorpusParityTest {
             for (int j = 0; j < ta.notes().size(); j++) {
                 ConcreteNote na = ta.notes().get(j);
                 ConcreteNote nb = tb.notes().get(j);
-                String diff = noteDiff(na, nb);
+                String diff = noteDiff(na, nb, ma, mb);
                 if (diff != null) {
                     diffs.add("Track[" + i + "] (" + ta.id().name() + ") note[" + j + "]: " + diff);
                     if (diffs.size() >= 3) return diffs;
@@ -122,14 +125,22 @@ class PieceConcretizerCorpusParityTest {
         return diffs;
     }
 
-    /** Compare two notes ignoring tied flag; allow ±TICK_TOLERANCE_MS on timing. */
-    private static String noteDiff(ConcreteNote a, ConcreteNote b) {
+    /**
+     * Compare two notes ignoring tied flag; allow ±TICK_TOLERANCE_MS on timing.
+     * Timing is compared in wall-clock ms, each note projected through its own
+     * Performance's tempo, since the two paths may encode tempo differently.
+     */
+    private static String noteDiff(ConcreteNote a, ConcreteNote b, TimeMapper ma, TimeMapper mb) {
         if (a.getClass() != b.getClass()) return "kind " + a + " vs " + b;
-        if (Math.abs(a.tickMs() - b.tickMs()) > TICK_TOLERANCE_MS) {
-            return "tickMs " + a.tickMs() + " vs " + b.tickMs();
+        long aOn = ma.toMs(a.at());
+        long bOn = mb.toMs(b.at());
+        if (Math.abs(aOn - bOn) > TICK_TOLERANCE_MS) {
+            return "tickMs " + aOn + " vs " + bOn;
         }
-        if (Math.abs(a.durationMs() - b.durationMs()) > TICK_TOLERANCE_MS) {
-            return "durationMs " + a.durationMs() + " vs " + b.durationMs() + " (at tickMs " + a.tickMs() + ")";
+        long aDur = ma.toMs(a.endAt()) - aOn;
+        long bDur = mb.toMs(b.endAt()) - bOn;
+        if (Math.abs(aDur - bDur) > TICK_TOLERANCE_MS) {
+            return "durationMs " + aDur + " vs " + bDur + " (at tickMs " + aOn + ")";
         }
         if (a instanceof PitchedNote pa && b instanceof PitchedNote pb) {
             if (pa.midi() != pb.midi()) return "midi " + pa.midi() + " vs " + pb.midi();

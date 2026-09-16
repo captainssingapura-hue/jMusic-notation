@@ -1,5 +1,6 @@
 package music.notation.mxl;
 
+import music.notation.duration.Duration;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Track;
 import music.notation.structure.Mode;
@@ -136,10 +137,10 @@ class MusicXmlParserEdgeCasesTest {
 
     @Test
     void graceNoteEmitsAsPreBeatAcciaccatura() {
-        // A grace D4 before a C4 quarter. Place a leading rest (16 divisions
-        // at the default 120 bpm = 500 ms quarter) so the grace has room
-        // to genuinely precede the main note's onset rather than being
-        // clamped to tick 0.
+        // A grace D4 before a C4 quarter. Place a leading quarter rest
+        // (4 divisions at divisions=4) so the grace has room to genuinely
+        // precede the main note's onset rather than being clamped to
+        // position 0.
         String xml = wrap("""
                 <measure number="1">
                   <attributes>
@@ -167,7 +168,7 @@ class MusicXmlParserEdgeCasesTest {
         assertEquals(2, t.notes().size(), "grace + main → two notes (rest is silent)");
 
         // Look up by midi rather than by index — Track's canonical sort
-        // ((tickMs, midi)) can place a lower-pitched main before a
+        // ((at, midi)) can place a lower-pitched main before a
         // higher-pitched grace if both share an onset; here they don't
         // (the rest gives the grace room), but the assertion is more
         // robust this way.
@@ -178,21 +179,21 @@ class MusicXmlParserEdgeCasesTest {
 
         // Main note's onset is unaffected by the grace presence — the
         // grace is squeezed into the lead-in window, not stolen from
-        // the main note's slot.
-        assertTrue(main.tickMs() > 0,
-                "main note onset must still reflect the leading rest");
-        assertTrue(grace.tickMs() < main.tickMs(),
+        // the main note's slot. The leading quarter rest puts it at 1/4.
+        assertTrue(Duration.of(1, 4).equalsDuration(main.at()),
+                "main note onset must still reflect the leading quarter rest, got " + main.at());
+        assertTrue(grace.at().compareDuration(main.at()) < 0,
                 "grace must precede the main onset when it has room");
-        assertTrue(grace.tickMs() + grace.durationMs() <= main.tickMs() + 1,
-                "grace must end at or before main onset (±1 ms rounding)");
+        assertTrue(grace.endAt().compareDuration(main.at()) <= 0,
+                "grace must end at or before main onset (rational arithmetic — no rounding slack)");
     }
 
     @Test
     void multipleGraceNotesStackBeforeMain() {
-        // Three graces (C5, D5, E5) before a main C4 at 1000 ms — each grace
-        // occupies one pre-beat slot (~70 ms), so they fan out backwards.
-        // Note the leading rest of 16 divisions (one quarter) to give the
-        // graces room — at the default 120 bpm, the quarter is 500 ms.
+        // Three graces (C5, D5, E5) before a main C4 on beat 2 — each grace
+        // occupies one pre-beat slot (a 32nd), so they fan out backwards.
+        // Note the leading rest of 4 divisions (one quarter) to give the
+        // graces room: three 32nds (3/32) fit inside the quarter (8/32).
         String xml = wrap("""
                 <measure number="1">
                   <attributes>
@@ -241,10 +242,12 @@ class MusicXmlParserEdgeCasesTest {
         assertEquals(60, main.midi(), "main note C4");
 
         // Onsets are strictly increasing across the three graces.
-        assertTrue(g1.tickMs() < g2.tickMs());
-        assertTrue(g2.tickMs() < g3.tickMs());
-        // All three graces sit before the main note.
-        assertTrue(g3.tickMs() + g3.durationMs() <= main.tickMs() + 1,
-                "last grace must end at or before main onset (±1 ms rounding)");
+        assertTrue(g1.at().compareDuration(g2.at()) < 0);
+        assertTrue(g2.at().compareDuration(g3.at()) < 0);
+        // All three graces sit before the main note (which lands on beat 2).
+        assertTrue(Duration.of(1, 4).equalsDuration(main.at()),
+                "main note should sit after the quarter rest, got " + main.at());
+        assertTrue(g3.endAt().compareDuration(main.at()) <= 0,
+                "last grace must end at or before main onset (rational arithmetic — no rounding slack)");
     }
 }

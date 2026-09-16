@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 import music.notation.structure.TimeSignature;
 import org.junit.jupiter.api.Test;
@@ -29,9 +30,12 @@ class AutoPedalingAugmentTest {
 
     private static final TimeSignature FOUR_FOUR = new TimeSignature(4, 4);
 
-    /** A simple 6-second 4/4 piece with one piano-typed track. */
-    private static Performance pianoPiece(long lastNoteEndMs) {
-        var note = new PitchedNote(0, lastNoteEndMs, 60);
+    /** Three bars of 4/4 = 12 quarter notes. */
+    private static final Duration THREE_BARS = Duration.of(12, 4);
+
+    /** A simple 3-bar 4/4 piece (12 quarters) with one piano-typed track. */
+    private static Performance pianoPiece(Duration lastNoteEnd) {
+        var note = new PitchedNote(Duration.zero(), lastNoteEnd, 60);
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, List.of(note));
         return new Performance(
                 new Score(List.of(track)),
@@ -45,11 +49,11 @@ class AutoPedalingAugmentTest {
 
     /** A piece whose only track has the given GM program declared on it. */
     private static Performance pieceWithProgram(int program) {
-        var note = new PitchedNote(0, 6000, 60);
+        var note = new PitchedNote(Duration.zero(), THREE_BARS, 60);
         var id = new TrackId("OnlyTrack");
         var track = new Track(id, TrackKind.PITCHED, List.of(note));
         Map<TrackId, InstrumentControl> instMap = new LinkedHashMap<>();
-        instMap.put(id, new InstrumentControl(List.of(new InstrumentChange(0L, program))));
+        instMap.put(id, new InstrumentControl(List.of(new InstrumentChange(Duration.zero(), program))));
         return new Performance(
                 new Score(List.of(track)),
                 TempoTrack.constant(120),
@@ -64,7 +68,7 @@ class AutoPedalingAugmentTest {
     void augmentAddsPedalingForBareEmptyPianoPiece() {
         // Empty Instrumentation → primaryProgramOf defaults to 0 (piano)
         // → SUSTAIN_FRIENDLY → pedal applied.
-        Performance before = pianoPiece(6000);
+        Performance before = pianoPiece(THREE_BARS);
         Performance after = AutoPedaling.augment(before, FOUR_FOUR);
 
         assertNotSame(before, after, "augment should return a new Performance");
@@ -76,13 +80,13 @@ class AutoPedalingAugmentTest {
 
     @Test
     void augmentLeavesUserAuthoredPedalingUntouched() {
-        Performance bare = pianoPiece(6000);
+        Performance bare = pianoPiece(THREE_BARS);
         // Construct a Performance with explicit, non-empty pedaling
         // (a single user-authored DOWN-only timeline).
         var trackId = bare.score().tracks().get(0).id();
         var explicit = new Pedaling(Map.of(
                 trackId,
-                new PedalControl(List.of(new PedalChange(0L, PedalState.DOWN)))));
+                new PedalControl(List.of(new PedalChange(Duration.zero(), PedalState.DOWN)))));
         Performance withUserPedal = bare.withPedaling(explicit);
 
         Performance after = AutoPedaling.augment(withUserPedal, FOUR_FOUR);
@@ -148,16 +152,16 @@ class AutoPedalingAugmentTest {
         // Two pitched tracks: one declared as piano (program 0),
         // one as violin (program 40). Both share the same Score; only
         // the piano-tagged track should receive the auto-pedal.
-        var pianoNote = new PitchedNote(0, 6000, 60);
-        var violinNote = new PitchedNote(0, 6000, 72);
+        var pianoNote = new PitchedNote(Duration.zero(), THREE_BARS, 60);
+        var violinNote = new PitchedNote(Duration.zero(), THREE_BARS, 72);
         var pianoId = new TrackId("Piano");
         var violinId = new TrackId("Violin");
         var pianoTrack = new Track(pianoId, TrackKind.PITCHED, List.of(pianoNote));
         var violinTrack = new Track(violinId, TrackKind.PITCHED, List.of(violinNote));
 
         Map<TrackId, InstrumentControl> instMap = new LinkedHashMap<>();
-        instMap.put(pianoId, new InstrumentControl(List.of(new InstrumentChange(0L, 0))));
-        instMap.put(violinId, new InstrumentControl(List.of(new InstrumentChange(0L, 40))));
+        instMap.put(pianoId, new InstrumentControl(List.of(new InstrumentChange(Duration.zero(), 0))));
+        instMap.put(violinId, new InstrumentControl(List.of(new InstrumentChange(Duration.zero(), 40))));
         Performance before = new Performance(
                 new Score(List.of(pianoTrack, violinTrack)),
                 TempoTrack.constant(120),
@@ -194,7 +198,7 @@ class AutoPedalingAugmentTest {
     void nullTimeSigReturnsInputUnchanged() {
         // generate(perf, null) returns Pedaling.empty(); augment then
         // returns the input perf unchanged (no-op).
-        Performance before = pianoPiece(6000);
+        Performance before = pianoPiece(THREE_BARS);
         Performance after = AutoPedaling.augment(before, null);
         assertSame(before, after);
     }

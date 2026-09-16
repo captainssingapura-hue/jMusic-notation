@@ -1,5 +1,6 @@
 package music.notation.input;
 
+import music.notation.duration.Duration;
 import music.notation.performance.PitchedNote;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +21,13 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MidiToNoteReceiverTest {
 
+    /**
+     * The receiver projects session-relative ms onto a fixed 120 bpm grid
+     * ({@code Duration.of(ms, 2000)}: one quarter = 500 ms). Mirror that
+     * projection so wall-clock expectations stay readable in ms.
+     */
+    private static Duration ms(long ms) { return Duration.of(ms, 2000); }
+
     // ── Basic note pairing ───────────────────────────────────────────
 
     @Test
@@ -38,7 +46,7 @@ class MidiToNoteReceiverTest {
         assertEquals(1, events.completed.size());
         PitchedNote n = events.completed.get(0);
         assertEquals(60, n.midi());
-        assertTrue(n.durationMs() >= 1, "duration must be positive");
+        assertTrue(n.duration().compareDuration(ms(1)) >= 0, "duration must be positive");
         assertEquals(90, events.completedVelocities.get(0));
     }
 
@@ -201,10 +209,10 @@ class MidiToNoteReceiverTest {
 
         assertEquals(1, events.completed.size());
         PitchedNote n = events.completed.get(0);
-        assertTrue(n.tickMs() >= 40,
-                "first event tick must be at least ~50ms after start; got " + n.tickMs());
-        assertTrue(n.durationMs() >= 40,
-                "note duration must be at least ~50ms; got " + n.durationMs());
+        assertTrue(n.at().compareDuration(ms(40)) >= 0,
+                "first event tick must be at least ~50ms after start; got " + n.at());
+        assertTrue(n.duration().compareDuration(ms(40)) >= 0,
+                "note duration must be at least ~50ms; got " + n.duration());
     }
 
     // ── Helpers ──────────────────────────────────────────────────────

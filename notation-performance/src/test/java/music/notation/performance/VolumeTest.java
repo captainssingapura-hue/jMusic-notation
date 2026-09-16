@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import org.junit.jupiter.api.Test;
@@ -21,23 +22,29 @@ class VolumeTest {
 
     private static final TrackId LEAD = new TrackId("lead");
 
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
+    /** A MIDI CC byte expressed as a synth-agnostic level in [0, 1]. */
+    private static double lvl(int midiByte) { return midiByte / 127.0; }
+
     // ── VolumeChange validation ────────────────────────────────────
 
     @Test
-    void volumeChangeRejectsNegativeTick() {
-        assertThrows(IllegalArgumentException.class, () -> new VolumeChange(-1, 100));
+    void volumeChangeRejectsNegativePosition() {
+        assertThrows(IllegalArgumentException.class, () -> new VolumeChange(Duration.of(-1, 4), lvl(100)));
     }
 
     @Test
     void volumeChangeRejectsLevelOutOfRange() {
-        assertThrows(IllegalArgumentException.class, () -> new VolumeChange(0, -1));
-        assertThrows(IllegalArgumentException.class, () -> new VolumeChange(0, 128));
+        assertThrows(IllegalArgumentException.class, () -> new VolumeChange(q(0), -0.01));
+        assertThrows(IllegalArgumentException.class, () -> new VolumeChange(q(0), 1.01));
     }
 
     @Test
-    void volumeChangeAccepts0And127() {
-        assertDoesNotThrow(() -> new VolumeChange(0, 0));
-        assertDoesNotThrow(() -> new VolumeChange(0, 127));
+    void volumeChangeAcceptsSilentAndFullLevels() {
+        assertDoesNotThrow(() -> new VolumeChange(q(0), 0.0));
+        assertDoesNotThrow(() -> new VolumeChange(q(0), 1.0));
     }
 
     // ── VolumeControl canonicalisation ─────────────────────────────
@@ -45,24 +52,24 @@ class VolumeTest {
     @Test
     void volumeControlSortsAndDedupesConsecutiveSameLevels() {
         var vc = new VolumeControl(List.of(
-                new VolumeChange(1000, 80),
-                new VolumeChange(0, 100),
-                new VolumeChange(500, 100), // dedupe — same as previous
-                new VolumeChange(1500, 80)  // dedupe — same as 1000ms
+                new VolumeChange(q(2), lvl(80)),
+                new VolumeChange(q(0), lvl(100)),
+                new VolumeChange(q(1), lvl(100)), // dedupe — same as previous
+                new VolumeChange(q(3), lvl(80))   // dedupe — same as 2q
         ));
         assertEquals(2, vc.changes().size(), "consecutive same-level entries dedupe");
-        assertEquals(0, vc.changes().get(0).tickMs());
-        assertEquals(100, vc.changes().get(0).level());
-        assertEquals(1000, vc.changes().get(1).tickMs());
-        assertEquals(80, vc.changes().get(1).level());
+        assertTrue(vc.changes().get(0).at().isZero());
+        assertEquals(lvl(100), vc.changes().get(0).level(), 1e-9);
+        assertTrue(q(2).equalsDuration(vc.changes().get(1).at()));
+        assertEquals(lvl(80), vc.changes().get(1).level(), 1e-9);
     }
 
     @Test
     void volumeControlConstantHelper() {
-        var vc = VolumeControl.constant(64);
+        var vc = VolumeControl.constant(lvl(64));
         assertEquals(1, vc.changes().size());
-        assertEquals(0, vc.changes().get(0).tickMs());
-        assertEquals(64, vc.changes().get(0).level());
+        assertTrue(vc.changes().get(0).at().isZero());
+        assertEquals(lvl(64), vc.changes().get(0).level(), 1e-9);
     }
 
     // ── Volume map drops empty controls ────────────────────────────
@@ -79,8 +86,8 @@ class VolumeTest {
     void performanceRejectsVolumeForUnknownTrack() {
         var unknown = new TrackId("unknown");
         var score = Score.of(new Track(LEAD, TrackKind.PITCHED,
-                List.of(new PitchedNote(0, 500, 60))));
-        var v = Volume.single(unknown, 80);
+                List.of(new PitchedNote(q(0), q(1), 60))));
+        var v = Volume.single(unknown, lvl(80));
         assertThrows(IllegalArgumentException.class,
                 () -> new Performance(score, TempoTrack.empty(),
                         Instrumentation.empty(), v, Articulations.empty()));
@@ -92,10 +99,10 @@ class VolumeTest {
     void codecEmitsCC7ForVolumeEntries() {
         var perf = new Performance(
                 Score.of(new Track(LEAD, TrackKind.PITCHED,
-                        List.of(new PitchedNote(0, 500, 60)))),
+                        List.of(new PitchedNote(q(0), q(1), 60)))),
                 TempoTrack.empty(),
                 Instrumentation.empty(),
-                Volume.single(LEAD, 80),
+                Volume.single(LEAD, lvl(80)),
                 Articulations.empty());
 
         byte[] bytes = MidiCodec.toMidi(perf);
@@ -125,7 +132,7 @@ class VolumeTest {
     void codecEmitsZeroCC7ForEmptyVolume() {
         var perf = Performance.of(Score.of(
                 new Track(LEAD, TrackKind.PITCHED,
-                        List.of(new PitchedNote(0, 500, 60)))));
+                        List.of(new PitchedNote(q(0), q(1), 60)))));
 
         byte[] bytes = MidiCodec.toMidi(perf);
         try {
@@ -153,10 +160,10 @@ class VolumeTest {
     void volumeIsDroppedOnFromMidi() {
         var perf = new Performance(
                 Score.of(new Track(LEAD, TrackKind.PITCHED,
-                        List.of(new PitchedNote(0, 500, 60)))),
+                        List.of(new PitchedNote(q(0), q(1), 60)))),
                 TempoTrack.empty(),
                 Instrumentation.empty(),
-                Volume.single(LEAD, 80),
+                Volume.single(LEAD, lvl(80)),
                 Articulations.empty());
 
         byte[] bytes = MidiCodec.toMidi(perf);
@@ -172,10 +179,10 @@ class VolumeTest {
     void volumeJsonRoundTrip() {
         var perf = new Performance(
                 Score.of(new Track(LEAD, TrackKind.PITCHED,
-                        List.of(new PitchedNote(0, 500, 60)))),
+                        List.of(new PitchedNote(q(0), q(1), 60)))),
                 TempoTrack.empty(),
                 Instrumentation.empty(),
-                Volume.single(LEAD, 64),
+                Volume.single(LEAD, lvl(64)),
                 Articulations.empty());
 
         Performance reread = PerformanceJson.fromJson(PerformanceJson.toJson(perf));

@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 import org.junit.jupiter.api.Test;
 
@@ -21,12 +22,15 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class TransposeTransformTest {
 
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
     /** A 3-note piano piece at modest pitches; safe to transpose ±12 within range. */
     private static Performance pianoPiece() {
         var notes = List.<ConcreteNote>of(
-                new PitchedNote(0,    500, 60),   // C4
-                new PitchedNote(500,  500, 62),   // D4
-                new PitchedNote(1000, 500, 64));  // E4
+                new PitchedNote(q(0), q(1), 60),   // C4
+                new PitchedNote(q(1), q(1), 62),   // D4
+                new PitchedNote(q(2), q(1), 64));  // E4
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, notes);
         return new Performance(
                 new Score(List.of(track)),
@@ -40,12 +44,12 @@ class TransposeTransformTest {
     private static Performance pianoPlusDrums() {
         var pitched = new Track(
                 new TrackId("Piano"), TrackKind.PITCHED,
-                List.of(new PitchedNote(0,   500, 60),
-                        new PitchedNote(500, 500, 64)));
+                List.of(new PitchedNote(q(0), q(1), 60),
+                        new PitchedNote(q(1), q(1), 64)));
         var drums = new Track(
                 new TrackId("Drums"), TrackKind.DRUM,
-                List.of(new DrumNote(0,   100, 36),
-                        new DrumNote(500, 100, 38)));
+                List.of(new DrumNote(q(0), Duration.of(1, 16), 36),
+                        new DrumNote(q(1), Duration.of(1, 16), 38)));
         return new Performance(
                 new Score(List.of(pitched, drums)),
                 TempoTrack.constant(120),
@@ -139,7 +143,7 @@ class TransposeTransformTest {
     }
 
     @Test
-    void shiftPreservesTickAndDuration() {
+    void shiftPreservesPositionAndDuration() {
         Performance perf = pianoPiece();
         Performance shifted = TransposeTransform.apply(perf,
                 new TransposeTransform.Params(3));
@@ -147,18 +151,18 @@ class TransposeTransformTest {
         var origNotes = perf.score().tracks().get(0).notes();
         var newNotes = shifted.score().tracks().get(0).notes();
         for (int i = 0; i < origNotes.size(); i++) {
-            assertEquals(origNotes.get(i).tickMs(), newNotes.get(i).tickMs(),
-                    "tickMs preserved (delegated to original)");
-            assertEquals(origNotes.get(i).durationMs(), newNotes.get(i).durationMs(),
-                    "durationMs preserved (delegated to original)");
+            assertTrue(origNotes.get(i).at().equalsDuration(newNotes.get(i).at()),
+                    "at preserved (delegated to original)");
+            assertTrue(origNotes.get(i).duration().equalsDuration(newNotes.get(i).duration()),
+                    "duration preserved (delegated to original)");
         }
     }
 
     @Test
     void shiftPreservesTiedToNextFlag() {
         var notes = List.<ConcreteNote>of(
-                new PitchedNote(0,   500, 60, true),    // tied
-                new PitchedNote(500, 500, 60, false));  // not tied
+                new PitchedNote(q(0), q(1), 60, true),    // tied
+                new PitchedNote(q(1), q(1), 60, false));  // not tied
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, notes);
         Performance perf = new Performance(
                 new Score(List.of(track)),
@@ -195,13 +199,13 @@ class TransposeTransformTest {
         // Build a Performance with non-empty side-channels.
         var pianoId = new TrackId("Piano");
         var track = new Track(pianoId, TrackKind.PITCHED,
-                List.of(new PitchedNote(0, 500, 60)));
+                List.of(new PitchedNote(q(0), q(1), 60)));
         var volMap = java.util.Map.of(pianoId,
-                new VolumeControl(List.of(new VolumeChange(0, 80))));
+                new VolumeControl(List.of(new VolumeChange(q(0), 80 / 127.0))));
         var velMap = java.util.Map.of(pianoId,
-                new VelocityControl(List.of(new VelocityChange(0, 80))));
+                new VelocityControl(List.of(new VelocityChange(q(0), 80 / 127.0))));
         var pedMap = java.util.Map.of(pianoId,
-                new PedalControl(List.of(new PedalChange(0, PedalState.DOWN))));
+                new PedalControl(List.of(new PedalChange(q(0), PedalState.DOWN))));
 
         Performance perf = new Performance(
                 new Score(List.of(track)),
@@ -225,9 +229,9 @@ class TransposeTransformTest {
     @Test
     void outOfRangePositiveDrops() {
         var notes = List.<ConcreteNote>of(
-                new PitchedNote(0,    500, 100),   // 100+20 = 120 valid
-                new PitchedNote(500,  500, 110),   // 110+20 = 130 → DROPPED
-                new PitchedNote(1000, 500, 60));   // 60+20  = 80  valid
+                new PitchedNote(q(0), q(1), 100),   // 100+20 = 120 valid
+                new PitchedNote(q(1), q(1), 110),   // 110+20 = 130 → DROPPED
+                new PitchedNote(q(2), q(1), 60));   // 60+20  = 80  valid
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, notes);
         Performance perf = new Performance(
                 new Score(List.of(track)),
@@ -249,8 +253,8 @@ class TransposeTransformTest {
     @Test
     void outOfRangeNegativeDrops() {
         var notes = List.<ConcreteNote>of(
-                new PitchedNote(0,    500, 5),    // 5 - 10 = -5 → DROPPED
-                new PitchedNote(500,  500, 60));  // safe
+                new PitchedNote(q(0), q(1), 5),    // 5 - 10 = -5 → DROPPED
+                new PitchedNote(q(1), q(1), 60));  // safe
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, notes);
         Performance perf = new Performance(
                 new Score(List.of(track)),
@@ -270,8 +274,8 @@ class TransposeTransformTest {
     @Test
     void allNotesOutOfRangeProducesEmptyTrack() {
         var notes = List.<ConcreteNote>of(
-                new PitchedNote(0,    500, 120),
-                new PitchedNote(500,  500, 122));
+                new PitchedNote(q(0), q(1), 120),
+                new PitchedNote(q(1), q(1), 122));
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, notes);
         Performance perf = new Performance(
                 new Score(List.of(track)),
@@ -291,11 +295,11 @@ class TransposeTransformTest {
     void countOutOfRangeMatchesActualDrops() {
         // 5 pitched notes, 2 will go out of range after +20.
         List<ConcreteNote> notes = new ArrayList<>();
-        notes.add(new PitchedNote(0,   500, 100));   // 120 — valid
-        notes.add(new PitchedNote(500, 500, 110));   // 130 — DROPPED
-        notes.add(new PitchedNote(1000,500, 60));    // 80  — valid
-        notes.add(new PitchedNote(1500,500, 115));   // 135 — DROPPED
-        notes.add(new PitchedNote(2000,500, 50));    // 70  — valid
+        notes.add(new PitchedNote(q(0), q(1), 100));   // 120 — valid
+        notes.add(new PitchedNote(q(1), q(1), 110));   // 130 — DROPPED
+        notes.add(new PitchedNote(q(2), q(1), 60));    // 80  — valid
+        notes.add(new PitchedNote(q(3), q(1), 115));   // 135 — DROPPED
+        notes.add(new PitchedNote(q(4), q(1), 50));    // 70  — valid
 
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, notes);
         Performance perf = new Performance(
@@ -329,9 +333,9 @@ class TransposeTransformTest {
     @Test
     void multiplePitchedTracksAllShifted() {
         var t1 = new Track(new TrackId("RH"), TrackKind.PITCHED,
-                List.of(new PitchedNote(0, 500, 72)));
+                List.of(new PitchedNote(q(0), q(1), 72)));
         var t2 = new Track(new TrackId("LH"), TrackKind.PITCHED,
-                List.of(new PitchedNote(0, 500, 48)));
+                List.of(new PitchedNote(q(0), q(1), 48)));
         Performance perf = new Performance(
                 new Score(List.of(t1, t2)),
                 TempoTrack.constant(120),
@@ -386,7 +390,7 @@ class TransposeTransformTest {
     void shiftedNoteIsAlsoPitchedLikeAndConcreteNote() {
         // Type-membership assertions — locks the sealed hierarchy in tests
         // so accidental re-parenting elsewhere would be caught.
-        var sn = new ShiftedNote(new PitchedNote(0, 500, 60), 5);
+        var sn = new ShiftedNote(new PitchedNote(q(0), q(1), 60), 5);
         assertInstanceOf(PitchedLike.class, sn);
         assertInstanceOf(ConcreteNote.class, sn);
     }
@@ -395,14 +399,14 @@ class TransposeTransformTest {
     void shiftedNoteConstructorRejectsOutOfRange() {
         // Validation at construction matches PitchedNote's stance.
         assertThrows(IllegalArgumentException.class,
-                () -> new ShiftedNote(new PitchedNote(0, 500, 120), 20));
+                () -> new ShiftedNote(new PitchedNote(q(0), q(1), 120), 20));
         assertThrows(IllegalArgumentException.class,
-                () -> new ShiftedNote(new PitchedNote(0, 500, 5), -10));
+                () -> new ShiftedNote(new PitchedNote(q(0), q(1), 5), -10));
     }
 
     @Test
     void shiftedNoteFactoryShortCircuitsZero() {
-        PitchedLike base = new PitchedNote(0, 500, 60);
+        PitchedLike base = new PitchedNote(q(0), q(1), 60);
         assertSame(base, ShiftedNote.of(base, 0),
                 "shift of 0 returns input unchanged");
     }

@@ -61,7 +61,7 @@ class MusicXmlParserPedalTest {
         List<PedalChange> changes = pc.changes();
         assertEquals(2, changes.size());
         assertEquals(PedalState.DOWN, changes.get(0).state());
-        assertEquals(0L,               changes.get(0).tickMs());
+        assertTrue(changes.get(0).at().isZero(), "first pedal-down sits at the start of the piece");
         assertEquals(PedalState.UP,    changes.get(1).state());
     }
 

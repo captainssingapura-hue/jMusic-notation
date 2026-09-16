@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.performance.OnsetGrouper.GroupedEvent;
 import music.notation.performance.PitchBandSplitter.SplitResult;
 import org.junit.jupiter.api.Test;
@@ -10,10 +11,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PitchBandSplitterTest {
 
-    private static GroupedEvent ev(long onset, long dur, int... pitches) {
+    /** Musical position for a 120 bpm ms literal (whole note = 2000 ms). */
+    private static Duration ms(long ms) { return Duration.of(ms, 2000); }
+
+    private static GroupedEvent ev(long onsetMs, long durMs, int... pitches) {
         var list = new java.util.ArrayList<Integer>();
         for (int p : pitches) list.add(p);
-        return new GroupedEvent(onset, dur, list);
+        return new GroupedEvent(ms(onsetMs), ms(durMs), list);
     }
 
     @Test
@@ -58,10 +62,10 @@ class PitchBandSplitterTest {
         assertEquals(List.of(60, 64), r.high().get(0).pitches());
         assertEquals(List.of(48, 55), r.low().get(0).pitches());
         // Onset and duration preserved on both sides.
-        assertEquals(480, r.high().get(0).onsetMs());
-        assertEquals(250, r.high().get(0).durationMs());
-        assertEquals(480, r.low().get(0).onsetMs());
-        assertEquals(250, r.low().get(0).durationMs());
+        assertTrue(ms(480).equalsDuration(r.high().get(0).at()));
+        assertTrue(ms(250).equalsDuration(r.high().get(0).duration()));
+        assertTrue(ms(480).equalsDuration(r.low().get(0).at()));
+        assertTrue(ms(250).equalsDuration(r.low().get(0).duration()));
     }
 
     @Test
@@ -92,8 +96,8 @@ class PitchBandSplitterTest {
         var r = PitchBandSplitter.split(events);
         // High order: 70, 60-65 chord, 64 (from straddle)
         assertEquals(70,  r.high().get(0).highestPitch());
-        assertEquals(200, r.high().get(1).onsetMs());
-        assertEquals(300, r.high().get(2).onsetMs());
+        assertTrue(ms(200).equalsDuration(r.high().get(1).at()));
+        assertTrue(ms(300).equalsDuration(r.high().get(2).at()));
         // Low order: 50, 48 (from straddle)
         assertEquals(50,  r.low().get(0).highestPitch());
         assertEquals(48,  r.low().get(1).highestPitch());

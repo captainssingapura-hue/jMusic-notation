@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.performance.BarBuilder.Config;
 import music.notation.performance.OnsetGrouper.GroupedEvent;
 import music.notation.phrase.Bar;
@@ -15,13 +16,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class BarBuilderTest {
 
-    /** 4/4 bar @ 120 BPM: 64sf/bar, 1 quarter = 500ms = 16sf, so 1ms = 0.032sf. */
+    /** 4/4 bar @ 120 BPM: 64sf/bar, 1 quarter = 16sf. */
     private static final Config CFG_4_4_120 = new Config(64, 120);
 
-    private static GroupedEvent ev(long onset, long dur, int... pitches) {
+    /**
+     * Convert a wall-clock ms literal (written at 120 bpm, where one whole
+     * note = 2000 ms) to its exact musical position: {@code ms / 2000} of
+     * a whole. 500 ms → 1/4, 250 → 1/8, 167 → 167/2000 (≈ triplet eighth).
+     */
+    private static Duration ms(long ms) { return Duration.of(ms, 2000); }
+
+    /** Event at {@code onsetMs} lasting {@code durMs}, both 120 bpm ms literals. */
+    private static GroupedEvent ev(long onsetMs, long durMs, int... pitches) {
         var list = new java.util.ArrayList<Integer>();
         for (int p : pitches) list.add(p);
-        return new GroupedEvent(onset, dur, list);
+        return new GroupedEvent(ms(onsetMs), ms(durMs), list);
     }
 
     @Test

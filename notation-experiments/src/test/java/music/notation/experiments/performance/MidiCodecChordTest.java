@@ -7,6 +7,7 @@ import music.notation.experiments.chord.ChordConcretizer;
 import music.notation.experiments.chord.ChordProgression;
 import music.notation.experiments.chord.ChordShape;
 import music.notation.experiments.chord.ScaleChord;
+import music.notation.duration.Duration;
 import music.notation.performance.ConcreteNote;
 import music.notation.expressivity.Articulations;
 import music.notation.performance.Instrumentation;
@@ -15,6 +16,7 @@ import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Score;
 import music.notation.performance.TempoTrack;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 import music.notation.expressivity.TrackId;
 import music.notation.performance.TrackKind;
@@ -38,11 +40,43 @@ class MidiCodecChordTest {
         assertEquals(whole, MidiCodec.fromMidi(MidiCodec.toMidi(whole)));
     }
 
+    /**
+     * The arpeggio slots are authored in ms (333/333/334) and are not
+     * representable exactly at the codec's PPQ, so the round trip is
+     * compared in wall-clock ms within one MIDI tick of rounding rather
+     * than by exact structural equality.
+     */
     @Test
     void arpeggioProgression_roundTrips() {
         var whole = buildProgression(ChordShape.ARPEGGIO_UP, /*program=*/ -1);
-        assertEquals(whole, MidiCodec.fromMidi(MidiCodec.toMidi(whole)));
+        var viaMidi = MidiCodec.fromMidi(MidiCodec.toMidi(whole));
+
+        assertEquals(whole.tempo(), viaMidi.tempo());
+        assertEquals(whole.instruments(), viaMidi.instruments());
+        assertEquals(whole.score().tracks().size(), viaMidi.score().tracks().size());
+
+        var ma = new TimeMapper(whole.tempo());
+        var mb = new TimeMapper(viaMidi.tempo());
+        for (int t = 0; t < whole.score().tracks().size(); t++) {
+            var ta = whole.score().tracks().get(t);
+            var tb = viaMidi.score().tracks().get(t);
+            assertEquals(ta.id(), tb.id());
+            assertEquals(ta.kind(), tb.kind());
+            assertEquals(ta.notes().size(), tb.notes().size());
+            for (int i = 0; i < ta.notes().size(); i++) {
+                var a = (PitchedNote) ta.notes().get(i);
+                var b = (PitchedNote) tb.notes().get(i);
+                assertEquals(a.midi(), b.midi(), "note " + i + " midi");
+                assertEquals(ma.toMs(a.at()), mb.toMs(b.at()), TICK_TOLERANCE_MS,
+                        "note " + i + " onset ms");
+                assertEquals(ma.toMs(a.endAt()), mb.toMs(b.endAt()), TICK_TOLERANCE_MS,
+                        "note " + i + " off ms");
+            }
+        }
     }
+
+    /** One MIDI tick at PPQ 480 / 120 bpm is ~1.04 ms. */
+    private static final double TICK_TOLERANCE_MS = 1.1;
 
     @Test
     void abstractChord_toMidi_andBack_preservesStructure() {
@@ -65,13 +99,15 @@ class MidiCodecChordTest {
         var trackId = new TrackId("chord");
         var concretizer = new ChordConcretizer<>(GongConcretizer.inC(), trackId);
         var notes = new ArrayList<ConcreteNote>();
-        long cursor = 0;
+        // Chord durations are authored in ms; project at 120 bpm (whole = 2000 ms)
+        // to match ChordConcretizer's own projection.
+        Duration cursor = Duration.zero();
         for (ScaleChord<GongNote> chord : ChordProgression.demoIn(shape)) {
             for (ConcreteNote n : concretizer.concretize(chord).notes()) {
                 var pn = (PitchedNote) n;
-                notes.add(new PitchedNote(pn.tickMs() + cursor, pn.durationMs(), pn.midi()));
+                notes.add(new PitchedNote(pn.at().plus(cursor), pn.duration(), pn.midi()));
             }
-            cursor += chord.durationMs();
+            cursor = cursor.plus(Duration.of(chord.durationMs(), 2000));
         }
         var track = new Track(trackId, TrackKind.PITCHED, notes);
         var instr = program >= 0

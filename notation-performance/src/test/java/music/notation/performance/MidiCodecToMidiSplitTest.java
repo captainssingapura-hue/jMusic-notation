@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 import org.junit.jupiter.api.Test;
 
@@ -18,11 +19,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MidiCodecToMidiSplitTest {
 
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
     private static Performance simplePianoPiece() {
         var notes = List.<ConcreteNote>of(
-                new PitchedNote(0,    500, 60),
-                new PitchedNote(500,  500, 62),
-                new PitchedNote(1000, 500, 64));
+                new PitchedNote(q(0), q(1), 60),
+                new PitchedNote(q(1), q(1), 62),
+                new PitchedNote(q(2), q(1), 64));
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, notes);
         return new Performance(
                 new Score(List.of(track)),
@@ -35,12 +39,12 @@ class MidiCodecToMidiSplitTest {
     private static Performance pianoPlusDrumPiece() {
         var pitched = new Track(
                 new TrackId("Piano"), TrackKind.PITCHED,
-                List.of(new PitchedNote(0,    500, 60),
-                        new PitchedNote(500,  500, 62)));
+                List.of(new PitchedNote(q(0), q(1), 60),
+                        new PitchedNote(q(1), q(1), 62)));
         var drums = new Track(
                 new TrackId("Drums"), TrackKind.DRUM,
-                List.of(new DrumNote(0,    100, 36),
-                        new DrumNote(500,  100, 38)));
+                List.of(new DrumNote(q(0), Duration.of(1, 16), 36),
+                        new DrumNote(q(1), Duration.of(1, 16), 38)));
         return new Performance(
                 new Score(List.of(pitched, drums)),
                 TempoTrack.constant(120),

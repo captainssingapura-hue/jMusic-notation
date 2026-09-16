@@ -1,5 +1,6 @@
 package music.notation.recorder;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.TrackId;
 import music.notation.mxl.MxlImport;
 import music.notation.mxl.MxlSplitJsonReader;
@@ -32,13 +33,21 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class RecorderJsonTest {
 
+    /**
+     * Real-time capture is projected onto the Duration timeline at the
+     * default 120 bpm (whole note = 2000 ms), matching the input sources.
+     */
+    private static Duration ms(long millis) {
+        return Duration.of(millis, 2000);
+    }
+
     // ── Performance construction (in-memory) ─────────────────────────
 
     @Test
     void buildsPerformanceWithSingleVocalTrack() {
         var captured = List.of(
-                new RecorderApp.CapturedNote(new PitchedNote(0,    500, 60), 80),
-                new RecorderApp.CapturedNote(new PitchedNote(500,  500, 64), 95));
+                new RecorderApp.CapturedNote(new PitchedNote(ms(0), ms(500), 60), 80),
+                new RecorderApp.CapturedNote(new PitchedNote(ms(500), ms(500), 64), 95));
 
         Performance perf = RecorderApp.buildPerformance(captured);
         assertEquals(1, perf.score().tracks().size());
@@ -53,16 +62,16 @@ class RecorderJsonTest {
     @Test
     void velocitiesSidecarMatchesCapturedValues() {
         var captured = List.of(
-                new RecorderApp.CapturedNote(new PitchedNote(0,    500, 60),  80),
-                new RecorderApp.CapturedNote(new PitchedNote(500,  500, 64), 110),
-                new RecorderApp.CapturedNote(new PitchedNote(1000, 500, 67),  60));
+                new RecorderApp.CapturedNote(new PitchedNote(ms(0), ms(500), 60),  80),
+                new RecorderApp.CapturedNote(new PitchedNote(ms(500), ms(500), 64), 110),
+                new RecorderApp.CapturedNote(new PitchedNote(ms(1000), ms(500), 67),  60));
 
         Performance perf = RecorderApp.buildPerformance(captured);
         var vc = perf.velocities().byTrack().get(new TrackId("vocal"));
         assertNotNull(vc, "velocity control should be present for vocal track");
-        assertEquals( 80, vc.velocityAt(0));
-        assertEquals(110, vc.velocityAt(500));
-        assertEquals( 60, vc.velocityAt(1000));
+        assertEquals(80 / 127.0, vc.levelAt(ms(0)), 1e-9);
+        assertEquals(110 / 127.0, vc.levelAt(ms(500)), 1e-9);
+        assertEquals(60 / 127.0, vc.levelAt(ms(1000)), 1e-9);
     }
 
     @Test
@@ -79,7 +88,7 @@ class RecorderJsonTest {
     @Test
     void buildsMxlImportWithNeutralDefaults() {
         var captured = List.of(
-                new RecorderApp.CapturedNote(new PitchedNote(0, 500, 60), 80));
+                new RecorderApp.CapturedNote(new PitchedNote(ms(0), ms(500), 60), 80));
 
         MxlImport imp = RecorderApp.buildMxlImport("my-recording", captured);
         assertEquals("my-recording", imp.displayName());
@@ -98,7 +107,7 @@ class RecorderJsonTest {
     @Test
     void folderRoundTrips_singleNote(@TempDir Path tmp) throws Exception {
         var captured = List.of(
-                new RecorderApp.CapturedNote(new PitchedNote(0, 500, 60), 80));
+                new RecorderApp.CapturedNote(new PitchedNote(ms(0), ms(500), 60), 80));
 
         MxlImport written = RecorderApp.buildMxlImport("single", captured);
         File pieceDir = tmp.resolve("single").toFile();
@@ -123,9 +132,9 @@ class RecorderJsonTest {
     @Test
     void folderRoundTrips_multipleNotes(@TempDir Path tmp) throws Exception {
         var captured = List.of(
-                new RecorderApp.CapturedNote(new PitchedNote(0,   333, 60), 88),
-                new RecorderApp.CapturedNote(new PitchedNote(333, 333, 64), 88),
-                new RecorderApp.CapturedNote(new PitchedNote(666, 333, 67), 88));
+                new RecorderApp.CapturedNote(new PitchedNote(ms(0), ms(333), 60), 88),
+                new RecorderApp.CapturedNote(new PitchedNote(ms(333), ms(333), 64), 88),
+                new RecorderApp.CapturedNote(new PitchedNote(ms(666), ms(333), 67), 88));
 
         MxlImport written = RecorderApp.buildMxlImport("triad", captured);
         File pieceDir = tmp.resolve("triad").toFile();

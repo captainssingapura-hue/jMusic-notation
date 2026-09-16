@@ -1,5 +1,6 @@
 package music.notation.input;
 
+import music.notation.duration.Duration;
 import music.notation.performance.PitchedNote;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,6 +30,12 @@ class AudioFileInputSourceTest {
 
     private static final int SAMPLE_RATE = 44100;
 
+    /**
+     * The segmenter behind the file source projects audio ms onto a fixed
+     * 120 bpm grid ({@code Duration.of(ms, 2000)}: one quarter = 500 ms).
+     */
+    private static Duration ms(long ms) { return Duration.of(ms, 2000); }
+
     // ── Single-tone detection ────────────────────────────────────────
 
     @Test
@@ -41,8 +48,8 @@ class AudioFileInputSourceTest {
         assertEquals(1, notes.size(),
                 "1 second of pure A4 should produce exactly one note");
         assertEquals(69, notes.get(0).midi(), "A4 = MIDI 69");
-        assertTrue(notes.get(0).durationMs() > 800,
-                "note should span almost the whole second; got " + notes.get(0).durationMs());
+        assertTrue(notes.get(0).duration().compareDuration(ms(800)) > 0,
+                "note should span almost the whole second; got " + notes.get(0).duration());
     }
 
     @Test
@@ -60,7 +67,7 @@ class AudioFileInputSourceTest {
                 "C4 + silence + E4 should produce two notes; got " + notes.size());
         assertEquals(60, notes.get(0).midi(), "first note = C4 (MIDI 60)");
         assertEquals(64, notes.get(1).midi(), "second note = E4 (MIDI 64)");
-        assertTrue(notes.get(1).tickMs() > notes.get(0).tickMs() + notes.get(0).durationMs(),
+        assertTrue(notes.get(1).at().compareDuration(notes.get(0).endAt()) > 0,
                 "second note must start after the first ends");
     }
 

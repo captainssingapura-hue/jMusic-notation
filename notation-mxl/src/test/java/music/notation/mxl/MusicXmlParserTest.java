@@ -1,7 +1,11 @@
 package music.notation.mxl;
 
+import music.notation.duration.Duration;
+import music.notation.event.Step;
+import music.notation.performance.Pitch;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Score;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 import music.notation.pitch.NoteName;
 import music.notation.structure.KeySignature;
@@ -35,11 +39,11 @@ class MusicXmlParserTest {
         assertEquals(new TimeSignature(6, 4), result.timeSig());
         assertEquals(new KeySignature(NoteName.D, Accidental.FLAT, Mode.MAJOR), result.key());
 
-        // Chopin's rubato gives many tempo changes; the initial entry must be 116 at tick 0.
+        // Chopin's rubato gives many tempo changes; the initial entry must be 116 at position 0.
         var changes = result.performance().tempo().changes();
         assertTrue(changes.size() >= 1, "expected at least one tempo entry");
         assertEquals(116, changes.get(0).bpm(), "initial tempo should be 116 bpm");
-        assertEquals(0L, changes.get(0).tickMs(), "first tempo entry anchored at tick 0");
+        assertTrue(changes.get(0).at().isZero(), "first tempo entry anchored at the start");
         assertTrue(changes.size() > 1,
                 "Chopin Nocturne uses rubato — expected multiple tempo changes, got "
                         + changes.size());
@@ -62,7 +66,7 @@ class MusicXmlParserTest {
     }
 
     @Test
-    void firstTrebleNoteIsBflat5AtTickZero() throws IOException {
+    void firstTrebleNoteIsBflat5AtStart() throws IOException {
         var result = MusicXmlParser.parse(chopinXml());
         Track treble = result.performance().score().tracks().stream()
                 .filter(t -> t.id().name().contains("staff 1"))
@@ -70,16 +74,25 @@ class MusicXmlParserTest {
                 .orElseThrow();
 
         PitchedNote first = (PitchedNote) treble.notes().get(0);
-        assertEquals(0, first.tickMs(), "first note should start at tick 0");
+        assertTrue(first.at().isZero(), "first note should start at position 0");
         assertEquals(82, first.midi(), "first note is Bb5 → MIDI 82");
+        // Piano is non-transposing, so the authored spelling survives verbatim.
+        assertEquals(new Pitch.Spelled(Step.B, -1, 5), first.pitch(),
+                "first note keeps its B-flat spelling");
 
-        // Eighth note at 116 bpm with divisions=480 → ~258.6 ms
+        // Eighth note: musical length is 1/8 of a whole, independent of tempo.
+        assertTrue(Duration.of(1, 8).equalsDuration(first.duration()),
+                "first note should be an eighth (1/8), got " + first.duration());
+
+        // Same eighth at 116 bpm → ~258.6 ms once mapped through the tempo track.
         long quarter = Math.round(60_000.0 / 116);
         long expectedEighth = Math.round(quarter / 2.0);
         long tolerance = 2;
-        assertTrue(Math.abs(first.durationMs() - expectedEighth) <= tolerance,
+        long actualMs = new TimeMapper(result.performance().tempo())
+                .msBetween(first.at(), first.endAt());
+        assertTrue(Math.abs(actualMs - expectedEighth) <= tolerance,
                 "eighth note at 116 bpm should be ~" + expectedEighth +
-                " ms, got " + first.durationMs());
+                " ms, got " + actualMs);
     }
 
     @Test
@@ -118,9 +131,10 @@ class MusicXmlParserTest {
         var result = MusicXmlParser.parse(xml);
         Track t = result.performance().score().tracks().get(0);
         assertEquals(3, t.notes().size());
-        long onset = ((PitchedNote) t.notes().get(0)).tickMs();
+        Duration onset = t.notes().get(0).at();
         for (var n : t.notes()) {
-            assertEquals(onset, n.tickMs(), "all chord notes share the same onset");
+            assertTrue(onset.equalsDuration(n.at()),
+                    "all chord notes share the same onset: " + onset + " vs " + n.at());
         }
         // Pitches: C4=60, E4=64, G4=67 — independent of order Track may canonicalise.
         var midis = t.notes().stream()
@@ -181,12 +195,15 @@ class MusicXmlParserTest {
         assertEquals(4, voice2.notes().size());
         // Both voices share the same onset sequence: 0, q, 2q, 3q.
         for (int i = 0; i < 4; i++) {
-            assertEquals(voice1.notes().get(i).tickMs(),
-                    voice2.notes().get(i).tickMs(),
+            Duration expected = Duration.of(i, 4);
+            assertTrue(expected.equalsDuration(voice1.notes().get(i).at()),
+                    "voice 1 note " + i + " should sit at " + expected
+                            + ", got " + voice1.notes().get(i).at());
+            assertTrue(voice1.notes().get(i).at().equalsDuration(voice2.notes().get(i).at()),
                     "voices must align after backup at index " + i);
         }
-        assertEquals(0L, voice2.notes().get(0).tickMs(),
-                "voice 2 first note should start at tick 0 after backup");
+        assertTrue(voice2.notes().get(0).at().isZero(),
+                "voice 2 first note should start at position 0 after backup");
     }
 
     @Test

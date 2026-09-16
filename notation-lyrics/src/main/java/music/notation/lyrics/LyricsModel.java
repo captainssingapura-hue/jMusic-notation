@@ -5,6 +5,7 @@ import javafx.beans.property.ReadOnlyIntegerWrapper;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import music.notation.duration.Duration;
 import music.notation.expressivity.LyricEvent;
 import music.notation.expressivity.LyricLine;
 import music.notation.expressivity.Lyrics;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * In-memory state for one open lyrics-editing session. Lives entirely
@@ -56,18 +58,21 @@ import java.util.Map;
  */
 public final class LyricsModel {
 
+    /** Tick resolution for Monophony's long-based overlap arithmetic; exact for common tuplets. */
+    private static final long TICK_PPQ = 3840;
+
     /** One row of the editing grid. Mutable {@code codePoint} only — the rest is read-only metadata. */
     public static final class Cell {
         public final int noteIndex;
-        public final long tickMs;
-        public final long durationMs;
+        public final Duration at;
+        public final Duration duration;
         public final int midi;          // -1 if drum / unknown
         private int codePoint;          // -1 = empty (rest)
 
-        Cell(int noteIndex, long tickMs, long durationMs, int midi, int codePoint) {
+        Cell(int noteIndex, Duration at, Duration duration, int midi, int codePoint) {
             this.noteIndex = noteIndex;
-            this.tickMs = tickMs;
-            this.durationMs = durationMs;
+            this.at = at;
+            this.duration = duration;
             this.midi = midi;
             this.codePoint = codePoint;
         }
@@ -133,28 +138,31 @@ public final class LyricsModel {
         // notated chords on a single track — the lyrics attach to the
         // top-line, the inner-voice notes are dropped from the editor's
         // view but preserved in the underlying Performance.
+        // Monophony's generic API is long-based; feed it exact ticks
+        // (tempo-independent) rather than wall-clock ms.
         Monophony.TopLine<PitchedNote> top = Monophony.extractTopLine(
                 audible,
                 PitchedNote::midi,
-                PitchedNote::tickMs,
-                pn -> pn.tickMs() + pn.durationMs());
+                pn -> pn.at().ticks(TICK_PPQ),
+                pn -> pn.endAt().ticks(TICK_PPQ));
         List<PitchedNote> melody = top.melody();
         this.droppedNoteCount = top.dropped();
 
         // Seed cells from any existing lyric line for this track. The
         // existing line may be shorter or longer than the note list
-        // (older edits, or melody changed since); we match by tickMs.
+        // (older edits, or melody changed since); we match by musical
+        // position, comparing by value (1/4 == 2/8) not variant type.
         LyricLine existing = perf.lyrics().byTrack().getOrDefault(trackId, LyricLine.empty());
-        Map<Long, Integer> codePointByTick = new LinkedHashMap<>();
+        Map<Duration, Integer> codePointByAt = new TreeMap<>(Duration::compareDuration);
         for (LyricEvent ev : existing.events()) {
-            codePointByTick.put(ev.tickMs(), ev.codePoint());
+            codePointByAt.put(ev.at(), ev.codePoint());
         }
 
         List<Cell> built = new ArrayList<>(melody.size());
         for (int i = 0; i < melody.size(); i++) {
             PitchedNote pn = melody.get(i);
-            int cp = codePointByTick.getOrDefault(pn.tickMs(), -1);
-            built.add(new Cell(i, pn.tickMs(), pn.durationMs(), pn.midi(), cp));
+            int cp = codePointByAt.getOrDefault(pn.at(), -1);
+            built.add(new Cell(i, pn.at(), pn.duration(), pn.midi(), cp));
         }
         this.cells = FXCollections.observableArrayList(built);
     }
@@ -221,7 +229,7 @@ public final class LyricsModel {
         List<LyricEvent> events = new ArrayList<>();
         for (Cell c : cells) {
             if (c.codePoint < 0) continue;
-            events.add(new LyricEvent(c.tickMs, c.codePoint));
+            events.add(new LyricEvent(c.at, c.codePoint));
         }
         return new LyricLine(events);
     }

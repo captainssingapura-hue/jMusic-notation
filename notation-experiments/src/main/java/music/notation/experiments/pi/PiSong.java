@@ -1,5 +1,6 @@
 package music.notation.experiments.pi;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.Articulations;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.InstrumentControl;
@@ -80,8 +81,11 @@ public final class PiSong {
         // Probe degreeCount via a dummy note (every ScaleNote knows its own count).
         final int degreeCount = factory.create(0, baseOctave).degreeCount();
 
+        // noteMs is authored in ms; project at the default 120 bpm (whole
+        // note = 2000 ms) since the Performance carries an empty TempoTrack.
+        final Duration noteDur = Duration.of(noteMs, 2000);
         var notes = new ArrayList<ConcreteNote>();
-        long cursor = 0;
+        Duration cursor = Duration.zero();
         for (int i = 0; i < digits.length(); i++) {
             char c = digits.charAt(i);
             if (c < '0' || c > '9') continue;
@@ -93,8 +97,8 @@ public final class PiSong {
             N note = factory.create(degreeIndex, octave);
             int midi = resolver.midi(note);
 
-            notes.add(new PitchedNote(cursor, noteMs, midi));
-            cursor += noteMs;
+            notes.add(new PitchedNote(cursor, noteDur, midi));
+            cursor = cursor.plus(noteDur);
         }
 
         Track track = new Track(TRACK_ID, TrackKind.PITCHED, notes);
@@ -155,11 +159,11 @@ public final class PiSong {
         final int degreeCount = factory.create(0, voices.get(0).baseOctave()).degreeCount();
         final List<Track> tracks = new ArrayList<>(voices.size());
         final Map<TrackId, InstrumentControl> instr = new LinkedHashMap<>();
+        final Duration noteDur = Duration.of(noteMs, 2000);
 
         for (Voice v : voices) {
             var notes = new ArrayList<music.notation.performance.ConcreteNote>();
-            long entryTickMs = (long) v.entryNoteOffset() * noteMs;
-            long cursor = entryTickMs;
+            Duration cursor = noteDur.times(v.entryNoteOffset());
             for (int i = 0; i < digits.length(); i++) {
                 char c = digits.charAt(i);
                 if (c < '0' || c > '9') continue;
@@ -167,8 +171,8 @@ public final class PiSong {
                 int degreeIndex = digit % degreeCount;
                 int octave = v.baseOctave() + (digit / degreeCount);
                 int midi = resolver.midi(factory.create(degreeIndex, octave));
-                notes.add(new PitchedNote(cursor, noteMs, midi));
-                cursor += noteMs;
+                notes.add(new PitchedNote(cursor, noteDur, midi));
+                cursor = cursor.plus(noteDur);
             }
             tracks.add(new Track(v.id(), TrackKind.PITCHED, notes));
             instr.put(v.id(), InstrumentControl.constant(program));

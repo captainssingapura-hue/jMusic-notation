@@ -125,8 +125,8 @@ public final class TrackPickerDialog {
         Monophony.TopLine<PitchedNote> top = Monophony.extractTopLine(
                 notes,
                 PitchedNote::midi,
-                PitchedNote::tickMs,
-                pn -> pn.tickMs() + pn.durationMs());
+                pn -> pn.at().ticks(3840),
+                pn -> pn.endAt().ticks(3840));
         return new TrackStat(track.id(), top.melody().size(), top.dropped());
     }
 }

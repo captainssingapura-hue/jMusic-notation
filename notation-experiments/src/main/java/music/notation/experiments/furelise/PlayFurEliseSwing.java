@@ -5,6 +5,7 @@ import music.notation.performance.MidiCodec;
 import music.notation.performance.Performance;
 import music.notation.performance.PerformanceJson;
 import music.notation.performance.Swing;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 
 import javax.sound.midi.MidiSystem;
@@ -104,10 +105,12 @@ public final class PlayFurEliseSwing {
     }
 
     private static long totalMs(Performance perf) {
+        final var mapper = new TimeMapper(perf.tempo());
         long end = 0;
         for (Track t : perf.score().tracks()) {
             for (var n : t.notes()) {
-                if (n.offTickMs() > end) end = n.offTickMs();
+                long offMs = mapper.toMs(n.endAt());
+                if (offMs > end) end = offMs;
             }
         }
         return end;

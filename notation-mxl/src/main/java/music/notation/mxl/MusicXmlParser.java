@@ -244,9 +244,9 @@ public final class MusicXmlParser {
             // user's explicit shaping intent and the static <volume>
             // becomes redundant.
             if (volChanges.isEmpty() && pm != null && pm.volume != null) {
-                // MusicXML <volume> is a percentage [0,100]; convert to
-                // synth-agnostic level [0,1].
-                double level = Math.max(0.0, Math.min(1.0, pm.volume / 100.0));
+                // pm.volume is already a normalised level in [0.0, 1.0]
+                // (see scanPartMidi).
+                double level = pm.volume;
                 volChanges.add(new VolumeChange(music.notation.duration.Duration.zero(), level));
                 velChanges.add(new VelocityChange(music.notation.duration.Duration.zero(),
                         level));
@@ -372,7 +372,8 @@ public final class MusicXmlParser {
      * those, no entry is recorded in the {@code partMidi} map and the
      * tracks fall through to the synth default.</p>
      */
-    private record PartMidi(Integer program, Integer volume) {}
+    /** {@code volume} is a synth-agnostic level in [0.0, 1.0], or null when absent. */
+    private record PartMidi(Integer program, Double volume) {}
 
     /**
      * Map every {@code <part-list><score-part><midi-instrument id="…">
@@ -430,7 +431,7 @@ public final class MusicXmlParser {
             String partId = scorePart.getAttribute("id");
             if (partId == null || partId.isBlank()) continue;
             Integer program = null;
-            Integer volume = null;
+            Double volume = null;
             for (Element mi : children(scorePart, "midi-instrument")) {
                 // Skip drum-only entries — those carry <midi-unpitched>
                 // and are handled by scanPartList. A part can have both
@@ -449,13 +450,12 @@ public final class MusicXmlParser {
                 if (vol != null && !vol.isBlank() && volume == null) {
                     try {
                         // <volume> is sometimes a fraction (0.0..1.0) or a
-                        // percentage 0..100 in MusicXML 3.x; treat 0..100
-                        // as a percentage and scale to 0..127.
+                        // percentage 0..100 in MusicXML 3.x. Normalise to a
+                        // synth-agnostic level in [0.0, 1.0]; the codec maps
+                        // level -> CC #7 at the MIDI boundary.
                         double parsed = Double.parseDouble(vol.trim());
-                        int scaled = parsed <= 1.0
-                                ? (int) Math.round(parsed * 127)
-                                : (int) Math.round(parsed * 127.0 / 100.0);
-                        volume = clamp(scaled, 0, 127);
+                        double level = parsed <= 1.0 ? parsed : parsed / 100.0;
+                        volume = Math.max(0.0, Math.min(1.0, level));
                     } catch (NumberFormatException ignored) {
                         LOG.warn("ignored non-numeric <volume>: {}", vol);
                     }

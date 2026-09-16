@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.pitch.Accidental;
 import music.notation.pitch.NoteName;
 import music.notation.structure.KeySignature;
@@ -18,6 +19,12 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class SignatureTrackTest {
 
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
+    /** A negative musical position (invalid anchor). */
+    private static final Duration NEG = Duration.of(-1, 4);
+
     private static final TimeSignature FOUR_FOUR = new TimeSignature(4, 4);
     private static final TimeSignature THREE_FOUR = new TimeSignature(3, 4);
     private static final TimeSignature SIX_EIGHT = new TimeSignature(6, 8);
@@ -34,13 +41,13 @@ class SignatureTrackTest {
     @Test
     void timeSigChange_rejectsNegativeTick() {
         assertThrows(IllegalArgumentException.class,
-                () -> new TimeSignatureChange(-1, FOUR_FOUR));
+                () -> new TimeSignatureChange(NEG, FOUR_FOUR));
     }
 
     @Test
     void timeSigChange_rejectsNullSig() {
         assertThrows(NullPointerException.class,
-                () -> new TimeSignatureChange(0, null));
+                () -> new TimeSignatureChange(q(0), null));
     }
 
     @Test
@@ -52,29 +59,29 @@ class SignatureTrackTest {
     void timeSigTrack_constant() {
         var t = TimeSignatureTrack.constant(FOUR_FOUR);
         assertEquals(1, t.changes().size());
-        assertEquals(0L, t.changes().get(0).tickMs());
+        assertTrue(t.changes().get(0).at().isZero());
         assertEquals(FOUR_FOUR, t.changes().get(0).timeSig());
     }
 
     @Test
-    void timeSigTrack_sortsByTick() {
+    void timeSigTrack_sortsByPosition() {
         var t = new TimeSignatureTrack(List.of(
-                new TimeSignatureChange(2000, SIX_EIGHT),
-                new TimeSignatureChange(0,    FOUR_FOUR),
-                new TimeSignatureChange(1000, THREE_FOUR)));
+                new TimeSignatureChange(q(4), SIX_EIGHT),
+                new TimeSignatureChange(q(0), FOUR_FOUR),
+                new TimeSignatureChange(q(2), THREE_FOUR)));
         assertEquals(3, t.changes().size());
-        assertEquals(0L,    t.changes().get(0).tickMs());
-        assertEquals(1000L, t.changes().get(1).tickMs());
-        assertEquals(2000L, t.changes().get(2).tickMs());
+        assertTrue(q(0).equalsDuration(t.changes().get(0).at()));
+        assertTrue(q(2).equalsDuration(t.changes().get(1).at()));
+        assertTrue(q(4).equalsDuration(t.changes().get(2).at()));
     }
 
     @Test
     void timeSigTrack_dropsAdjacentDuplicates() {
         // Two consecutive 4/4 entries collapse to one — matches TempoTrack.
         var t = new TimeSignatureTrack(List.of(
-                new TimeSignatureChange(0,    FOUR_FOUR),
-                new TimeSignatureChange(500,  FOUR_FOUR),
-                new TimeSignatureChange(1000, THREE_FOUR)));
+                new TimeSignatureChange(q(0), FOUR_FOUR),
+                new TimeSignatureChange(q(1), FOUR_FOUR),
+                new TimeSignatureChange(q(2), THREE_FOUR)));
         assertEquals(2, t.changes().size());
         assertEquals(FOUR_FOUR,  t.changes().get(0).timeSig());
         assertEquals(THREE_FOUR, t.changes().get(1).timeSig());
@@ -85,13 +92,13 @@ class SignatureTrackTest {
     @Test
     void keySigChange_rejectsNegativeTick() {
         assertThrows(IllegalArgumentException.class,
-                () -> new KeySignatureChange(-1, C_MAJOR));
+                () -> new KeySignatureChange(NEG, C_MAJOR));
     }
 
     @Test
     void keySigChange_rejectsNullKey() {
         assertThrows(NullPointerException.class,
-                () -> new KeySignatureChange(0, null));
+                () -> new KeySignatureChange(q(0), null));
     }
 
     @Test
@@ -106,10 +113,10 @@ class SignatureTrackTest {
     @Test
     void keySigTrack_sortAndDedup() {
         var t = new KeySignatureTrack(List.of(
-                new KeySignatureChange(3000, D_MAJOR),
-                new KeySignatureChange(0,    C_MAJOR),
-                new KeySignatureChange(1000, C_MAJOR),     // dup of preceding
-                new KeySignatureChange(2000, G_MAJOR)));
+                new KeySignatureChange(q(6), D_MAJOR),
+                new KeySignatureChange(q(0), C_MAJOR),
+                new KeySignatureChange(q(2), C_MAJOR),     // dup of preceding
+                new KeySignatureChange(q(4), G_MAJOR)));
         assertEquals(3, t.changes().size());
         assertEquals(C_MAJOR, t.changes().get(0).key());
         assertEquals(G_MAJOR, t.changes().get(1).key());

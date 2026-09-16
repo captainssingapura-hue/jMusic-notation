@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import org.junit.jupiter.api.Test;
@@ -25,34 +26,34 @@ class MidiCodecTest {
 
     @Test
     void singleNote_roundTrips() {
-        var p = perfOfOneTrack(LEAD, new PitchedNote(0, 500, 60));
+        var p = perfOfOneTrack(LEAD, new PitchedNote(q(0), q(1), 60));
         assertEquals(p, MidiCodec.fromMidi(MidiCodec.toMidi(p)));
     }
 
     @Test
     void blockChord_roundTrips() {
-        // Three simultaneous notes — tick 0, all 1 second long.
+        // Three simultaneous notes — position 0, all half notes.
         var p = perfOfOneTrack(LEAD,
-                new PitchedNote(0, 1000, 60),
-                new PitchedNote(0, 1000, 64),
-                new PitchedNote(0, 1000, 67));
+                new PitchedNote(q(0), q(2), 60),
+                new PitchedNote(q(0), q(2), 64),
+                new PitchedNote(q(0), q(2), 67));
         assertEquals(p, MidiCodec.fromMidi(MidiCodec.toMidi(p)));
     }
 
     @Test
     void arpeggio_roundTrips() {
         var p = perfOfOneTrack(LEAD,
-                new PitchedNote(0,    333, 60),
-                new PitchedNote(333,  666, 64),
-                new PitchedNote(666, 1000, 67));
+                new PitchedNote(Duration.zero(), Duration.of(1, 6), 60),
+                new PitchedNote(Duration.of(1, 6), Duration.of(1, 3), 64),
+                new PitchedNote(Duration.of(1, 3), Duration.of(1, 2), 67));
         assertEquals(p, MidiCodec.fromMidi(MidiCodec.toMidi(p)));
     }
 
     @Test
     void programChangeAndTempo_roundTrip() {
         var track = new Track(LEAD, TrackKind.PITCHED, List.of(
-                new PitchedNote(0,   500, 60),
-                new PitchedNote(500, 1000, 62)));
+                new PitchedNote(q(0), q(1), 60),
+                new PitchedNote(q(1), q(2), 62)));
         var p = new Performance(
                 new Score(List.of(track)),
                 TempoTrack.constant(120),
@@ -66,11 +67,11 @@ class MidiCodecTest {
         // Two notes at different velocities — non-default values, so the
         // round-trip should preserve the per-onset shape.
         var track = new Track(LEAD, TrackKind.PITCHED, List.of(
-                new PitchedNote(0,   500, 60),
-                new PitchedNote(500, 500, 64)));
+                new PitchedNote(q(0), q(1), 60),
+                new PitchedNote(q(1), q(1), 64)));
         var velocities = Velocities.single(LEAD, new VelocityControl(List.of(
-                new VelocityChange(0,   110),   // accent
-                new VelocityChange(500, 50))));  // ghost
+                new VelocityChange(q(0), 110 / 127.0),   // accent
+                new VelocityChange(q(1), 50 / 127.0))));  // ghost
         var p = new Performance(
                 new Score(List.of(track)),
                 TempoTrack.empty(), Instrumentation.empty(),
@@ -81,8 +82,8 @@ class MidiCodecTest {
         var rtControl = roundTripped.velocities().byTrack().get(LEAD);
         assertNotNull(rtControl, "velocity control should survive round-trip");
         assertEquals(2, rtControl.changes().size());
-        assertEquals(110, rtControl.velocityAt(0));
-        assertEquals(50,  rtControl.velocityAt(500));
+        assertEquals(110 / 127.0, rtControl.levelAt(q(0)), 1e-9);
+        assertEquals(50 / 127.0,  rtControl.levelAt(q(1)), 1e-9);
     }
 
     @Test
@@ -92,8 +93,8 @@ class MidiCodecTest {
         // shape isn't preserved (we don't reconstruct explicit defaults)
         // but the audible behaviour is identical.
         var p = perfOfOneTrack(LEAD,
-                new PitchedNote(0,   500, 60),
-                new PitchedNote(500, 500, 64));
+                new PitchedNote(q(0), q(1), 60),
+                new PitchedNote(q(1), q(1), 64));
         Performance roundTripped = MidiCodec.fromMidi(MidiCodec.toMidi(p));
         assertTrue(roundTripped.velocities().byTrack().isEmpty());
     }
@@ -103,14 +104,17 @@ class MidiCodecTest {
         // Two tracks playing different pitches simultaneously.
         var p = new Performance(
                 new Score(List.of(
-                        new Track(LEAD,    TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 60))),
-                        new Track(HARMONY, TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 72)))
+                        new Track(LEAD,    TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 60))),
+                        new Track(HARMONY, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 72)))
                 )),
                 TempoTrack.empty(), Instrumentation.empty(), Articulations.empty());
         assertEquals(p, MidiCodec.fromMidi(MidiCodec.toMidi(p)));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
+
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
 
     private static Performance perfOfOneTrack(TrackId id, PitchedNote... notes) {
         return new Performance(

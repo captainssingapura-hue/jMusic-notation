@@ -1,5 +1,6 @@
 package music.notation.mxl;
 
+import music.notation.duration.Duration;
 import music.notation.performance.KeySignatureTrack;
 import music.notation.performance.TimeSignatureTrack;
 import music.notation.structure.Mode;
@@ -57,14 +58,16 @@ class MusicXmlParserSignatureChangesTest {
                 """);
         var result = MusicXmlParser.parse(xml);
         TimeSignatureTrack tt = result.performance().timeSignatures();
-        // Canonical form: 4/4 at tick 0 then 3/4 at the second measure's start.
+        // Canonical form: 4/4 at position 0 then 3/4 at the second measure's start.
         assertEquals(2, tt.changes().size(),
                 "track should record the initial 4/4 + the mid-piece 3/4");
-        assertEquals(0L, tt.changes().get(0).tickMs());
+        assertTrue(tt.changes().get(0).at().isZero());
         assertEquals(4, tt.changes().get(0).timeSig().beats());
         assertEquals(4, tt.changes().get(0).timeSig().beatValue());
-        assertTrue(tt.changes().get(1).tickMs() > 0,
-                "second change must be at the second measure's onset");
+        // Measure 1 is a full 4/4 bar = one whole note, so measure 2 starts at 1/1.
+        assertTrue(Duration.of(1, 1).equalsDuration(tt.changes().get(1).at()),
+                "second change must be at the second measure's onset (one whole note in), got "
+                        + tt.changes().get(1).at());
         assertEquals(3, tt.changes().get(1).timeSig().beats());
         assertEquals(4, tt.changes().get(1).timeSig().beatValue());
     }
@@ -98,13 +101,14 @@ class MusicXmlParserSignatureChangesTest {
         // The tonic conversion goes through the fifths→key table; we
         // assert structural change rather than re-deriving the tonic
         // here — that's covered by other tests.
-        assertTrue(kt.changes().get(1).tickMs() > 0,
-                "second key change must be at the second measure's onset");
+        assertTrue(Duration.of(1, 1).equalsDuration(kt.changes().get(1).at()),
+                "second key change must be at the second measure's onset (one whole note in), got "
+                        + kt.changes().get(1).at());
     }
 
     @Test
     void noSignatureChange_givesSingleEntryTrack() {
-        // Stable piece: one entry per track (the initial values at tick 0).
+        // Stable piece: one entry per track (the initial values at position 0).
         String xml = wrap("""
                 <measure number="1">
                   <attributes>
@@ -120,9 +124,7 @@ class MusicXmlParserSignatureChangesTest {
         var result = MusicXmlParser.parse(xml);
         assertEquals(1, result.performance().timeSignatures().changes().size());
         assertEquals(1, result.performance().keySignatures().changes().size());
-        assertEquals(0L,
-                result.performance().timeSignatures().changes().get(0).tickMs());
-        assertEquals(0L,
-                result.performance().keySignatures().changes().get(0).tickMs());
+        assertTrue(result.performance().timeSignatures().changes().get(0).at().isZero());
+        assertTrue(result.performance().keySignatures().changes().get(0).at().isZero());
     }
 }

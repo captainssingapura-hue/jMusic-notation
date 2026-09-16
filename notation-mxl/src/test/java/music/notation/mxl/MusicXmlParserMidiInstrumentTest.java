@@ -1,6 +1,7 @@
 package music.notation.mxl;
 
-import music.notation.expressivity.TrackId;
+import music.notation.event.Dynamic;
+import music.notation.expressivity.Loudness;
 import music.notation.expressivity.VolumeChange;
 import music.notation.expressivity.VolumeControl;
 import music.notation.performance.InstrumentControl;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,8 +68,8 @@ class MusicXmlParserMidiInstrumentTest {
         InstrumentControl ic = byTrack.get(track.id());
         assertNotNull(ic, "track must have an instrument control");
         assertEquals(1, ic.changes().size());
-        assertEquals(0L, ic.changes().get(0).tickMs(),
-                "part-level program is anchored at t=0");
+        assertTrue(ic.changes().get(0).at().isZero(),
+                "part-level program is anchored at the start of the piece");
         assertEquals(40, ic.changes().get(0).program(),
                 "MXL <midi-program>41 (1-indexed) → MIDI program 40 (Violin)");
     }
@@ -227,7 +229,7 @@ class MusicXmlParserMidiInstrumentTest {
     void staticVolumeSeedsVolumeAndVelocityWhenNoDynamics() {
         // Part declares <volume>78</volume> (78% in MXL 0..100 scale) but
         // no <dynamics>. We expect a single VolumeChange + VelocityChange
-        // at t=0 carrying the scaled value.
+        // at position 0 carrying the percentage as a Raw level (78% → 0.78).
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <score-partwise>
@@ -260,13 +262,17 @@ class MusicXmlParserMidiInstrumentTest {
         assertNotNull(vc, "<volume> with no <dynamics> → seeded VolumeControl");
         assertEquals(1, vc.changes().size());
         VolumeChange v = vc.changes().get(0);
-        assertEquals(0L, v.tickMs());
-        // 78% of 127 ≈ 99 (round half up).
-        assertEquals(99, v.level(), "78 (MXL %) → 99 (MIDI 0..127)");
+        assertTrue(v.at().isZero());
+        // A static <volume> has no symbolic equivalent → Raw, never Named.
+        assertInstanceOf(Loudness.Raw.class, v.loudness());
+        assertEquals(0.78, v.level(), 1e-9, "78 (MXL %) → level 0.78");
 
         var velCtrl = perf.velocities().byTrack().get(t.id());
         assertNotNull(velCtrl, "static <volume> also seeds Velocities");
-        assertEquals(99, velCtrl.changes().get(0).velocity());
+        assertEquals(1, velCtrl.changes().size());
+        assertTrue(velCtrl.changes().get(0).at().isZero());
+        assertEquals(0.78, velCtrl.changes().get(0).level(), 1e-9,
+                "velocity seed carries the same level as the volume seed");
     }
 
     @Test
@@ -307,17 +313,21 @@ class MusicXmlParserMidiInstrumentTest {
         assertNotNull(vc);
         assertEquals(1, vc.changes().size(),
                 "only the dynamics-derived change should land — no static seed");
-        // <f> maps to a known cc7 (parser's dynamics table); we just verify
-        // it isn't 50% (50→63) i.e. the static volume.
-        int level = vc.changes().get(0).level();
-        assertTrue(level > 80,
-                "<f> should be louder than 78 — got " + level);
+        // <f> is an authored symbolic mark → Named(F). A static-volume
+        // seed would have been Raw(0.5); the shape alone proves the
+        // dynamics won.
+        VolumeChange v = vc.changes().get(0);
+        assertEquals(new Loudness.Named(Dynamic.F), v.loudness(),
+                "authored <f> should land verbatim, not the static <volume>");
+        assertEquals(Dynamic.F.level(), v.level(), 1e-9);
+        assertTrue(v.level() > 0.5,
+                "<f> should be louder than the 50% static volume — got " + v.level());
     }
 
     @Test
     void volumeFractionFormScalesCorrectly() {
         // MusicXML 3.x sometimes emits <volume> as a 0.0..1.0 fraction.
-        // 0.5 should map to ~64.
+        // 0.5 should map to level 0.5 (same loudness as <volume>50</volume>).
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <score-partwise>
@@ -347,8 +357,8 @@ class MusicXmlParserMidiInstrumentTest {
         Track t = perf.score().tracks().get(0);
         VolumeControl vc = perf.volume().byTrack().get(t.id());
         assertNotNull(vc);
-        assertEquals(64, vc.changes().get(0).level(),
-                "0.5 (fraction) → 64 (MIDI 0..127)");
+        assertEquals(0.5, vc.changes().get(0).level(), 1e-9,
+                "0.5 (fraction) → level 0.5");
     }
 
     @Test

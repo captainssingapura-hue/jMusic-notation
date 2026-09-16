@@ -67,6 +67,11 @@ public final class MxlSplitJsonReader {
         Velocities velocities = Files.exists(pieceDir.resolve("velocity.json"))
                 ? readJson(pieceDir.resolve("velocity.json"), Velocities.class)
                 : Velocities.empty();
+        music.notation.expressivity.Hairpins hairpins =
+                Files.exists(pieceDir.resolve("hairpins.json"))
+                        ? readJson(pieceDir.resolve("hairpins.json"),
+                                   music.notation.expressivity.Hairpins.class)
+                        : music.notation.expressivity.Hairpins.empty();
         Lyrics lyrics = Files.exists(pieceDir.resolve("lyrics.json"))
                 ? readJson(pieceDir.resolve("lyrics.json"), Lyrics.class)
                 : Lyrics.empty();
@@ -93,6 +98,7 @@ public final class MxlSplitJsonReader {
                 articulations,
                 pedaling,
                 velocities,
+                hairpins,
                 lyrics,
                 timeSignatures,
                 keySignatures);
