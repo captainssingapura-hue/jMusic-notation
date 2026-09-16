@@ -3,6 +3,7 @@ package music.notation.experiments.hirajoshi;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 
 import javax.sound.midi.MidiChannel;
@@ -54,14 +55,17 @@ public final class PlayHirajoshiSong {
             MidiChannel channel = synth.getChannels()[0];
             channel.programChange(program);
 
+            final var mapper = new TimeMapper(performance.tempo());
             long now = 0;
             for (Track track : performance.score().tracks()) {
                 for (ConcreteNote n : track.notes()) {
                     if (!(n instanceof PitchedNote note)) continue;
 
-                    if (note.tickMs() > now) {
-                        pause(note.tickMs() - now);
-                        now = note.tickMs();
+                    final long onMs = mapper.toMs(note.at());
+                    final long offMs = mapper.toMs(note.endAt());
+                    if (onMs > now) {
+                        pause(onMs - now);
+                        now = onMs;
                     }
                     channel.noteOn(note.midi(), 80);
                     roll.printAttack(note);
@@ -69,7 +73,7 @@ public final class PlayHirajoshiSong {
                     long rowCursor = now + PianoRollDisplay.ROW_MILLIS;
                     pause(PianoRollDisplay.ROW_MILLIS);
                     now += PianoRollDisplay.ROW_MILLIS;
-                    while (rowCursor < note.offTickMs()) {
+                    while (rowCursor < offMs) {
                         roll.printSustain(note, rowCursor);
                         pause(PianoRollDisplay.ROW_MILLIS);
                         rowCursor += PianoRollDisplay.ROW_MILLIS;

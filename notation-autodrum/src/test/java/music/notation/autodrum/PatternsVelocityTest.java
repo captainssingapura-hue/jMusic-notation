@@ -36,6 +36,25 @@ class PatternsVelocityTest {
 
     private static final BarDuration BD = new BarDuration(4, BaseValue.QUARTER);
 
+    /** Tolerance for comparing {@code velocity / 127.0} levels. */
+    private static final double EPS = 1e-9;
+
+    /** Musical position {@code n} quarter notes from the piece start. */
+    private static Duration q(int n) { return Duration.of(n, 4); }
+
+    /**
+     * Assert a {@link VelocityChange} sits at {@code expectedAt} and carries
+     * the level Patterns derives from a MIDI slot velocity ({@code vel / 127.0}).
+     * Compares the position via {@code equalsDuration} (variant-agnostic) and
+     * the level with a tolerance rather than relying on record equality.
+     */
+    private static void assertChange(Duration expectedAt, int midiVelocity, VelocityChange actual) {
+        assertTrue(expectedAt.equalsDuration(actual.at()),
+                "position: expected " + expectedAt + " but was " + actual.at());
+        assertEquals(midiVelocity / 127.0, actual.level(), EPS,
+                "level for MIDI velocity " + midiVelocity);
+    }
+
     private static Bar standardBar() {
         var nodes = new ArrayList<PhraseNode>();
         for (int i = 0; i < 8; i++) {
@@ -73,10 +92,10 @@ class PatternsVelocityTest {
         assertEquals(VelocityControl.empty(), result.get().velocities());
     }
 
-    /** Spec WITH velocities — every non-rest slot becomes a VelocityChange at the right ms. */
+    /** Spec WITH velocities — every non-rest slot becomes a VelocityChange at the right musical position. */
     @Test
-    void slotVelocitiesEmitChangesAtCorrectMsPositions() {
-        // 4/4 at 120bpm → 2000ms per bar, 500ms per quarter slot.
+    void slotVelocitiesEmitChangesAtCorrectPositions() {
+        // 4/4 → one quarter per slot; slot s sits at s quarter notes from the start.
         // 4-slot quarter pattern: kick/snare alternating, distinct velocities.
         PatternSpec withVel = new PatternSpec(BaseValue.QUARTER,
                 new PercussionSound[] {
@@ -92,10 +111,10 @@ class PatternsVelocityTest {
 
         // 4 entries — one per slot.
         assertEquals(4, changes.size());
-        assertEquals(new VelocityChange(0,    100), changes.get(0));
-        assertEquals(new VelocityChange(500,  115), changes.get(1));
-        assertEquals(new VelocityChange(1000, 95),  changes.get(2));
-        assertEquals(new VelocityChange(1500, 115), changes.get(3));
+        assertChange(q(0), 100, changes.get(0));
+        assertChange(q(1), 115, changes.get(1));
+        assertChange(q(2), 95,  changes.get(2));
+        assertChange(q(3), 115, changes.get(3));
     }
 
     /** Rest slots (null in sequence) don't produce velocity entries. */
@@ -117,11 +136,11 @@ class PatternsVelocityTest {
 
         // Only the two non-rest slots produce VelocityChanges.
         assertEquals(2, changes.size());
-        assertEquals(new VelocityChange(0,    100), changes.get(0));
-        assertEquals(new VelocityChange(1000, 110), changes.get(1));
+        assertChange(q(0), 100, changes.get(0));
+        assertChange(q(2), 110, changes.get(1));
     }
 
-    /** Multi-bar piece — slot ms positions accumulate across bars. */
+    /** Multi-bar piece — slot positions accumulate across bars (4 quarters per 4/4 bar). */
     @Test
     void slotPositionsAccumulateAcrossBars() {
         // Per-bar resolver: bar 0 emits vel 100, bar 1 vel 110, bar 2 vel 120
@@ -150,9 +169,9 @@ class PatternsVelocityTest {
 
         // One entry per bar at varying velocity → all three survive dedup.
         assertEquals(3, changes.size());
-        assertEquals(new VelocityChange(0,    100), changes.get(0));
-        assertEquals(new VelocityChange(2000, 110), changes.get(1));
-        assertEquals(new VelocityChange(4000, 120), changes.get(2));
+        assertChange(q(0), 100, changes.get(0));
+        assertChange(q(4), 110, changes.get(1));
+        assertChange(q(8), 120, changes.get(2));
     }
 
     /** PatternSpec rejects out-of-range velocities at construction. */
@@ -210,15 +229,19 @@ class PatternsVelocityTest {
         assertTrue(result.isPresent());
         var ctrl = result.get().velocities();
 
-        // 4/4 at 120bpm: 500ms per quarter slot.
+        // 4/4: one quarter per slot. Levels are MIDI velocity / 127.
         // Beat 1 kick aligned with source bass → +5 boost = 105
-        assertEquals(105, ctrl.velocityAt(0),    "kick on 1 should get bass-align boost");
+        assertEquals((100 + Patterns.BASS_ALIGN_BOOST) / 127.0, ctrl.levelAt(q(0)), EPS,
+                "kick on 1 should get bass-align boost");
         // Beat 2 snare — no boost (snare not in scope)
-        assertEquals(100, ctrl.velocityAt(500),  "snare on 2 unchanged");
+        assertEquals(100 / 127.0, ctrl.levelAt(q(1)), EPS, "snare on 2 unchanged");
         // Beat 3 kick — no source bass onset there → no boost
-        assertEquals(100, ctrl.velocityAt(1000), "kick on 3 should NOT get boost");
+        assertEquals(100 / 127.0, ctrl.levelAt(q(2)), EPS, "kick on 3 should NOT get boost");
         // Beat 4 snare — no boost
-        assertEquals(100, ctrl.velocityAt(1500), "snare on 4 unchanged");
+        assertEquals(100 / 127.0, ctrl.levelAt(q(3)), EPS, "snare on 4 unchanged");
+        // And the boosted kick is strictly louder than the unboosted one.
+        assertTrue(ctrl.levelAt(q(0)) > ctrl.levelAt(q(2)),
+                "boosted kick must be louder than the unboosted kick");
     }
 
     /** PatternSpec rejects velocity-array length mismatch. */

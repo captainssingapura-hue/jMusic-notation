@@ -7,8 +7,11 @@ import music.notation.experiments.chinese.gong.GongNote;
 import music.notation.experiments.hirajoshi.HirajoshiConcretizer;
 import music.notation.experiments.hirajoshi.HirajoshiDegree;
 import music.notation.experiments.hirajoshi.HirajoshiNote;
+import music.notation.duration.Duration;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.PitchedNote;
+import music.notation.performance.TempoTrack;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 import music.notation.expressivity.TrackId;
 import org.junit.jupiter.api.Test;
@@ -40,8 +43,8 @@ class ChordTransformTest {
         var notes = onlyNotes(track);
         assertEquals(3, notes.size());
         for (var n : notes) {
-            assertEquals(0, n.tickMs());
-            assertEquals(1000, n.offTickMs());
+            assertEquals(0, ms(n.at()));
+            assertEquals(1000, ms(n.endAt()));
         }
         assertEquals(List.of(60, 64, 67), notes.stream().map(PitchedNote::midi).toList());
     }
@@ -57,12 +60,12 @@ class ChordTransformTest {
         var notes = onlyNotes(new ChordConcretizer<>(GongConcretizer.inC(), TID).concretize(chord));
 
         assertEquals(3, notes.size());
-        assertEquals(60, notes.get(0).midi()); assertEquals(0,   notes.get(0).tickMs());
-        assertEquals(64, notes.get(1).midi()); assertEquals(300, notes.get(1).tickMs());
-        assertEquals(67, notes.get(2).midi()); assertEquals(600, notes.get(2).tickMs());
-        assertEquals(300, notes.get(0).durationMs());
-        assertEquals(300, notes.get(1).durationMs());
-        assertEquals(300, notes.get(2).durationMs());
+        assertEquals(60, notes.get(0).midi()); assertEquals(0,   ms(notes.get(0).at()));
+        assertEquals(64, notes.get(1).midi()); assertEquals(300, ms(notes.get(1).at()));
+        assertEquals(67, notes.get(2).midi()); assertEquals(600, ms(notes.get(2).at()));
+        assertEquals(300, durMs(notes.get(0)));
+        assertEquals(300, durMs(notes.get(1)));
+        assertEquals(300, durMs(notes.get(2)));
     }
 
     @Test
@@ -90,10 +93,10 @@ class ChordTransformTest {
 
         var notes = onlyNotes(new ChordConcretizer<>(GongConcretizer.inC(), TID).concretize(chord));
 
-        assertEquals(333, notes.get(0).durationMs());
-        assertEquals(333, notes.get(1).durationMs());
-        assertEquals(334, notes.get(2).durationMs());
-        assertEquals(1000, notes.get(2).offTickMs());
+        assertEquals(333, durMs(notes.get(0)));
+        assertEquals(333, durMs(notes.get(1)));
+        assertEquals(334, durMs(notes.get(2)));
+        assertEquals(1000, ms(notes.get(2).endAt()));
     }
 
     @Test
@@ -206,6 +209,17 @@ class ChordTransformTest {
     }
 
     // -- helpers --
+
+    /** ChordConcretizer projects ms at 120 bpm; an empty TempoTrack inverts it. */
+    private static final TimeMapper MAPPER = new TimeMapper(TempoTrack.empty());
+
+    private static long ms(Duration at) {
+        return MAPPER.toMs(at);
+    }
+
+    private static long durMs(PitchedNote n) {
+        return MAPPER.msBetween(n.at(), n.endAt());
+    }
 
     private static List<PitchedNote> onlyNotes(Track t) {
         return t.notes().stream()

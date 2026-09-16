@@ -45,6 +45,14 @@ class PieceOfTrackKindsTest {
         return StaffPitch.of(n, octave);
     }
 
+    /** Musical position {@code n} quarter notes from the track start. */
+    private static Duration q(int n) { return Duration.of(n, 4); }
+
+    private static void assertDurationEquals(Duration expected, Duration actual, String what) {
+        assertTrue(expected.equalsDuration(actual),
+                what + ": expected " + expected + " but was " + actual);
+    }
+
     @Test
     void pieceOfTrackKinds_concretizesEquivalentlyToFlatPiece() {
         // Author the same content two ways: once via new types, once via
@@ -88,9 +96,10 @@ class PieceOfTrackKindsTest {
             PitchedNote pn = (PitchedNote) melodyPerfTrack.notes().get(i);
             assertEquals(expectedMidi[i], pn.midi(),
                     "melody note " + i + " pitch");
-            assertEquals(i * 500L, pn.tickMs(),
-                    "melody note " + i + " onset (quarter at 120bpm = 500ms)");
-            assertEquals(500L, pn.durationMs());
+            assertDurationEquals(q(i), pn.at(),
+                    "melody note " + i + " onset (one quarter per note)");
+            assertDurationEquals(QUARTER_DUR, pn.duration(),
+                    "melody note " + i + " duration");
         }
 
         var drumPerfTrack = perf.score().tracks().stream()
@@ -107,7 +116,7 @@ class PieceOfTrackKindsTest {
             DrumNote dn = (DrumNote) drumPerfTrack.notes().get(i);
             assertEquals(expectedDrum[i], dn.piece(),
                     "drum hit " + i + " piece");
-            assertEquals(i * 500L, dn.tickMs(), "drum hit " + i + " onset");
+            assertDurationEquals(q(i), dn.at(), "drum hit " + i + " onset");
         }
 
         // ── Instrumentation: melody on piano, drums on DRUM_KIT (program 0) ──

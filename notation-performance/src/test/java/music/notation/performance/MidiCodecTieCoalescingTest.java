@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import org.junit.jupiter.api.Test;
@@ -32,10 +33,10 @@ class MidiCodecTieCoalescingTest {
 
     @Test
     void twoTiedSamePitchNotesEmitOneSustainedNote() {
-        // C4 quarter (tickMs=0..500, tied) → C4 quarter (500..1000) = sustained C4 0..1000
+        // C4 quarter (0..1q, tied) → C4 quarter (1q..2q) = sustained C4 0..2q
         var perf = singleTrackPerformance(
-                new PitchedNote(0, 500, 60, true),
-                new PitchedNote(500, 500, 60, false));
+                new PitchedNote(q(0), q(1), 60, true),
+                new PitchedNote(q(1), q(1), 60, false));
 
         var counts = countShortMessages(MidiCodec.toMidi(perf));
         assertEquals(1, counts.noteOn, "tied chain emits a single NOTE_ON");
@@ -45,9 +46,9 @@ class MidiCodecTieCoalescingTest {
     @Test
     void threeWayChainEmitsOneSustainedNote() {
         var perf = singleTrackPerformance(
-                new PitchedNote(0,    500, 60, true),
-                new PitchedNote(500,  500, 60, true),
-                new PitchedNote(1000, 500, 60, false));
+                new PitchedNote(q(0), q(1), 60, true),
+                new PitchedNote(q(1), q(1), 60, true),
+                new PitchedNote(q(2), q(1), 60, false));
 
         var counts = countShortMessages(MidiCodec.toMidi(perf));
         assertEquals(1, counts.noteOn);
@@ -58,9 +59,9 @@ class MidiCodecTieCoalescingTest {
     void noTiesEmitsOneNotePairPerNote() {
         // Three independent notes — three NOTE_ON / NOTE_OFF pairs.
         var perf = singleTrackPerformance(
-                new PitchedNote(0,    500, 60, false),
-                new PitchedNote(500,  500, 62, false),
-                new PitchedNote(1000, 500, 64, false));
+                new PitchedNote(q(0), q(1), 60, false),
+                new PitchedNote(q(1), q(1), 62, false),
+                new PitchedNote(q(2), q(1), 64, false));
 
         var counts = countShortMessages(MidiCodec.toMidi(perf));
         assertEquals(3, counts.noteOn);
@@ -73,8 +74,8 @@ class MidiCodecTieCoalescingTest {
     void tieWithMismatchedPitchEmitsAsTwoSeparateNotes() {
         // C4 tied → D4: pitch mismatch breaks the chain; emit as two notes.
         var perf = singleTrackPerformance(
-                new PitchedNote(0, 500, 60, true),
-                new PitchedNote(500, 500, 62, false));
+                new PitchedNote(q(0), q(1), 60, true),
+                new PitchedNote(q(1), q(1), 62, false));
 
         var counts = countShortMessages(MidiCodec.toMidi(perf));
         assertEquals(2, counts.noteOn, "broken tie => two NOTE_ONs");
@@ -83,10 +84,10 @@ class MidiCodecTieCoalescingTest {
 
     @Test
     void tieWithGapEmitsAsTwoSeparateNotes() {
-        // C4 ends at 500, next C4 starts at 600 — gap of 100ms breaks the chain.
+        // C4 ends at 1q, next C4 starts at 1q + 1/16 — the gap breaks the chain.
         var perf = singleTrackPerformance(
-                new PitchedNote(0, 500, 60, true),
-                new PitchedNote(600, 500, 60, false));
+                new PitchedNote(q(0), q(1), 60, true),
+                new PitchedNote(q(1).plus(Duration.of(1, 16)), q(1), 60, false));
 
         var counts = countShortMessages(MidiCodec.toMidi(perf));
         assertEquals(2, counts.noteOn);
@@ -97,7 +98,7 @@ class MidiCodecTieCoalescingTest {
     void tieAtEndOfTrackEmitsAsSingleNote() {
         // Last note has tiedToNext=true but there's no successor — emit alone.
         var perf = singleTrackPerformance(
-                new PitchedNote(0, 500, 60, true));
+                new PitchedNote(q(0), q(1), 60, true));
 
         var counts = countShortMessages(MidiCodec.toMidi(perf));
         assertEquals(1, counts.noteOn);
@@ -108,9 +109,9 @@ class MidiCodecTieCoalescingTest {
     void chainPartiallyBreaksOnSecondPair() {
         // C(tied) → C(tied) → D — first pair coalesces, then D emits alone.
         var perf = singleTrackPerformance(
-                new PitchedNote(0,    500, 60, true),
-                new PitchedNote(500,  500, 60, true),
-                new PitchedNote(1000, 500, 62, false));
+                new PitchedNote(q(0), q(1), 60, true),
+                new PitchedNote(q(1), q(1), 60, true),
+                new PitchedNote(q(2), q(1), 62, false));
 
         var counts = countShortMessages(MidiCodec.toMidi(perf));
         assertEquals(2, counts.noteOn, "C-chain coalesces, then D");
@@ -122,8 +123,8 @@ class MidiCodecTieCoalescingTest {
     @Test
     void drumNotesAreNeverCoalesced() {
         // Even if drum hits look adjacent, DrumNote doesn't implement Tieable.
-        var bar1 = new DrumNote(0, 250, Drums.KICK);
-        var bar2 = new DrumNote(250, 250, Drums.KICK);
+        var bar1 = new DrumNote(Duration.zero(), Duration.of(1, 8), Drums.KICK);
+        var bar2 = new DrumNote(Duration.of(1, 8), Duration.of(1, 8), Drums.KICK);
         var perf = new Performance(
                 new Score(List.of(new Track(DRUMS, TrackKind.DRUM, List.of(bar1, bar2)))),
                 TempoTrack.empty(), Instrumentation.empty(), Articulations.empty());
@@ -134,6 +135,9 @@ class MidiCodecTieCoalescingTest {
     }
 
     // ── Helpers ────────────────────────────────────────────────────
+
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
 
     private static Performance singleTrackPerformance(PitchedNote... notes) {
         return new Performance(

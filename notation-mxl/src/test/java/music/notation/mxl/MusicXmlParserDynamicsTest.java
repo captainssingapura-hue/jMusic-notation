@@ -1,7 +1,9 @@
 package music.notation.mxl;
 
+import music.notation.event.Dynamic;
 import music.notation.expressivity.Articulation;
 import music.notation.expressivity.ArticulationControl;
+import music.notation.expressivity.Loudness;
 import music.notation.expressivity.VelocityControl;
 import music.notation.expressivity.VolumeControl;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,53 @@ class MusicXmlParserDynamicsTest {
 
     @Test
     void numericSoundDynamicsBecomesVolumeChange() {
+        // A bare <sound dynamics="…"/> (no symbolic mark) is a MusicXML
+        // percentage; it lands as a Loudness.Raw with level = pct / 100.
+        String xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <score-partwise>
+                  <part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list>
+                  <part id="P1">
+                    <measure number="1">
+                      %s
+                      <direction placement="below">
+                        <staff>1</staff>
+                        <sound dynamics="54.44"/>
+                      </direction>
+                      <note>
+                        <pitch><step>C</step><octave>4</octave></pitch>
+                        <duration>16</duration><voice>1</voice><staff>1</staff>
+                      </note>
+                    </measure>
+                  </part>
+                </score-partwise>
+                """.formatted(STAVES_PROLOGUE);
+
+        var result = MusicXmlParser.parse(xml);
+        var volume = result.performance().volume().byTrack();
+        assertEquals(1, volume.size(), "expected one volume entry for the single track");
+        VolumeControl vc = volume.values().iterator().next();
+        assertEquals(1, vc.changes().size());
+        assertEquals(new Loudness.Raw(0.5444), vc.changes().get(0).loudness(),
+                "numeric percentage → Raw(pct / 100), no symbol fabricated");
+        assertEquals(0.5444, vc.changes().get(0).level(), 1e-9);
+        assertTrue(vc.changes().get(0).at().isZero());
+
+        // The same dynamic also drives per-note velocity — same Loudness
+        // at the same musical position.
+        var velocities = result.performance().velocities().byTrack();
+        assertEquals(1, velocities.size());
+        VelocityControl velCtrl = velocities.values().iterator().next();
+        assertEquals(1, velCtrl.changes().size());
+        assertEquals(new Loudness.Raw(0.5444), velCtrl.changes().get(0).loudness());
+        assertTrue(velCtrl.changes().get(0).at().isZero());
+    }
+
+    @Test
+    void symbolicMarkWinsOverSiblingSoundDynamics() {
+        // When a <direction> carries both a symbolic <dynamics> mark and a
+        // numeric <sound dynamics>, the authored symbol carries intent and
+        // wins: the model keeps Named(P), not Raw(0.5444).
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <score-partwise>
@@ -49,26 +98,18 @@ class MusicXmlParserDynamicsTest {
                 """.formatted(STAVES_PROLOGUE);
 
         var result = MusicXmlParser.parse(xml);
-        var volume = result.performance().volume().byTrack();
-        assertEquals(1, volume.size(), "expected one volume entry for the single track");
-        VolumeControl vc = volume.values().iterator().next();
+        VolumeControl vc = result.performance().volume().byTrack().values().iterator().next();
         assertEquals(1, vc.changes().size());
-        // 54.44% of MIDI velocity 90 → CC #7 ≈ 49 (matches symbolic p).
-        assertEquals(49, vc.changes().get(0).level());
-        assertEquals(0L, vc.changes().get(0).tickMs());
+        assertEquals(new Loudness.Named(Dynamic.P), vc.changes().get(0).loudness());
+        assertTrue(vc.changes().get(0).at().isZero());
 
-        // The same dynamic also drives per-note velocity — same value
-        // (49 = symbolic p) at the same tickMs.
-        var velocities = result.performance().velocities().byTrack();
-        assertEquals(1, velocities.size());
-        VelocityControl velCtrl = velocities.values().iterator().next();
+        VelocityControl velCtrl = result.performance().velocities().byTrack().values().iterator().next();
         assertEquals(1, velCtrl.changes().size());
-        assertEquals(49, velCtrl.changes().get(0).velocity());
-        assertEquals(0L, velCtrl.changes().get(0).tickMs());
+        assertEquals(new Loudness.Named(Dynamic.P), velCtrl.changes().get(0).loudness());
     }
 
     @Test
-    void symbolicDynamicMapsToStandardCc7() {
+    void symbolicDynamicMapsToNamedLoudness() {
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <score-partwise>
@@ -90,7 +131,10 @@ class MusicXmlParserDynamicsTest {
 
         var result = MusicXmlParser.parse(xml);
         VolumeControl vc = result.performance().volume().byTrack().values().iterator().next();
-        assertEquals(108, vc.changes().get(0).level(), "ff → CC #7 = 108");
+        assertEquals(new Loudness.Named(Dynamic.FF), vc.changes().get(0).loudness(),
+                "ff → Named(FF): the authored glyph survives");
+        assertEquals(Dynamic.FF.level(), vc.changes().get(0).level(), 1e-9,
+                "ff resolves to the conventional 0.85 level");
     }
 
     @Test
@@ -123,7 +167,7 @@ class MusicXmlParserDynamicsTest {
         // Expect STACCATO at note 1 onset (0), then NORMAL at note 2 onset.
         assertEquals(2, ac.changes().size());
         assertEquals(Articulation.STACCATO, ac.changes().get(0).kind());
-        assertEquals(0L, ac.changes().get(0).tickMs());
+        assertTrue(ac.changes().get(0).at().isZero());
         assertEquals(Articulation.NORMAL, ac.changes().get(1).kind());
     }
 
@@ -168,7 +212,7 @@ class MusicXmlParserDynamicsTest {
                 .values().iterator().next();
         assertEquals(2, ac.changes().size(), "LEGATO at note 1, NORMAL at note 4 (post-slur)");
         assertEquals(Articulation.LEGATO, ac.changes().get(0).kind());
-        assertEquals(0L, ac.changes().get(0).tickMs());
+        assertTrue(ac.changes().get(0).at().isZero());
         assertEquals(Articulation.NORMAL, ac.changes().get(1).kind());
     }
 

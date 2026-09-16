@@ -1,5 +1,6 @@
 package music.notation.experiments.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.Articulations;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.Instrumentation;
@@ -8,6 +9,7 @@ import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Score;
 import music.notation.performance.TempoTrack;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 import music.notation.expressivity.TrackId;
 import music.notation.performance.TrackKind;
@@ -36,6 +38,17 @@ class ChordProgressionParityTest {
 
     private static final TrackId CHORD = new TrackId("chord");
 
+    /**
+     * The chord experiment authors time in ms; ChordConcretizer projects
+     * those at the default 120 bpm (whole note = 2000 ms). These helpers
+     * apply the same projection so the hand-built golden value matches.
+     */
+    private static final TimeMapper MAPPER = new TimeMapper(TempoTrack.empty());
+
+    private static Duration ms(long millis) {
+        return Duration.of(millis, 2000);
+    }
+
     @Test
     void blockProgressionInCGong_matchesExpectedPerformance() {
         var actual = concretizeProgression(ChordShape.BLOCK);
@@ -62,13 +75,13 @@ class ChordProgressionParityTest {
 
         assertEquals(12, notes.size(), "4 chords × 3 voices");
 
-        long lastOff = notes.stream().mapToLong(PitchedNote::offTickMs).max().orElse(0);
+        long lastOff = notes.stream().mapToLong(n -> MAPPER.toMs(n.endAt())).max().orElse(0);
         assertEquals(4000, lastOff, "4 chords × 1000 ms each");
 
         // First chord: three ascending onsets at 0 / 333 / 666.
-        assertEquals(0L,   notes.get(0).tickMs());
-        assertEquals(333L, notes.get(1).tickMs());
-        assertEquals(666L, notes.get(2).tickMs());
+        assertEquals(0L,   MAPPER.toMs(notes.get(0).at()));
+        assertEquals(333L, MAPPER.toMs(notes.get(1).at()));
+        assertEquals(666L, MAPPER.toMs(notes.get(2).at()));
     }
 
     // ── Builders ────────────────────────────────────────────────────
@@ -76,13 +89,13 @@ class ChordProgressionParityTest {
     private static Performance concretizeProgression(ChordShape shape) {
         var concretizer = new ChordConcretizer<>(GongConcretizer.inC(), CHORD);
         var notes = new ArrayList<ConcreteNote>();
-        long cursor = 0;
+        Duration cursor = Duration.zero();
         for (ScaleChord<GongNote> chord : ChordProgression.demoIn(shape)) {
             for (ConcreteNote n : concretizer.concretize(chord).notes()) {
                 var pn = (PitchedNote) n;
-                notes.add(new PitchedNote(pn.tickMs() + cursor, pn.durationMs(), pn.midi()));
+                notes.add(new PitchedNote(pn.at().plus(cursor), pn.duration(), pn.midi()));
             }
-            cursor += chord.durationMs();
+            cursor = cursor.plus(ms(chord.durationMs()));
         }
         var track = new Track(CHORD, TrackKind.PITCHED, notes);
         return new Performance(
@@ -107,21 +120,21 @@ class ChordProgressionParityTest {
     private static Performance expectedBlock() {
         var track = new Track(CHORD, TrackKind.PITCHED, List.of(
                 // chord 1 — tick 0 (ends at 1000)
-                new PitchedNote(0, 1000, 60),
-                new PitchedNote(0, 1000, 64),
-                new PitchedNote(0, 1000, 67),
+                new PitchedNote(ms(0), ms(1000), 60),
+                new PitchedNote(ms(0), ms(1000), 64),
+                new PitchedNote(ms(0), ms(1000), 67),
                 // chord 2 — tick 1000 (ends at 2000)
-                new PitchedNote(1000, 1000, 62),
-                new PitchedNote(1000, 1000, 67),
-                new PitchedNote(1000, 1000, 69),
+                new PitchedNote(ms(1000), ms(1000), 62),
+                new PitchedNote(ms(1000), ms(1000), 67),
+                new PitchedNote(ms(1000), ms(1000), 69),
                 // chord 3 — tick 2000 (ends at 3000)
-                new PitchedNote(2000, 1000, 64),
-                new PitchedNote(2000, 1000, 69),
-                new PitchedNote(2000, 1000, 72),
+                new PitchedNote(ms(2000), ms(1000), 64),
+                new PitchedNote(ms(2000), ms(1000), 69),
+                new PitchedNote(ms(2000), ms(1000), 72),
                 // chord 4 — tick 3000 (ends at 4000)
-                new PitchedNote(3000, 1000, 60),
-                new PitchedNote(3000, 1000, 64),
-                new PitchedNote(3000, 1000, 67)
+                new PitchedNote(ms(3000), ms(1000), 60),
+                new PitchedNote(ms(3000), ms(1000), 64),
+                new PitchedNote(ms(3000), ms(1000), 67)
         ));
         return new Performance(
                 new Score(List.of(track)),

@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import music.notation.structure.TimeSignature;
@@ -10,14 +11,31 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Post-ms→Duration migration: pedal positions are pure musical
+ * positions (fractions of a whole note). Tempo never enters the
+ * heuristic — the old 120 bpm ms literals map 1:1 onto quarter notes
+ * (500 ms = 1/4, 2000 ms = one 4/4 bar = 1/1).
+ */
 class AutoPedalingTest {
 
-    private static Performance pieceWithDuration(long lastNoteEndMs) {
-        return pieceWithDuration(lastNoteEndMs, TempoTrack.constant(120));
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
+    /** {@code n} sixteenth notes. */
+    private static Duration s(long n) { return Duration.of(n, 16); }
+
+    private static void assertAt(Duration expected, PedalChange actual) {
+        assertTrue(expected.equalsDuration(actual.at()),
+                "expected " + expected + " but was " + actual.at());
     }
 
-    private static Performance pieceWithDuration(long lastNoteEndMs, TempoTrack tempos) {
-        var note = new PitchedNote(0, lastNoteEndMs, 60);
+    private static Performance pieceWithDuration(Duration lastNoteEnd) {
+        return pieceWithDuration(lastNoteEnd, TempoTrack.constant(120));
+    }
+
+    private static Performance pieceWithDuration(Duration lastNoteEnd, TempoTrack tempos) {
+        var note = new PitchedNote(Duration.zero(), lastNoteEnd, 60);
         var track = new Track(new TrackId("Piano"), TrackKind.PITCHED, List.of(note));
         return new Performance(
                 new Score(List.of(track)),
@@ -40,46 +58,46 @@ class AutoPedalingTest {
 
     @Test
     void nullTimeSigYieldsEmpty() {
-        assertTrue(AutoPedaling.generate(pieceWithDuration(2000), null)
+        assertTrue(AutoPedaling.generate(pieceWithDuration(q(4)), null)
                 .byTrack().isEmpty());
     }
 
     @Test
-    void fourFourAtOneTwentyBpmGivesTwoSecondsPerBar() {
-        // 1 bar of 4/4 at 120bpm = 2000 ms exactly. A 3-bar piece (6000ms)
-        // should produce: DOWN @ 0, CHANGE @ 2000, CHANGE @ 4000, UP @ 6000.
-        var perf = pieceWithDuration(6000);
+    void fourFourGivesOneWholeNotePerBar() {
+        // 1 bar of 4/4 = 4 quarters = one whole. A 3-bar piece (12 quarters)
+        // should produce: DOWN @ 0, CHANGE @ 4q, CHANGE @ 8q, UP @ 12q.
+        var perf = pieceWithDuration(q(12));
         var ped = AutoPedaling.generate(perf, new TimeSignature(4, 4));
         assertEquals(1, ped.byTrack().size());
 
         var changes = ped.byTrack().values().iterator().next().changes();
         assertEquals(4, changes.size());
         assertEquals(PedalState.DOWN,   changes.get(0).state());
-        assertEquals(0L,                changes.get(0).tickMs());
+        assertAt(Duration.zero(),       changes.get(0));
         assertEquals(PedalState.CHANGE, changes.get(1).state());
-        assertEquals(2000L,             changes.get(1).tickMs());
+        assertAt(q(4),                  changes.get(1));
         assertEquals(PedalState.CHANGE, changes.get(2).state());
-        assertEquals(4000L,             changes.get(2).tickMs());
+        assertAt(q(8),                  changes.get(2));
         assertEquals(PedalState.UP,     changes.get(3).state());
-        assertEquals(6000L,             changes.get(3).tickMs());
+        assertAt(q(12),                 changes.get(3));
     }
 
     @Test
     void threeFourGivesShorterBars() {
-        // 3/4 at 120bpm: 1 bar = 1500 ms. A 4500 ms piece → 3 bars.
-        var perf = pieceWithDuration(4500);
+        // 3/4: 1 bar = 3 quarters. A 9-quarter piece → 3 bars.
+        var perf = pieceWithDuration(q(9));
         var changes = AutoPedaling.generate(perf, new TimeSignature(3, 4))
                 .byTrack().values().iterator().next().changes();
         assertEquals(4, changes.size());   // DOWN + 2 CHANGEs + UP
-        assertEquals(1500L, changes.get(1).tickMs());
-        assertEquals(3000L, changes.get(2).tickMs());
-        assertEquals(4500L, changes.get(3).tickMs());
+        assertAt(q(3), changes.get(1));
+        assertAt(q(6), changes.get(2));
+        assertAt(q(9), changes.get(3));
     }
 
     @Test
     void drumTracksAreSkipped() {
-        var pitchedNote = new PitchedNote(0, 2000, 60);
-        var drumNote = new DrumNote(0, 100, 36);
+        var pitchedNote = new PitchedNote(Duration.zero(), q(4), 60);
+        var drumNote = new DrumNote(Duration.zero(), Duration.of(1, 20), 36);
         var pitched = new Track(new TrackId("Piano"), TrackKind.PITCHED, List.of(pitchedNote));
         var drums   = new Track(new TrackId("Drums"), TrackKind.DRUM,    List.of(drumNote));
         var perf = new Performance(
@@ -94,34 +112,42 @@ class AutoPedalingTest {
     }
 
     @Test
-    void shorterTempoStretchesBarMs() {
-        // Constant 60 bpm = half-speed → bars are 4000 ms long in 4/4.
-        // Same 6000 ms piece → DOWN, CHANGE @ 4000, UP @ 6000.
-        var perf = pieceWithDuration(6000, TempoTrack.constant(60));
+    void tempoDoesNotShiftMusicalBarBoundaries() {
+        // Under the musical model the heuristic is tempo-independent:
+        // a 3-bar 4/4 piece at 60 bpm has bar boundaries at exactly the
+        // same musical positions as at 120 bpm. Only the wall-clock
+        // rendering (via TimeMapper) stretches: 60 bpm → 4000 ms/bar.
+        var perf = pieceWithDuration(q(12), TempoTrack.constant(60));
         var changes = AutoPedaling.generate(perf, new TimeSignature(4, 4))
                 .byTrack().values().iterator().next().changes();
-        assertEquals(3, changes.size());
-        assertEquals(4000L, changes.get(1).tickMs());
-        assertEquals(6000L, changes.get(2).tickMs());
-        assertEquals(PedalState.UP, changes.get(2).state());
+        assertEquals(4, changes.size());
+        assertAt(q(4),  changes.get(1));
+        assertAt(q(8),  changes.get(2));
+        assertAt(q(12), changes.get(3));
+        assertEquals(PedalState.UP, changes.get(3).state());
+
+        var mapper = new TimeMapper(perf.tempo());
+        assertEquals(4000L,  mapper.toMs(changes.get(1).at()));
+        assertEquals(8000L,  mapper.toMs(changes.get(2).at()));
+        assertEquals(12000L, mapper.toMs(changes.get(3).at()));
     }
 
     @Test
     void bassChangeAddsMidBarChangeEvent() {
-        // 4/4 at 120bpm, 1 bar = 2000 ms. Two-bar piece (4000 ms total)
+        // 4/4, 1 bar = 4 quarters. Two-bar piece (8q total)
         // with bass moving inside each bar:
-        //   t=0    : C2 (36) + C5 (72)
-        //   t=1000 : G2 (43)            ← bass C→G mid-bar 1
-        //   t=2000 : C2 (36)            ← bar boundary; also bass G→C
-        //   t=3000 : F2 (41)            ← bass C→F mid-bar 2
-        // Expect: DOWN @ 0, CHANGE @ 1000, CHANGE @ 2000, CHANGE @ 3000, UP @ 4000.
+        //   t=0  : C2 (36) + C5 (72)
+        //   t=2q : G2 (43)            ← bass C→G mid-bar 1
+        //   t=4q : C2 (36)            ← bar boundary; also bass G→C
+        //   t=6q : F2 (41)            ← bass C→F mid-bar 2
+        // Expect: DOWN @ 0, CHANGE @ 2q, CHANGE @ 4q, CHANGE @ 6q, UP @ 8q.
         var bass = new Track(new TrackId("LH"), TrackKind.PITCHED, List.of(
-                new PitchedNote(0,    1000, 36),
-                new PitchedNote(1000, 1000, 43),
-                new PitchedNote(2000, 1000, 36),
-                new PitchedNote(3000, 1000, 41)));
+                new PitchedNote(q(0), q(2), 36),
+                new PitchedNote(q(2), q(2), 43),
+                new PitchedNote(q(4), q(2), 36),
+                new PitchedNote(q(6), q(2), 41)));
         var treble = new Track(new TrackId("RH"), TrackKind.PITCHED, List.of(
-                new PitchedNote(0, 4000, 72)));
+                new PitchedNote(q(0), q(8), 72)));
         var perf = new Performance(
                 new Score(List.of(bass, treble)),
                 TempoTrack.constant(120),
@@ -132,15 +158,15 @@ class AutoPedalingTest {
                 .byTrack().get(new TrackId("LH")).changes();
         assertEquals(5, changes.size());
         assertEquals(PedalState.DOWN,   changes.get(0).state());
-        assertEquals(0L,                changes.get(0).tickMs());
+        assertAt(q(0),                  changes.get(0));
         assertEquals(PedalState.CHANGE, changes.get(1).state());
-        assertEquals(1000L,             changes.get(1).tickMs());
+        assertAt(q(2),                  changes.get(1));
         assertEquals(PedalState.CHANGE, changes.get(2).state());
-        assertEquals(2000L,             changes.get(2).tickMs());
+        assertAt(q(4),                  changes.get(2));
         assertEquals(PedalState.CHANGE, changes.get(3).state());
-        assertEquals(3000L,             changes.get(3).tickMs());
+        assertAt(q(6),                  changes.get(3));
         assertEquals(PedalState.UP,     changes.get(4).state());
-        assertEquals(4000L,             changes.get(4).tickMs());
+        assertAt(q(8),                  changes.get(4));
     }
 
     @Test
@@ -148,45 +174,45 @@ class AutoPedalingTest {
         // Solo melody entirely above middle C → bass detector finds
         // nothing → only bar-boundary CHANGEs survive.
         var melody = new Track(new TrackId("RH"), TrackKind.PITCHED, List.of(
-                new PitchedNote(0,    500, 72),  // C5
-                new PitchedNote(500,  500, 74),  // D5
-                new PitchedNote(1000, 500, 76),  // E5
-                new PitchedNote(1500, 500, 77),  // F5
-                new PitchedNote(2000, 500, 79),  // G5
-                new PitchedNote(2500, 500, 81),  // A5
-                new PitchedNote(3000, 500, 83),  // B5
-                new PitchedNote(3500, 500, 84))); // C6
+                new PitchedNote(q(0), q(1), 72),  // C5
+                new PitchedNote(q(1), q(1), 74),  // D5
+                new PitchedNote(q(2), q(1), 76),  // E5
+                new PitchedNote(q(3), q(1), 77),  // F5
+                new PitchedNote(q(4), q(1), 79),  // G5
+                new PitchedNote(q(5), q(1), 81),  // A5
+                new PitchedNote(q(6), q(1), 83),  // B5
+                new PitchedNote(q(7), q(1), 84))); // C6
         var perf = new Performance(
                 new Score(List.of(melody)),
                 TempoTrack.constant(120),
                 Instrumentation.empty(), Volume.empty(),
                 Articulations.empty(), Pedaling.empty());
 
-        // Plain bar-only output: DOWN @ 0, CHANGE @ 2000, UP @ 4000.
+        // Plain bar-only output: DOWN @ 0, CHANGE @ 4q, UP @ 8q.
         // (No mid-bar CHANGEs because no notes are below MIDI 60.)
         var changes = AutoPedaling.generate(perf, new TimeSignature(4, 4))
                 .byTrack().values().iterator().next().changes();
         assertEquals(3, changes.size());
         assertEquals(PedalState.DOWN,   changes.get(0).state());
         assertEquals(PedalState.CHANGE, changes.get(1).state());
-        assertEquals(2000L,             changes.get(1).tickMs());
+        assertAt(q(4),                  changes.get(1));
         assertEquals(PedalState.UP,     changes.get(2).state());
-        assertEquals(4000L,             changes.get(2).tickMs());
+        assertAt(q(8),                  changes.get(2));
     }
 
     @Test
     void repeatedBassNoteDoesNotEmitChange() {
-        // Bass plays the same C2 four times — same harmony, no
+        // Bass plays the same C2 eight times — same harmony, no
         // mid-bar CHANGEs. Only the bar boundary contributes.
         var bass = new Track(new TrackId("LH"), TrackKind.PITCHED, List.of(
-                new PitchedNote(0,    500, 36),
-                new PitchedNote(500,  500, 36),
-                new PitchedNote(1000, 500, 36),
-                new PitchedNote(1500, 500, 36),
-                new PitchedNote(2000, 500, 36),
-                new PitchedNote(2500, 500, 36),
-                new PitchedNote(3000, 500, 36),
-                new PitchedNote(3500, 500, 36)));
+                new PitchedNote(q(0), q(1), 36),
+                new PitchedNote(q(1), q(1), 36),
+                new PitchedNote(q(2), q(1), 36),
+                new PitchedNote(q(3), q(1), 36),
+                new PitchedNote(q(4), q(1), 36),
+                new PitchedNote(q(5), q(1), 36),
+                new PitchedNote(q(6), q(1), 36),
+                new PitchedNote(q(7), q(1), 36)));
         var perf = new Performance(
                 new Score(List.of(bass)),
                 TempoTrack.constant(120),
@@ -195,19 +221,20 @@ class AutoPedalingTest {
 
         var changes = AutoPedaling.generate(perf, new TimeSignature(4, 4))
                 .byTrack().values().iterator().next().changes();
-        // DOWN @ 0, CHANGE @ 2000 (bar), UP @ 4000.
+        // DOWN @ 0, CHANGE @ 4q (bar), UP @ 8q.
         assertEquals(3, changes.size());
-        assertEquals(2000L, changes.get(1).tickMs());
+        assertAt(q(4), changes.get(1));
     }
 
     @Test
     void bassChangeNearBarBoundaryIsDeduped() {
-        // Bass at 1950ms (50ms before the bar boundary at 2000ms) — the
-        // 200ms min-gap should drop it; only the bar boundary survives.
+        // Bass one 32nd (1/32) before the bar boundary at 4q — the
+        // 1/16 MIN_GAP should drop it; only the bar boundary survives.
+        Duration justBeforeBar = q(4).minus(Duration.of(1, 32));
         var bass = new Track(new TrackId("LH"), TrackKind.PITCHED, List.of(
-                new PitchedNote(0,    1000, 36),
-                new PitchedNote(1950, 1000, 43),  // bass C→G but too close to bar 2
-                new PitchedNote(3000, 1000, 41))); // bass G→F mid-bar 2 — kept
+                new PitchedNote(q(0),          q(2), 36),
+                new PitchedNote(justBeforeBar, q(2), 43),  // bass C→G but too close to bar 2
+                new PitchedNote(q(6),          q(2), 41))); // bass G→F mid-bar 2 — kept
         var perf = new Performance(
                 new Score(List.of(bass)),
                 TempoTrack.constant(120),
@@ -216,26 +243,27 @@ class AutoPedalingTest {
 
         var changes = AutoPedaling.generate(perf, new TimeSignature(4, 4))
                 .byTrack().values().iterator().next().changes();
-        // DOWN @ 0, CHANGE @ 2000 (bar; bass@1950 dropped),
-        // CHANGE @ 3000 (bass G→F mid-bar 2), UP @ 4000.
+        // DOWN @ 0, CHANGE @ 4q (bar; bass just before dropped),
+        // CHANGE @ 6q (bass G→F mid-bar 2), UP @ 8q.
         assertEquals(4, changes.size());
-        assertEquals(0L,    changes.get(0).tickMs());
-        assertEquals(2000L, changes.get(1).tickMs());
-        assertEquals(3000L, changes.get(2).tickMs());
-        assertEquals(4000L, changes.get(3).tickMs());
+        assertAt(q(0), changes.get(0));
+        assertAt(q(4), changes.get(1));
+        assertAt(q(6), changes.get(2));
+        assertAt(q(8), changes.get(3));
     }
 
     @Test
     void closeBassChangesAreDebouncedAgainstEachOther() {
-        // Chromatic bass walk: notes 100ms apart. The first one starts
-        // a chord; subsequent ones are within 200ms of the previous
-        // emitted change → all dropped. Bar boundary remains.
+        // Chromatic bass walk: notes one 32nd apart. The first one starts
+        // a chord; subsequent ones are within MIN_GAP (1/16) of the
+        // previous emitted change → dropped. Bar boundary remains.
+        Duration t = Duration.of(1, 32);
         var bass = new Track(new TrackId("LH"), TrackKind.PITCHED, List.of(
-                new PitchedNote(0,    100, 36),  // C2
-                new PitchedNote(100,  100, 37),  // C#2 — bass change candidate @ 100
-                new PitchedNote(200,  100, 38),  // D2  — candidate @ 200
-                new PitchedNote(300,  100, 39),  // D#2 — candidate @ 300
-                new PitchedNote(3500, 500, 39))); // same pitch as prev bass → no candidate
+                new PitchedNote(t.times(0), t, 36),  // C2
+                new PitchedNote(t.times(1), t, 37),  // C#2 — bass change candidate @ 1/32
+                new PitchedNote(t.times(2), t, 38),  // D2  — candidate @ 2/32
+                new PitchedNote(t.times(3), t, 39),  // D#2 — candidate @ 3/32
+                new PitchedNote(q(7), q(1), 39))); // same pitch as prev bass → no candidate
         var perf = new Performance(
                 new Score(List.of(bass)),
                 TempoTrack.constant(120),
@@ -244,38 +272,46 @@ class AutoPedalingTest {
 
         var changes = AutoPedaling.generate(perf, new TimeSignature(4, 4))
                 .byTrack().values().iterator().next().changes();
-        // Bass@100 is within 200ms of DOWN@0 → DROPPED.
-        // Bass@200 → too close to DOWN@0 (gap 200, NOT <200 → kept).
-        // Bass@300 → 300-200=100 <200 → dropped.
-        // Plus bar boundary at 2000, UP at 4000.
-        // So we expect: DOWN@0, CHANGE@200, CHANGE@2000, UP@4000.
+        // Bass@1/32 is within 1/16 of DOWN@0 → DROPPED.
+        // Bass@2/32 → gap to DOWN@0 is exactly 1/16, NOT < 1/16 → kept.
+        // Bass@3/32 → 3/32-2/32 = 1/32 < 1/16 → dropped.
+        // Plus bar boundary at 4q, UP at 8q.
+        // So we expect: DOWN@0, CHANGE@1/16, CHANGE@4q, UP@8q.
         assertEquals(4, changes.size());
-        assertEquals(0L,    changes.get(0).tickMs());
-        assertEquals(200L,  changes.get(1).tickMs());
-        assertEquals(2000L, changes.get(2).tickMs());
-        assertEquals(4000L, changes.get(3).tickMs());
+        assertAt(q(0), changes.get(0));
+        assertAt(s(1), changes.get(1));
+        assertAt(q(4), changes.get(2));
+        assertAt(q(8), changes.get(3));
     }
 
     @Test
-    void tempoChangeMidPieceShiftsBarBoundary() {
-        // 4/4. Bar 1 at 60 bpm → 4000 ms. Then tempo doubles to 120 bpm,
-        // so bar 2 takes only 2000 ms. Piece length 7000 ms → boundaries
-        // land at 4000 (bar 2 start) and 6000 (bar 3 start), then UP @ 7000.
+    void tempoChangeMidPieceDoesNotShiftBarBoundary() {
+        // 4/4. Bar 1 at 60 bpm, then tempo doubles to 120 bpm at bar 2.
+        // Musically, bar boundaries stay at 4q and 8q regardless — only
+        // the wall-clock rendering differs: bar 1 takes 4000 ms, bar 2
+        // 2000 ms. Piece length 2.5 bars (10 quarters) → UP @ 10q.
         var tempos = new TempoTrack(List.of(
-                new TempoChange(0,    60),
-                new TempoChange(4000, 120)));
-        var perf = pieceWithDuration(7000, tempos);
+                new TempoChange(q(0), 60),
+                new TempoChange(q(4), 120)));
+        var perf = pieceWithDuration(q(10), tempos);
         var changes = AutoPedaling.generate(perf, new TimeSignature(4, 4))
                 .byTrack().values().iterator().next().changes();
-        // Expect: DOWN @ 0, CHANGE @ 4000, CHANGE @ 6000, UP @ 7000
+        // Expect: DOWN @ 0, CHANGE @ 4q, CHANGE @ 8q, UP @ 10q
         assertEquals(4, changes.size());
         assertEquals(PedalState.DOWN,   changes.get(0).state());
-        assertEquals(0L,                changes.get(0).tickMs());
+        assertAt(q(0),                  changes.get(0));
         assertEquals(PedalState.CHANGE, changes.get(1).state());
-        assertEquals(4000L,             changes.get(1).tickMs());
+        assertAt(q(4),                  changes.get(1));
         assertEquals(PedalState.CHANGE, changes.get(2).state());
-        assertEquals(6000L,             changes.get(2).tickMs());
+        assertAt(q(8),                  changes.get(2));
         assertEquals(PedalState.UP,     changes.get(3).state());
-        assertEquals(7000L,             changes.get(3).tickMs());
+        assertAt(q(10),                 changes.get(3));
+
+        // Wall-clock (the original ms expectations): bar 1 @ 60 bpm =
+        // 4000 ms; bar 2 @ 120 bpm = 2000 ms; half of bar 3 = 1000 ms.
+        var mapper = new TimeMapper(perf.tempo());
+        assertEquals(4000L, mapper.toMs(changes.get(1).at()));
+        assertEquals(6000L, mapper.toMs(changes.get(2).at()));
+        assertEquals(7000L, mapper.toMs(changes.get(3).at()));
     }
 }

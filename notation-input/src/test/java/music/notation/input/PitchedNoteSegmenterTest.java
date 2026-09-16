@@ -1,5 +1,6 @@
 package music.notation.input;
 
+import music.notation.duration.Duration;
 import music.notation.performance.PitchedNote;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,18 @@ import static org.junit.jupiter.api.Assertions.*;
 class PitchedNoteSegmenterTest {
 
     private static final int FRAME_MS = 50;
+
+    /**
+     * The segmenter projects live ms onto a fixed 120 bpm grid
+     * ({@code Duration.of(ms, 2000)}: one quarter = 500 ms). Mirror that
+     * projection so expectations stay readable in the ms the frames were fed in.
+     */
+    private static Duration ms(long ms) { return Duration.of(ms, 2000); }
+
+    private static void assertDurationEquals(Duration expected, Duration actual, String what) {
+        assertTrue(expected.equalsDuration(actual),
+                what + ": expected " + expected + " but was " + actual);
+    }
 
     private RecordingListener events;
     private PitchedNoteSegmenter segmenter;
@@ -42,8 +55,8 @@ class PitchedNoteSegmenterTest {
 
         assertEquals(1, events.completed.size());
         PitchedNote n = events.completed.get(0);
-        assertEquals(0, n.tickMs());
-        assertEquals(500, n.durationMs());
+        assertDurationEquals(ms(0), n.at(), "onset");
+        assertDurationEquals(ms(500), n.duration(), "duration");
         assertEquals(60, n.midi());
     }
 
@@ -94,7 +107,9 @@ class PitchedNoteSegmenterTest {
                 "silent gap must close the first note and start a new one");
         assertEquals(60, events.completed.get(0).midi());
         assertEquals(60, events.completed.get(1).midi());
-        assertTrue(events.completed.get(1).tickMs() > events.completed.get(0).tickMs() + 100,
+        Duration firstOnset  = events.completed.get(0).at();
+        Duration secondOnset = events.completed.get(1).at();
+        assertTrue(secondOnset.compareDuration(firstOnset.plus(ms(100))) > 0,
                 "second note starts after the silent gap, not immediately");
     }
 
@@ -176,7 +191,7 @@ class PitchedNoteSegmenterTest {
         assertTrue(events.completed.isEmpty(), "precondition: note still held");
         segmenter.flush(150);
         assertEquals(1, events.completed.size());
-        assertEquals(150, events.completed.get(0).durationMs());
+        assertDurationEquals(ms(150), events.completed.get(0).duration(), "flushed duration");
     }
 
     @Test

@@ -6,6 +6,8 @@ import music.notation.experiments.hirajoshi.HirajoshiConcretizer;
 import music.notation.experiments.hirajoshi.HirajoshiNote;
 import music.notation.performance.MidiCodec;
 import music.notation.performance.PitchedNote;
+import music.notation.performance.TempoTrack;
+import music.notation.performance.TimeMapper;
 import music.notation.expressivity.TrackId;
 import org.junit.jupiter.api.Test;
 
@@ -122,9 +124,10 @@ class PiSongTest {
         assertEquals(p, MidiCodec.fromMidi(MidiCodec.toMidi(p)));
     }
 
-    private static void assertNote(Object n, long expectedTick, int expectedMidi) {
+    private static void assertNote(Object n, long expectedTickMs, int expectedMidi) {
         var pn = (PitchedNote) n;
-        assertEquals(expectedTick, pn.tickMs());
+        // PiSong projects ms at 120 bpm; an empty TempoTrack inverts that.
+        assertEquals(expectedTickMs, new TimeMapper(TempoTrack.empty()).toMs(pn.at()));
         assertEquals(expectedMidi, pn.midi());
     }
 

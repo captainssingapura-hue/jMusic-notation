@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import org.junit.jupiter.api.Test;
@@ -14,15 +15,18 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class TieablePitchedNoteTest {
 
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
     @Test
     void tiedToNextFlagIsAccessible() {
-        var pn = new PitchedNote(0, 500, 60, true);
+        var pn = new PitchedNote(q(0), q(1), 60, true);
         assertTrue(pn.tiedToNext());
     }
 
     @Test
     void withTiedToNextFlipsTheFlag() {
-        var pn = new PitchedNote(0, 500, 60, false);
+        var pn = new PitchedNote(q(0), q(1), 60, false);
         var tied = pn.withTiedToNext();
         assertInstanceOf(PitchedNote.class, tied);
         assertTrue(((PitchedNote) tied).tiedToNext());
@@ -31,7 +35,7 @@ class TieablePitchedNoteTest {
 
     @Test
     void backwardCompatConstructorDefaultsTiedToNextFalse() {
-        var pn = new PitchedNote(0, 500, 60);
+        var pn = new PitchedNote(q(0), q(1), 60);
         assertFalse(pn.tiedToNext());
     }
 
@@ -39,9 +43,9 @@ class TieablePitchedNoteTest {
     void jsonRoundTripPreservesTiedToNext() {
         var trackId = new TrackId("lead");
         var track = new Track(trackId, TrackKind.PITCHED, List.of(
-                new PitchedNote(0, 500, 60, true),
-                new PitchedNote(500, 500, 62, false),
-                new PitchedNote(1000, 500, 64, true)));
+                new PitchedNote(q(0), q(1), 60, true),
+                new PitchedNote(q(1), q(1), 62, false),
+                new PitchedNote(q(2), q(1), 64, true)));
         var p = Performance.of(Score.of(track));
         var back = PerformanceJson.fromJson(PerformanceJson.toJson(p));
         assertEquals(p, back);

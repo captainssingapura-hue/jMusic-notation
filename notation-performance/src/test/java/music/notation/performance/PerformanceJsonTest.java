@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import org.junit.jupiter.api.Test;
@@ -18,9 +19,12 @@ class PerformanceJsonTest {
     private static final TrackId BASS = new TrackId("bass");
     private static final TrackId DRUMS = new TrackId("drums");
 
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
     @Test
     void toJson_emitsExpectedStructureForSinglePitchedNote() {
-        Track t = new Track(LEAD, TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 60)));
+        Track t = new Track(LEAD, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 60)));
         Performance p = Performance.of(Score.of(t));
         String json = PerformanceJson.toJson(p);
 
@@ -40,12 +44,12 @@ class PerformanceJsonTest {
     @Test
     void roundTrip_singleTrackWithProgramAndTempo() {
         Track t = new Track(LEAD, TrackKind.PITCHED, List.of(
-                new PitchedNote(0, 500, 60),
-                new PitchedNote(500, 500, 62),
-                new PitchedNote(1000, 500, 64)));
+                new PitchedNote(q(0), q(1), 60),
+                new PitchedNote(q(1), q(1), 62),
+                new PitchedNote(q(2), q(1), 64)));
         Performance p = new Performance(
                 new Score(List.of(t)),
-                new TempoTrack(List.of(new TempoChange(0, 120), new TempoChange(2000, 90))),
+                new TempoTrack(List.of(new TempoChange(q(0), 120), new TempoChange(q(4), 90))),
                 Instrumentation.single(LEAD, 24),
                 Articulations.empty());
         Performance back = PerformanceJson.fromJson(PerformanceJson.toJson(p));
@@ -54,11 +58,11 @@ class PerformanceJsonTest {
 
     @Test
     void roundTrip_multiTrack_withDrumTrack() {
-        Track lead = new Track(LEAD, TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 60)));
-        Track bass = new Track(BASS, TrackKind.PITCHED, List.of(new PitchedNote(0, 1000, 36)));
+        Track lead = new Track(LEAD, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 60)));
+        Track bass = new Track(BASS, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(2), 36)));
         Track drums = new Track(DRUMS, TrackKind.DRUM, List.of(
-                new DrumNote(0, 100, Drums.KICK),
-                new DrumNote(500, 100, Drums.SNARE)));
+                new DrumNote(q(0), Duration.of(1, 16), Drums.KICK),
+                new DrumNote(q(1), Duration.of(1, 16), Drums.SNARE)));
         Performance p = new Performance(
                 new Score(List.of(lead, bass, drums)),
                 TempoTrack.empty(),
@@ -74,9 +78,9 @@ class PerformanceJsonTest {
         TrackId v1 = new TrackId("voice1");
         TrackId v2 = new TrackId("voice2");
         TrackId v3 = new TrackId("voice3");
-        Track t1 = new Track(v1, TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 60), new PitchedNote(500, 500, 62)));
-        Track t2 = new Track(v2, TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 64), new PitchedNote(500, 500, 65)));
-        Track t3 = new Track(v3, TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 67), new PitchedNote(500, 500, 69)));
+        Track t1 = new Track(v1, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 60), new PitchedNote(q(1), q(1), 62)));
+        Track t2 = new Track(v2, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 64), new PitchedNote(q(1), q(1), 65)));
+        Track t3 = new Track(v3, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 67), new PitchedNote(q(1), q(1), 69)));
         Performance p = new Performance(
                 new Score(List.of(t1, t2, t3)),
                 TempoTrack.constant(100),
@@ -92,9 +96,9 @@ class PerformanceJsonTest {
     @Test
     void roundTrip_followingMidiCodec() {
         Track t = new Track(LEAD, TrackKind.PITCHED, List.of(
-                new PitchedNote(0, 500, 60),
-                new PitchedNote(500, 500, 64),
-                new PitchedNote(1000, 500, 67)));
+                new PitchedNote(q(0), q(1), 60),
+                new PitchedNote(q(1), q(1), 64),
+                new PitchedNote(q(2), q(1), 67)));
         Performance original = new Performance(
                 new Score(List.of(t)),
                 TempoTrack.constant(120),

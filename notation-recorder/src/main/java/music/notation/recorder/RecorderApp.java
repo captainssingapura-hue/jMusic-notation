@@ -46,6 +46,7 @@ import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
 import music.notation.performance.Score;
 import music.notation.performance.TempoTrack;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 import music.notation.performance.TrackKind;
 import music.notation.pitch.NoteName;
@@ -642,7 +643,7 @@ public final class RecorderApp extends Application {
             // Recorder captures raw MIDI velocity bytes [0,127]; convert
             // to a synth-agnostic level at this boundary.
             double level = Math.max(0.0, Math.min(1.0, c.velocity() / 127.0));
-            velChanges.add(new VelocityChange(c.note().tickMs(), level));
+            velChanges.add(new VelocityChange(c.note().at(), level));
         }
         Track track = new Track(trackId, TrackKind.PITCHED, notes);
         Map<TrackId, VelocityControl> velocityMap = new LinkedHashMap<>();
@@ -679,19 +680,27 @@ public final class RecorderApp extends Application {
     record CapturedNote(PitchedNote note, int velocity) {}
 
     private static final class NoteCell extends javafx.scene.control.ListCell<CapturedNote> {
+        /**
+         * The recorder has no tempo; the input sources project real-time ms
+         * onto the Duration timeline at the default 120 bpm, so an empty
+         * TempoTrack inverts that projection exactly for display.
+         */
+        private static final TimeMapper MAPPER = new TimeMapper(TempoTrack.empty());
+
         @Override
         protected void updateItem(CapturedNote item, boolean empty) {
             super.updateItem(item, empty);
             if (empty || item == null) {
                 setText(null);
             } else {
-                long ms = item.note().tickMs();
+                long ms = MAPPER.toMs(item.note().at());
+                long durationMs = MAPPER.toMs(item.note().endAt()) - ms;
                 long s = ms / 1000;
                 long sub = ms % 1000;
                 setText(String.format("%2d. %d:%02d.%03d  %-4s (MIDI %3d)  dur %4d ms  vel %3d",
                         getIndex() + 1, s / 60, s % 60, sub,
                         noteName(item.note().midi()), item.note().midi(),
-                        item.note().durationMs(), item.velocity()));
+                        durationMs, item.velocity()));
                 setStyle("-fx-font-family: monospace; -fx-font-size: 12;");
             }
         }

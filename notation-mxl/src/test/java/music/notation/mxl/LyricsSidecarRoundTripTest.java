@@ -1,5 +1,6 @@
 package music.notation.mxl;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.LyricEvent;
 import music.notation.expressivity.LyricLine;
 import music.notation.expressivity.Lyrics;
@@ -38,14 +39,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class LyricsSidecarRoundTripTest {
 
+    private static final Duration QUARTER = Duration.of(1, 4);
+
     private static MxlImport buildImport(Lyrics lyrics) {
         TrackId melodyId = new TrackId("Melody");
-        // Four quarter notes, C4 (MIDI 60), each lasting 500 ms at 120 bpm.
+        // Four quarter notes, C4 (MIDI 60), on successive beats.
         List<music.notation.performance.ConcreteNote> notes = List.of(
-                new PitchedNote(    0L, 500L, 60),
-                new PitchedNote(  500L, 500L, 60),
-                new PitchedNote( 1000L, 500L, 60),
-                new PitchedNote( 1500L, 500L, 60));
+                new PitchedNote(Duration.zero(),  QUARTER, 60),
+                new PitchedNote(Duration.of(1, 4), QUARTER, 60),
+                new PitchedNote(Duration.of(2, 4), QUARTER, 60),
+                new PitchedNote(Duration.of(3, 4), QUARTER, 60));
         Track melody = new Track(melodyId, TrackKind.PITCHED, notes);
 
         Performance perf = new Performance(
@@ -71,10 +74,10 @@ class LyricsSidecarRoundTripTest {
         TrackId melodyId = new TrackId("Melody");
         // 一 _ _ _ — single CJK syllable held for four quarter notes.
         LyricLine line = new LyricLine(List.of(
-                new LyricEvent(    0, '一'),
-                LyricEvent.continuation( 500),
-                LyricEvent.continuation(1000),
-                LyricEvent.continuation(1500)));
+                new LyricEvent(Duration.zero(), '一'),
+                LyricEvent.continuation(Duration.of(1, 4)),
+                LyricEvent.continuation(Duration.of(2, 4)),
+                LyricEvent.continuation(Duration.of(3, 4))));
         Lyrics lyrics = Lyrics.single(melodyId, line);
 
         MxlImport written = buildImport(lyrics);
@@ -116,7 +119,7 @@ class LyricsSidecarRoundTripTest {
         // surrogate pair as a Java String. Sanity-check that the
         // codepoint integer survives the JSON round-trip.
         TrackId melodyId = new TrackId("Melody");
-        LyricLine line = new LyricLine(List.of(new LyricEvent(0, 0x1F3B5)));
+        LyricLine line = new LyricLine(List.of(new LyricEvent(Duration.zero(), 0x1F3B5)));
         MxlImport written = buildImport(Lyrics.single(melodyId, line));
 
         Path pieceDir = tmp.resolve("piece");

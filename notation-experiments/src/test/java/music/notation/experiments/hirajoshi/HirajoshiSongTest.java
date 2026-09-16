@@ -6,6 +6,7 @@ import music.notation.experiments.hirajoshi.transformer.TransposeDegree;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
+import music.notation.performance.TimeMapper;
 import music.notation.experiments.scale.TimedNote;
 import org.junit.jupiter.api.Test;
 
@@ -53,12 +54,14 @@ class HirajoshiSongTest {
         var perf = HirajoshiSong.concretize(melody, HirajoshiConcretizer.inC());
 
         var notes = onlyNotes(perf);
-        // Notes are sorted canonically by tickMs, which equals input order
-        // since the melody has strictly-increasing onsets.
+        // Notes are sorted canonically by onset, which equals input order
+        // since the melody has strictly-increasing onsets. The song projects
+        // ms at 120 bpm; map back through the performance's (empty) tempo.
+        var mapper = new TimeMapper(perf.tempo());
         for (int i = 0; i < melody.size(); i++) {
             assertEquals(
                     melody.get(i).durationMillis(),
-                    (int) notes.get(i).durationMs(),
+                    (int) mapper.msBetween(notes.get(i).at(), notes.get(i).endAt()),
                     "note " + i + " duration must survive concretization");
         }
     }

@@ -72,7 +72,7 @@ public final class LyricGridPane extends ScrollPane {
         for (int i = 0; i < model.cellCount(); i++) {
             LyricsModel.Cell c = model.cellAt(i);
             LyricCellView view = new LyricCellView(
-                    i, midiToPitchName(c.midi), durationGlyph(c.durationMs), cb);
+                    i, midiToPitchName(c.midi), durationGlyph(c.duration), cb);
             cellViews.add(view);
             row.getChildren().add(view);
         }
@@ -112,14 +112,20 @@ public final class LyricGridPane extends ScrollPane {
         return names[midi % 12] + oct;
     }
 
-    /** Map a duration in ms (at 120 bpm reference) to a note-value glyph. */
-    private static String durationGlyph(long durationMs) {
-        // 120 bpm → quarter = 500 ms. Pick the closest standard.
-        // Sub-quarter gets the eighth/sixteenth glyph; longer gets half/whole.
-        if (durationMs >= 1800) return "𝅝";       // whole
-        if (durationMs >=  900) return "𝅗𝅥";       // half
-        if (durationMs >=  450) return "♩";       // quarter
-        if (durationMs >=  225) return "♪";       // eighth
+    /**
+     * Map a musical duration to a note-value glyph. Thresholds sit at
+     * 90% of each standard value so slightly-short (e.g. staccato or
+     * quantised) notes still get the intended glyph.
+     */
+    private static String durationGlyph(music.notation.duration.Duration d) {
+        if (atLeast(d, 9, 10)) return "𝅝";       // whole
+        if (atLeast(d, 9, 20)) return "𝅗𝅥";       // half
+        if (atLeast(d, 9, 40)) return "♩";       // quarter
+        if (atLeast(d, 9, 80)) return "♪";       // eighth
         return "♬";                              // sixteenth-ish
+    }
+
+    private static boolean atLeast(music.notation.duration.Duration d, long num, long den) {
+        return d.compareDuration(music.notation.duration.Duration.of(num, den)) >= 0;
     }
 }

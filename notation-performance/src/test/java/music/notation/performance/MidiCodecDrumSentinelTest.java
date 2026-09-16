@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import org.junit.jupiter.api.Test;
@@ -59,7 +60,7 @@ class MidiCodecDrumSentinelTest {
     @Test
     void pitchedTrackName_isNotDecorated() {
         Track pitched = new Track(new TrackId("lead"), TrackKind.PITCHED,
-                List.of(new PitchedNote(0, 500, 60)));
+                List.of(new PitchedNote(Duration.zero(), Duration.of(1, 4), 60)));
         Performance p = new Performance(
                 new Score(List.of(pitched)),
                 TempoTrack.empty(), Instrumentation.empty(), Articulations.empty());
@@ -82,7 +83,7 @@ class MidiCodecDrumSentinelTest {
     @Test
     void pitchedTrack_hasNoInstrumentNameMeta() {
         Track pitched = new Track(new TrackId("lead"), TrackKind.PITCHED,
-                List.of(new PitchedNote(0, 500, 60)));
+                List.of(new PitchedNote(Duration.zero(), Duration.of(1, 4), 60)));
         Performance p = new Performance(
                 new Score(List.of(pitched)),
                 TempoTrack.empty(), Instrumentation.empty(), Articulations.empty());
@@ -120,7 +121,7 @@ class MidiCodecDrumSentinelTest {
     @Test
     void drumTrackWithExplicitInstrument_preservesUserProgram() {
         Track drums = new Track(new TrackId("Drums"), TrackKind.DRUM,
-                List.of(new DrumNote(0, 100, 36)));
+                List.of(new DrumNote(Duration.zero(), Duration.of(1, 16), 36)));
         Performance p = new Performance(
                 new Score(List.of(drums)),
                 TempoTrack.empty(),
@@ -137,7 +138,7 @@ class MidiCodecDrumSentinelTest {
     @Test
     void pitchedTrack_emitsNoBankSelectMsb() {
         Track pitched = new Track(new TrackId("lead"), TrackKind.PITCHED,
-                List.of(new PitchedNote(0, 500, 60)));
+                List.of(new PitchedNote(Duration.zero(), Duration.of(1, 4), 60)));
         Performance p = new Performance(
                 new Score(List.of(pitched)),
                 TempoTrack.empty(), Instrumentation.empty(), Articulations.empty());
@@ -183,8 +184,8 @@ class MidiCodecDrumSentinelTest {
 
     private static Performance perfWithDrums(TrackId id) {
         Track drums = new Track(id, TrackKind.DRUM,
-                List.of(new DrumNote(0, 100, 36),
-                        new DrumNote(500, 100, 38)));
+                List.of(new DrumNote(Duration.zero(), Duration.of(1, 16), 36),
+                        new DrumNote(Duration.of(1, 4), Duration.of(1, 16), 38)));
         return new Performance(
                 new Score(List.of(drums)),
                 TempoTrack.empty(), Instrumentation.empty(), Articulations.empty());

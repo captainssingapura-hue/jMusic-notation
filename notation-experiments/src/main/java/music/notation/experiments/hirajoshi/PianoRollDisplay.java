@@ -3,6 +3,7 @@ package music.notation.experiments.hirajoshi;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 
 import java.io.PrintStream;
@@ -35,10 +36,12 @@ public final class PianoRollDisplay {
 
     private final String title;
     private final List<Integer> columnMidi;   // distinct pitches, ascending
+    private final TimeMapper mapper;          // musical Duration -> wall-clock ms
     private final PrintStream out;
 
     public PianoRollDisplay(String title, Performance performance, PrintStream out) {
         this.title = title;
+        this.mapper = new TimeMapper(performance.tempo());
         this.columnMidi = performance.score().tracks().stream()
                 .flatMap(t -> t.notes().stream())
                 .filter(n -> n instanceof PitchedNote)
@@ -92,9 +95,11 @@ public final class PianoRollDisplay {
     }
 
     private void printNoteRows(PitchedNote note) {
-        final int rows = Math.max(1, (int) note.durationMs() / ROW_MILLIS);
+        final long onMs = mapper.toMs(note.at());
+        final long durationMs = mapper.toMs(note.endAt()) - onMs;
+        final int rows = Math.max(1, (int) durationMs / ROW_MILLIS);
         for (int r = 0; r < rows; r++) {
-            out.println(renderRow(note.midi(), r == 0, note.tickMs() + (long) r * ROW_MILLIS));
+            out.println(renderRow(note.midi(), r == 0, onMs + (long) r * ROW_MILLIS));
         }
     }
 
@@ -102,7 +107,7 @@ public final class PianoRollDisplay {
 
     /** Print only the attack row - useful when synchronising with audio. */
     public void printAttack(PitchedNote note) {
-        out.println(renderRow(note.midi(), true, note.tickMs()));
+        out.println(renderRow(note.midi(), true, mapper.toMs(note.at())));
     }
 
     /** Print a continuation row - call once per extra {@link #ROW_MILLIS}. */

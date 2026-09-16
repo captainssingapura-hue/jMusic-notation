@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.expressivity.*;
 
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,12 @@ class ScoreTest {
     private static final TrackId BASS = new TrackId("bass");
     private static final TrackId DRUMS = new TrackId("drums");
 
+    /** {@code n} quarter notes. */
+    private static Duration q(long n) { return Duration.of(n, 4); }
+
+    /** A negative musical position/length (invalid for every event record). */
+    private static final Duration NEG = Duration.of(-1, 4);
+
     // ── TrackId ──────────────────────────────────────────────────────
 
     @Test
@@ -33,25 +40,28 @@ class ScoreTest {
 
     @Test
     void pitchedNote_rejectsInvalidValues() {
-        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(-1, 500, 60));
-        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(0, 0, 60));
-        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(0, -100, 60));
-        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(0, 500, -1));
-        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(0, 500, 128));
+        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(NEG, q(1), 60));
+        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(q(0), Duration.zero(), 60));
+        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(q(0), NEG, 60));
+        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(q(0), q(1), -1));
+        assertThrows(IllegalArgumentException.class, () -> new PitchedNote(q(0), q(1), 128));
     }
 
     @Test
     void drumNote_rejectsInvalidValues() {
-        assertThrows(IllegalArgumentException.class, () -> new DrumNote(-1, 250, 38));
-        assertThrows(IllegalArgumentException.class, () -> new DrumNote(0, 0, 38));
-        assertThrows(IllegalArgumentException.class, () -> new DrumNote(0, 250, -1));
-        assertThrows(IllegalArgumentException.class, () -> new DrumNote(0, 250, 128));
+        assertThrows(IllegalArgumentException.class, () -> new DrumNote(NEG, Duration.of(1, 8), 38));
+        assertThrows(IllegalArgumentException.class, () -> new DrumNote(q(0), Duration.zero(), 38));
+        assertThrows(IllegalArgumentException.class, () -> new DrumNote(q(0), Duration.of(1, 8), -1));
+        assertThrows(IllegalArgumentException.class, () -> new DrumNote(q(0), Duration.of(1, 8), 128));
     }
 
     @Test
-    void offTickMs_isDerivedFromTickAndDuration() {
-        assertEquals(800, new PitchedNote(500, 300, 60).offTickMs());
-        assertEquals(800, new DrumNote(500, 300, 38).offTickMs());
+    void endAt_isDerivedFromAtAndDuration() {
+        // 1/4 + 3/16 = 7/16
+        assertTrue(Duration.of(7, 16).equalsDuration(
+                new PitchedNote(q(1), Duration.of(3, 16), 60).endAt()));
+        assertTrue(Duration.of(7, 16).equalsDuration(
+                new DrumNote(q(1), Duration.of(3, 16), 38).endAt()));
     }
 
     // ── Track ────────────────────────────────────────────────────────
@@ -59,13 +69,13 @@ class ScoreTest {
     @Test
     void pitchedTrack_rejectsDrumNotes() {
         assertThrows(IllegalArgumentException.class, () ->
-                new Track(LEAD, TrackKind.PITCHED, List.of(new DrumNote(0, 250, 38))));
+                new Track(LEAD, TrackKind.PITCHED, List.of(new DrumNote(q(0), Duration.of(1, 8), 38))));
     }
 
     @Test
     void drumTrack_rejectsPitchedNotes() {
         assertThrows(IllegalArgumentException.class, () ->
-                new Track(DRUMS, TrackKind.DRUM, List.of(new PitchedNote(0, 500, 60))));
+                new Track(DRUMS, TrackKind.DRUM, List.of(new PitchedNote(q(0), q(1), 60))));
     }
 
     @Test
@@ -75,14 +85,14 @@ class ScoreTest {
     }
 
     @Test
-    void track_canonicalisesNotesByTick() {
+    void track_canonicalisesNotesByPosition() {
         var t = new Track(LEAD, TrackKind.PITCHED, List.of(
-                new PitchedNote(1000, 500, 64),
-                new PitchedNote(0,    500, 60),
-                new PitchedNote(500,  500, 62)));
-        assertEquals(0,    t.notes().get(0).tickMs());
-        assertEquals(500,  t.notes().get(1).tickMs());
-        assertEquals(1000, t.notes().get(2).tickMs());
+                new PitchedNote(q(2), q(1), 64),
+                new PitchedNote(q(0), q(1), 60),
+                new PitchedNote(q(1), q(1), 62)));
+        assertTrue(q(0).equalsDuration(t.notes().get(0).at()));
+        assertTrue(q(1).equalsDuration(t.notes().get(1).at()));
+        assertTrue(q(2).equalsDuration(t.notes().get(2).at()));
     }
 
     // ── Score ────────────────────────────────────────────────────────
@@ -90,7 +100,7 @@ class ScoreTest {
     @Test
     void score_rejectsDuplicateTrackIds() {
         var t1 = Track.empty(LEAD, TrackKind.PITCHED);
-        var t2 = new Track(LEAD, TrackKind.PITCHED, List.of(new PitchedNote(0, 500, 60)));
+        var t2 = new Track(LEAD, TrackKind.PITCHED, List.of(new PitchedNote(q(0), q(1), 60)));
         assertThrows(IllegalArgumentException.class, () -> new Score(List.of(t1, t2)));
     }
 
@@ -160,25 +170,25 @@ class ScoreTest {
 
     @Test
     void tempoChange_rejectsInvalidValues() {
-        assertThrows(IllegalArgumentException.class, () -> new TempoChange(-1, 120));
-        assertThrows(IllegalArgumentException.class, () -> new TempoChange(0, 0));
-        assertThrows(IllegalArgumentException.class, () -> new TempoChange(0, 1000));
+        assertThrows(IllegalArgumentException.class, () -> new TempoChange(NEG, 120));
+        assertThrows(IllegalArgumentException.class, () -> new TempoChange(q(0), 0));
+        assertThrows(IllegalArgumentException.class, () -> new TempoChange(q(0), 1000));
     }
 
     @Test
     void instrumentChange_rejectsInvalidValues() {
-        assertThrows(IllegalArgumentException.class, () -> new InstrumentChange(-1, 0));
-        assertThrows(IllegalArgumentException.class, () -> new InstrumentChange(0, -1));
-        assertThrows(IllegalArgumentException.class, () -> new InstrumentChange(0, 128));
+        assertThrows(IllegalArgumentException.class, () -> new InstrumentChange(NEG, 0));
+        assertThrows(IllegalArgumentException.class, () -> new InstrumentChange(q(0), -1));
+        assertThrows(IllegalArgumentException.class, () -> new InstrumentChange(q(0), 128));
     }
 
     @Test
     void tempoTrack_dedupesConsecutiveSameBpm() {
         var tt = new TempoTrack(List.of(
-                new TempoChange(0, 120),
-                new TempoChange(1000, 120),       // dropped (same as previous)
-                new TempoChange(2000, 140),
-                new TempoChange(3000, 140)));     // dropped
+                new TempoChange(q(0), 120),
+                new TempoChange(q(2), 120),       // dropped (same as previous)
+                new TempoChange(q(4), 140),
+                new TempoChange(q(6), 140)));     // dropped
         assertEquals(2, tt.changes().size());
         assertEquals(120, tt.changes().get(0).bpm());
         assertEquals(140, tt.changes().get(1).bpm());

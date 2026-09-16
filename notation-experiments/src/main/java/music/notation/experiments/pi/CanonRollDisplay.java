@@ -3,6 +3,7 @@ package music.notation.experiments.pi;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
+import music.notation.performance.TimeMapper;
 import music.notation.performance.Track;
 
 import java.io.PrintStream;
@@ -59,10 +60,12 @@ public final class CanonRollDisplay {
                 .distinct()
                 .sorted()
                 .toList();
+        final var mapper = new TimeMapper(performance.tempo());
         long end = 0;
         for (Track t : performance.score().tracks()) {
             for (ConcreteNote n : t.notes()) {
-                if (n.offTickMs() > end) end = n.offTickMs();
+                long offMs = mapper.toMs(n.endAt());
+                if (offMs > end) end = offMs;
             }
         }
         this.totalMs = end;
@@ -114,11 +117,12 @@ public final class CanonRollDisplay {
         for (int i = 0; i < voiceForCol.length; i++) voiceForCol[i] = -1;
 
         List<Track> tracks = performance.score().tracks();
+        final var mapper = new TimeMapper(performance.tempo());
         for (int v = 0; v < tracks.size(); v++) {
             for (ConcreteNote n : tracks.get(v).notes()) {
                 if (!(n instanceof PitchedNote pn)) continue;
-                long on = pn.tickMs();
-                long off = pn.offTickMs();
+                long on = mapper.toMs(pn.at());
+                long off = mapper.toMs(pn.endAt());
                 // sounding during this row if [on, off) intersects [atMillis, atMillis + ROW_MILLIS)
                 long rowEnd = atMillis + ROW_MILLIS;
                 if (on < rowEnd && off > atMillis) {

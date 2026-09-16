@@ -1,5 +1,6 @@
 package music.notation.performance;
 
+import music.notation.duration.Duration;
 import music.notation.performance.OnsetGrouper.GroupedEvent;
 import music.notation.performance.OverlapVoiceSplitter.Config;
 import music.notation.performance.OverlapVoiceSplitter.SplitResult;
@@ -11,10 +12,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class OverlapVoiceSplitterTest {
 
-    private static GroupedEvent ev(long onset, long dur, int... pitches) {
+    /** Musical position for a 120 bpm ms literal (whole note = 2000 ms). */
+    private static Duration ms(long ms) { return Duration.of(ms, 2000); }
+
+    private static GroupedEvent ev(long onsetMs, long durMs, int... pitches) {
         var list = new java.util.ArrayList<Integer>();
         for (int p : pitches) list.add(p);
-        return new GroupedEvent(onset, dur, list);
+        return new GroupedEvent(ms(onsetMs), ms(durMs), list);
     }
 
     @Test
@@ -127,9 +131,9 @@ class OverlapVoiceSplitterTest {
         assertEquals(1, r.size());
         // Output should still be in onset order.
         var v = r.voices().get(0);
-        assertEquals(0,   v.get(0).onsetMs());
-        assertEquals(250, v.get(1).onsetMs());
-        assertEquals(500, v.get(2).onsetMs());
+        assertTrue(ms(0).equalsDuration(v.get(0).at()));
+        assertTrue(ms(250).equalsDuration(v.get(1).at()));
+        assertTrue(ms(500).equalsDuration(v.get(2).at()));
     }
 
     @Test

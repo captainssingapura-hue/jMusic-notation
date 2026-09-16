@@ -1,5 +1,6 @@
 package music.notation.experiments.hirajoshi;
 
+import music.notation.duration.Duration;
 import music.notation.performance.ConcreteNote;
 import music.notation.performance.Performance;
 import music.notation.performance.PitchedNote;
@@ -57,7 +58,7 @@ public final class HirajoshiSong {
      * Concretize the whole melody into a unified {@link Performance}
      * using the given pitch resolver. Onsets are computed by walking the
      * melody in order; each {@code TimedNote}'s duration becomes its
-     * {@link PitchedNote#durationMs()}.
+     * {@link PitchedNote#duration()} (ms projected at 120 bpm).
      *
      * <p>Works for any {@link ScalePitchResolver} - use a
      * {@link HirajoshiConcretizer} for an authentic rendering, or a
@@ -67,11 +68,14 @@ public final class HirajoshiSong {
     public static <N extends music.notation.experiments.scale.ScaleNote> Performance concretize(
             List<TimedNote<N>> melody,
             ScalePitchResolver<N> resolver) {
-        long cursor = 0;
+        // The melody is authored in ms; project at the default 120 bpm
+        // (whole note = 2000 ms) into the musical Duration timeline.
+        Duration cursor = Duration.zero();
         var notes = new ArrayList<ConcreteNote>(melody.size());
         for (var tn : melody) {
-            notes.add(new PitchedNote(cursor, tn.durationMillis(), resolver.midi(tn.note())));
-            cursor += tn.durationMillis();
+            Duration dur = Duration.of(tn.durationMillis(), 2000);
+            notes.add(new PitchedNote(cursor, dur, resolver.midi(tn.note())));
+            cursor = cursor.plus(dur);
         }
         TrackId id = new TrackId("hirajoshi");
         Track track = new Track(id, TrackKind.PITCHED, notes);
