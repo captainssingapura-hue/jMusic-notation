@@ -8,19 +8,27 @@ import music.notation.structure.TimeSignature;
 import java.util.Map;
 
 /**
- * Immutable configuration shared down the typed-builder chain:
- * {@link StaffPhraseBuilderTyped} → {@link BarBuilderTyped} → {@link AuxBarBuilderTyped}.
- *
- * <p>Carries the time signature, the builder-level default duration, and the
- * accidentals map derived from the key signature. Nothing in here mutates;
- * the instance is safe to pass by reference and reuse across bars and voices.</p>
+ * Immutable settings shared by a {@link StaffPhraseBuilderTyped} and the
+ * bar builders it opens. {@code octaveShift} is added to every note's
+ * written octave at resolve time — the way to author one part and play
+ * it in another register (a male voice doubling a female line an octave
+ * down) without duplicating the notation.
  */
 record BuilderContext(
         TimeSignature ts,
         Duration defaultDur,
-        Map<NoteName, Accidental> keyAccidentals
+        Map<NoteName, Accidental> keyAccidentals,
+        int octaveShift
 ) {
     BuilderContext {
         keyAccidentals = Map.copyOf(keyAccidentals);
+    }
+
+    BuilderContext(TimeSignature ts, Duration defaultDur, Map<NoteName, Accidental> keyAccidentals) {
+        this(ts, defaultDur, keyAccidentals, 0);
+    }
+
+    BuilderContext withOctaveShift(int shift) {
+        return new BuilderContext(ts, defaultDur, keyAccidentals, shift);
     }
 }

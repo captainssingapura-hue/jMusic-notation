@@ -225,7 +225,7 @@ abstract class NoteAcceptor<SELF extends NoteAcceptor<SELF>> {
 
     /** Resolve a {@link Note} at a given octave into a concrete {@link Pitch}. */
     final Pitch resolve(Note n, int oct) {
-        final int effectiveOct = oct + n.octaveShift();
+        final int effectiveOct = oct + n.octaveShift() + ctx.octaveShift();
         final NoteName name = n.noteName();
         final Accidental acc = resolveAccidental(n);
         return Pitch.of(name, acc, effectiveOct);

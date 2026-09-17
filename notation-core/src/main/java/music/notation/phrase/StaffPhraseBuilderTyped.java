@@ -78,6 +78,27 @@ public final class StaffPhraseBuilderTyped {
                 new BuilderContext(ts, defaultDur, KeyAccidentals.forKey(key)));
     }
 
+    // ── Register ─────────────────────────────────────────────────
+
+    /**
+     * Play everything authored on this builder {@code octaves} higher
+     * (negative: lower) than written. Must be called before the first
+     * bar is opened — it configures the builder, it doesn't transpose
+     * bars already added. Lets one notated part serve two registers:
+     * <pre>{@code
+     *   var female = b().…;                    // as written
+     *   var male   = b().octaveShift(-1).…;    // same calls, an octave down
+     * }</pre>
+     */
+    public StaffPhraseBuilderTyped octaveShift(int octaves) {
+        requireNotConsumed();
+        if (!bars.isEmpty()) {
+            throw new IllegalStateException(
+                    "octaveShift() must be called before the first bar is added");
+        }
+        return new StaffPhraseBuilderTyped(ctx.withOctaveShift(ctx.octaveShift() + octaves));
+    }
+
     // ── Bar openers ──────────────────────────────────────────────
 
     public BarBuilderTyped bar()                        { return openBar(null, BarBuilderTyped.Kind.NORMAL); }
