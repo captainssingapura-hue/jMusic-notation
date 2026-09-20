@@ -3,3 +3,4 @@ target/
 /.idea/
 /.claude/
 /.docs//notation-launcher/dependency-reduced-pom.xml
+/notation-guitar/dependency-reduced-pom.xml
