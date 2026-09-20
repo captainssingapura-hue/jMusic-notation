@@ -21,6 +21,7 @@ import music.notation.songs.nursery.xiaohongmao.XuWeiXiaoHongMao;
 import music.notation.songs.tang.chunxiaojingyesi.BluesChunXiaoJingYeSi;
 import music.notation.songs.tang.chunxiaojingyesi.ChunXiaoJingYeSi;
 import music.notation.songs.tang.chunxiaojingyesi.SuperBlueChunXiaoJingYeSi;
+import music.notation.songs.tang.chunxiaojingyesi.SuperBlueTwoKeysChunXiaoJingYeSi;
 import music.notation.songs.tang.chunxiaojingyesi.U2RockChunXiaoJingYeSi;
 import music.notation.structure.Collection;
 
@@ -50,7 +51,7 @@ public final class DefaultCollection implements Collection {
                 Entry.of(new Traumerei(),        new DefaultTraumerei()),
                 Entry.of(new XiaoHongMao(),      new XuWeiXiaoHongMao()),
                 Entry.of(new ZaiNaYaoYuan(),     new PianoZaiNaYaoYuan(), new BluesZaiNaYaoYuan()),
-                Entry.of(new ChunXiaoJingYeSi(), new BluesChunXiaoJingYeSi(), new U2RockChunXiaoJingYeSi(), new SuperBlueChunXiaoJingYeSi())
+                Entry.of(new ChunXiaoJingYeSi(), new BluesChunXiaoJingYeSi(), new U2RockChunXiaoJingYeSi(), new SuperBlueChunXiaoJingYeSi(), new SuperBlueTwoKeysChunXiaoJingYeSi())
         );
     }
 }

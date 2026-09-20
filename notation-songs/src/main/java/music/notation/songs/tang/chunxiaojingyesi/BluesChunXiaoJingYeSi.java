@@ -812,14 +812,14 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** Pre-backbeat time: kick on 1, closed hat on every other eighth. */
-    private static Bar hatTime(boolean breath) {
+    static Bar hatTime(boolean breath) {
         var k = perc(BASS_DRUM, EIGHTH);
         var h = perc(CLOSED_HI_HAT, EIGHTH);
         return breath ? Bar.of(BAR_SF, k, h, h, h, h, h, REST_Q) : Bar.of(BAR_SF, k, h, h, h, h, h, h, h);
     }
 
     /** Backbeat with side-stick (cross-stick) on 2 and 4. */
-    private static Bar backbeatHat(boolean breath) {
+    static Bar backbeatHat(boolean breath) {
         var k = perc(BASS_DRUM, EIGHTH);
         var h = perc(CLOSED_HI_HAT, EIGHTH);
         var s = perc(SIDE_STICK, EIGHTH);
@@ -827,7 +827,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** Same backbeat on the ride for the Rhodes solo. */
-    private static Bar backbeatRide(boolean breath) {
+    static Bar backbeatRide(boolean breath) {
         var k = perc(BASS_DRUM, EIGHTH);
         var r = perc(RIDE_CYMBAL, EIGHTH);
         var s = perc(SIDE_STICK, EIGHTH);
@@ -835,22 +835,22 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** Stop-time: kick + hat on 1, then nothing. */
-    private static Bar stopTimeBar() {
+    static Bar stopTimeBar() {
         var k = perc(BASS_DRUM, QUARTER);
         return Bar.of(BAR_SF, k, (PhraseNode) new RestNode(HALF.dot()));
     }
 
-    private static Bar hatQuarters() {
+    static Bar hatQuarters() {
         var h = perc(CLOSED_HI_HAT, QUARTER);
         return Bar.of(BAR_SF, h, h, h, h);
     }
 
-    private static Bar rideOnOne() {
+    static Bar rideOnOne() {
         var r = perc(RIDE_CYMBAL, QUARTER);
         return Bar.of(BAR_SF, r, (PhraseNode) new RestNode(HALF.dot()));
     }
 
-    private static Bar silentBar() {
+    static Bar silentBar() {
         return Bar.of(BAR_SF, (PhraseNode) new RestNode(Duration.ofSixtyFourths(BAR_SF)));
     }
 
