@@ -163,12 +163,29 @@ class BluesChunXiaoJingYeSiTest {
             assertEquals(onStage, !silent("Rhodes LH", b), "Rhodes LH bar " + (b + 1));
             if (!onStage) continue;
             var notes = notesIn("Rhodes LH", b, b + 1);
-            assertEquals(4, notes.size(), "four quarters, bar " + (b + 1));
+            assertEquals(BluesChunXiaoJingYeSi.breathAt(b) ? 3 : 4, notes.size(), "quarters, bar " + (b + 1));
             assertTrue(notes.stream().allMatch(n -> n.duration().equalsDuration(Duration.of(1, 4))));
             // Low register: nothing above G4 (the tenth over D3 is F♯4); the octave-up root is exactly 12 above the first note.
             assertTrue(notes.stream().allMatch(n -> n.midi() <= 67), "bar " + (b + 1));
             assertEquals(notes.get(0).midi() + 12, notes.get(2).midi(), "root, then root an octave up, bar " + (b + 1));
             checkDiatonic("Rhodes LH", b, arr.chordAt(b));
+        }
+    }
+
+    @Test
+    void everySectionEndsWithACaesura() {
+        for (Sec s : Sec.values()) {
+            if (s == Sec.CODA) continue;
+            int last = s.start() + s.bars - 1;
+            assertTrue(BluesChunXiaoJingYeSi.breathAt(last));
+            Duration beat4 = Duration.of(last, 1).plus(Duration.of(3, 4));
+            for (Track t : PERF.score().tracks()) {
+                for (ConcreteNote n : t.notes()) {
+                    boolean soundingOnBeat4 = n.at().compareDuration(beat4) >= 0
+                            && n.at().compareDuration(Duration.of(last + 1, 1)) < 0;
+                    assertFalse(soundingOnBeat4, t.id().name() + " sounds on beat 4 of bar " + (last + 1) + " (" + s + ")");
+                }
+            }
         }
     }
 
@@ -216,7 +233,7 @@ class BluesChunXiaoJingYeSiTest {
             // 鄉 (bar 8): B, held a half — the fifth of Em, never the tonic.
             PitchedNote xiang = lastNote("Voice (F)", s.start() + 7);
             assertEquals(11, Math.floorMod(xiang.midi(), 12), s + " 鄉 hangs on B");
-            assertTrue(xiang.duration().compareDuration(Duration.of(1, 2)) >= 0);
+            assertTrue(xiang.duration().compareDuration(Duration.of(3, 8)) >= 0, "held to the caesura");
         }
     }
 

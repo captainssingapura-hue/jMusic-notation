@@ -70,6 +70,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     static final TimeSignature TS  = new TimeSignature(4, 4);
     static final int BPM = 94;
     private static final int BAR_SF = 64;
+    private static final PhraseNode REST_Q = new RestNode(Duration.of(QUARTER));
 
     private final CodaEnding codaEnding;
 
@@ -123,6 +124,16 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
         return (bar - s.start()) % 8;
     }
 
+    /**
+     * The caesura — a "period" at every section boundary. True for the
+     * last bar of each section except the coda's: the band drops the
+     * fourth beat and the voice lets its last word go with it.
+     */
+    static boolean breathAt(int bar) {
+        Sec s = sectionAt(bar);
+        return s != Sec.CODA && bar == s.start() + s.bars - 1;
+    }
+
     // ════════════════════════════════════════════════════════════════
     //  Harmony
     // ════════════════════════════════════════════════════════════════
@@ -151,7 +162,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
      * signature (so {@code C}, {@code F}, {@code G} default to sharps;
      * the minor-side chords spell their naturals explicitly).
      */
-    private static Note[] voicing(Ch c) {
+    static Note[] voicing(Ch c) {
         return switch (c) {
             case A_MAJ  -> new Note[]{ A, C.higher(1), E.higher(1) };
             case A7     -> new Note[]{ A, C.higher(1), E.higher(1), G.n().higher(1) };
@@ -169,7 +180,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** Bass root, written for {@code o2(...)}. */
-    private static Note root(Ch c) {
+    static Note root(Ch c) {
         return switch (c) {
             case A_MAJ, A7, AM, AM7 -> A;
             case D_MAJ, DM          -> D.higher(1);
@@ -180,7 +191,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** Bass fifth, written for {@code o2(...)}. */
-    private static Note fifth(Ch c) {
+    static Note fifth(Ch c) {
         return switch (c) {
             case A_MAJ, A7, AM, AM7 -> E.higher(1);
             case D_MAJ, DM          -> A;
@@ -341,7 +352,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
 
     private static void line4(StaffPhraseBuilderTyped bb) {
         bb.bar().o5(QUARTER, C.n()).o4(HALF.dot(), A).done()                                  // 低 頭
-          .bar().o4(QUARTER, G.n()).o4(EIGHTH, A).r(EIGHTH).o4(HALF, B).done();               // 思 故 鄉
+          .bar().o4(QUARTER, G.n()).o4(EIGHTH, A).r(EIGHTH).o4(QUARTER.dot(), B).r(EIGHTH).done(); // 思 故 鄉 (released before the caesura)
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -400,7 +411,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
                 .bar().o4(QUARTER, Fn, A, Cn.higher(1)).o4(HALF.dot(), Cn, Fn, A).done()
                 .bar().o3(QUARTER, B, E.higher(1), Gn.higher(1))
                       .o3(EIGHTH, B, E.higher(1), A.higher(1)).r(EIGHTH)
-                      .o4(HALF, E, Gn, B).done()
+                      .o4(QUARTER.dot(), E, Gn, B).r(EIGHTH).done()
                 .build(attacca());
     }
 
@@ -418,7 +429,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
      *  8 (E7sus4)  知 多 少       [E4 A4]    ♩ · [E4 A4 B4] ♩ · [E4 A4]    𝅗𝅥
      * </pre>
      */
-    private MelodicPhrase choirCoda() {
+    MelodicPhrase choirCoda() {
         var bb = b();
         for (int i = 0; i < 4; i++) bb.bar().r(WHOLE).done();
         bb.bar().o4(QUARTER, E, A, D.higher(1)).o4(HALF.dot(), E, A, B).done()                    // 低 頭
@@ -434,7 +445,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
         int start = Sec.CHUNXIAO_3.start();
         for (int i = 0; i < 7; i++) {
             var bar_ = bb.bar();
-            held(bar_, chordAt(start + i));
+            held(bar_, voicing(chordAt(start + i)));
             bar_.done();
         }
         bb.bar().r(WHOLE).done();
@@ -507,7 +518,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
                                .o6(EIGHTH, E).o6(EIGHTH, C).o5(EIGHTH, A).o5(EIGHTH, E).done()
                 // 8 (E7): turnaround — E7 arpeggio over the top, then B–D–G♯–B rising into the next A.
                 .bar(SIXTEENTH).o5(E).o5(G).o5(B).o6(D).o5(B).o5(G).o5(E).o5(D)
-                               .o4(EIGHTH, B).o5(EIGHTH, D).o5(EIGHTH, G).o5(EIGHTH, B).done()
+                               .o4(EIGHTH, B).o5(EIGHTH, D).r(QUARTER).done()          // … and breathe
                 .build(attacca());
     }
 
@@ -582,7 +593,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
                                .o4(E).o4(Fn).o4(A).o5(Cn).o5(E).o5(Fn).o5(A).o6(Cn).done()
                 // 8 (Em): Em down, then E–G–B: the line stops on the fifth. No tonic.
                 .bar(SIXTEENTH).o5(B).o5(Gn).o5(E).o4(B).o4(Gn).o4(E).o3(B).o3(Gn)
-                               .o4(EIGHTH, E).o4(EIGHTH, Gn).o4(QUARTER, B).done()
+                               .o4(E).o4(Gn).o4(EIGHTH, B).r(QUARTER).done()                // B, then breathe
                 .build(attacca());
     }
 
@@ -599,17 +610,17 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
             Ch ch = chordAt(bar);
             var bar_ = bb.bar();
             switch (s) {
-                case INTRO, CHUNXIAO_1, CHUNXIAO_2 -> riff(bar_, ch);
+                case INTRO, CHUNXIAO_1, CHUNXIAO_2 -> riff(bar_, voicing(ch), breathAt(bar));
                 case GUITAR_SOLO -> rest(bar_);              // soloing — Rhodes takes the harmony
-                case RHODES_SOLO -> pick(bar_, ch);          // Rhodes soloing — guitar takes the harmony
+                case RHODES_SOLO -> pick(bar_, voicing(ch), breathAt(bar));          // Rhodes soloing — guitar takes the harmony
                 case JINGYESI_1, JINGYESI_2, JINGYESI_3 -> rest(bar_);
                 case CHUNXIAO_3 -> {
-                    if (cb == 7) stopTime(bar_, ch);    // bar 80: hit and stop
-                    else         riff(bar_, ch);
+                    if (cb == 7) stopTime(bar_, voicing(ch));    // bar 80: hit and stop
+                    else         riff(bar_, voicing(ch), breathAt(bar));
                 }
                 case CODA -> {
-                    if (cb < 4) riff(bar_, ch);         // 花落知多少
-                    else        pick(bar_, ch);         // the sus4 keeps moving, never resolves
+                    if (cb < 4) riff(bar_, voicing(ch), breathAt(bar));         // 花落知多少
+                    else        pick(bar_, voicing(ch), breathAt(bar));         // the sus4 keeps moving, never resolves
                 }
             }
             bar_.done();
@@ -623,15 +634,14 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
      * Same shape on every chord, so it transposes with the changes:
      * <pre>  ♩ low | ♪ (mid hi) ♪ hi | ♪ low ♪ fifth | ♪ (mid hi) ♪ top</pre>
      */
-    private static void riff(BarBuilderTyped bar, Ch ch) {
-        Note[] v = voicing(ch);
+    static void riff(BarBuilderTyped bar, Note[] v, boolean breath) {
         Note low = v[0], mid = v[1], hi = v[2];
         Note top = v.length > 3 ? v[3] : v[0].higher(1);
         Note fifth = hi.lower(1);
         bar.o3(QUARTER, low)
-           .o3(EIGHTH, mid, hi).o3(EIGHTH, hi)
-           .o3(EIGHTH, low).o3(EIGHTH, fifth)
-           .o3(EIGHTH, mid, hi).o3(EIGHTH, top);
+           .o3(EIGHTH, mid, hi).o3(EIGHTH, hi);
+        if (breath) bar.o3(EIGHTH, mid, hi).o3(EIGHTH, top).r(QUARTER);   // keep the top note, breathe on 4
+        else        bar.o3(EIGHTH, low).o3(EIGHTH, fifth).o3(EIGHTH, mid, hi).o3(EIGHTH, top);
     }
 
     /**
@@ -640,14 +650,13 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
      * Slower and darker than the morning riff; sits well under tremolo.
      * <pre>  ♩ (low hi) | ♪ (mid hi) ♪ top | ♩ (mid hi) | ♪ low ♪ top</pre>
      */
-    private static void nightRiff(BarBuilderTyped bar, Ch ch) {
-        Note[] v = voicing(ch);
+    static void nightRiff(BarBuilderTyped bar, Note[] v, boolean breath) {
         Note low = v[0], mid = v[1], hi = v[2];
         Note top = v.length > 3 ? v[3] : v[0].higher(1);
         bar.o3(QUARTER, low, hi)
            .o3(EIGHTH, mid, hi).o3(EIGHTH, top)
-           .o3(QUARTER, mid, hi)
-           .o3(EIGHTH, low).o3(EIGHTH, top);
+           .o3(QUARTER, mid, hi);
+        if (breath) bar.r(QUARTER); else bar.o3(EIGHTH, low).o3(EIGHTH, top);
     }
 
     /**
@@ -655,12 +664,12 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
      * twice per bar. Half the solo's speed; keeps motion under it
      * without competing.
      */
-    private static void pick(BarBuilderTyped bar, Ch ch) {
-        Note[] v = voicing(ch);
+    static void pick(BarBuilderTyped bar, Note[] v, boolean breath) {
         Note low = v[0], mid = v[1], hi = v[2];
         Note top = v.length > 3 ? v[3] : v[0].higher(1);
         bar.o3(EIGHTH, low).o3(EIGHTH, hi).o3(EIGHTH, mid).o3(EIGHTH, top)
-           .o3(EIGHTH, low).o3(EIGHTH, hi).o3(EIGHTH, mid).o3(EIGHTH, top);
+           .o3(EIGHTH, low).o3(EIGHTH, hi);
+        if (breath) bar.r(QUARTER); else bar.o3(EIGHTH, mid).o3(EIGHTH, top);
     }
 
     /**
@@ -669,31 +678,31 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
      * coda, where a held pad would sit dead but a riff would crowd
      * the voice.
      */
-    private static void sparse(BarBuilderTyped bar, Ch ch) {
-        Note[] v = voicing(ch);
+    static void sparse(BarBuilderTyped bar, Note[] v, boolean breath) {
         Note low = v[0], mid = v[1], hi = v[2];
         Note top = v.length > 3 ? v[3] : v[0].higher(1);
-        bar.o3(QUARTER, low).o3(QUARTER, mid, hi).o3(QUARTER, top).o3(QUARTER, mid, hi);
+        bar.o3(QUARTER, low).o3(QUARTER, mid, hi).o3(QUARTER, top);
+        if (breath) bar.r(QUARTER); else bar.o3(QUARTER, mid, hi);
     }
 
     /** Rising roll in eighths — low, middle, high, top — twice per bar. */
-    private static void roll(BarBuilderTyped bar, Ch ch) {
-        Note[] v = voicing(ch);
+    static void roll(BarBuilderTyped bar, Note[] v, boolean breath) {
         Note low = v[0], mid = v[1], hi = v[2];
         Note top = v.length > 3 ? v[3] : v[0].higher(1);
         bar.o3(EIGHTH, low).o3(EIGHTH, mid).o3(EIGHTH, hi).o3(EIGHTH, top)
-           .o3(EIGHTH, low).o3(EIGHTH, mid).o3(EIGHTH, hi).o3(EIGHTH, top);
+           .o3(EIGHTH, low).o3(EIGHTH, mid);
+        if (breath) bar.r(QUARTER); else bar.o3(EIGHTH, hi).o3(EIGHTH, top);
     }
 
-    private static void held(BarBuilderTyped bar, Ch ch) {
-        bar.o3(WHOLE, voicing(ch));
+    static void held(BarBuilderTyped bar, Note[] v) {
+        bar.o3(WHOLE, v);
     }
 
-    private static void stopTime(BarBuilderTyped bar, Ch ch) {
-        bar.o3(QUARTER, voicing(ch)).r(HALF.dot());
+    static void stopTime(BarBuilderTyped bar, Note[] v) {
+        bar.o3(QUARTER, v).r(HALF.dot());
     }
 
-    private static void rest(BarBuilderTyped bar) {
+    static void rest(BarBuilderTyped bar) {
         bar.r(WHOLE);
     }
 
@@ -708,10 +717,10 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
             Sec s = sectionAt(bar);
             var bar_ = bb.bar();
             switch (s) {
-                case JINGYESI_1, JINGYESI_2 -> nightRiff(bar_, chordAt(bar));
-                case GUITAR_SOLO -> roll(bar_, chordAt(bar));   // guitar soloing — Rhodes takes the harmony
+                case JINGYESI_1, JINGYESI_2 -> nightRiff(bar_, voicing(chordAt(bar)), breathAt(bar));
+                case GUITAR_SOLO -> roll(bar_, voicing(chordAt(bar)), breathAt(bar));   // guitar soloing — Rhodes takes the harmony
                 case RHODES_SOLO -> rest(bar_);                 // soloing — guitar takes the harmony
-                case JINGYESI_3, CODA -> sparse(bar_, chordAt(bar)); // stripped / coda: slow quarters
+                case JINGYESI_3, CODA -> sparse(bar_, voicing(chordAt(bar)), breathAt(bar)); // stripped / coda: slow quarters
                 default -> rest(bar_);
             }
             bar_.done();
@@ -732,7 +741,7 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
             var bar_ = bb.bar();
             switch (s) {
                 case GUITAR_SOLO, JINGYESI_1, JINGYESI_2, RHODES_SOLO, JINGYESI_3, CODA
-                        -> leftHand(bar_, chordAt(bar));
+                        -> leftHand(bar_, root(chordAt(bar)), fifth(chordAt(bar)), voicing(chordAt(bar)), breathAt(bar));
                 default -> rest(bar_);
             }
             bar_.done();
@@ -741,9 +750,10 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** ♩ root (o2) · ♩ fifth · ♩ root an octave up · ♩ tenth. */
-    private static void leftHand(BarBuilderTyped bar, Ch ch) {
-        Note tenth = voicing(ch)[1];          // the chord's third, sitting a tenth above the o2 root
-        bar.o2(QUARTER, root(ch)).o2(QUARTER, fifth(ch)).o3(QUARTER, root(ch)).o3(QUARTER, tenth);
+    static void leftHand(BarBuilderTyped bar, Note root, Note fifth, Note[] v, boolean breath) {
+        Note tenth = v[1];                     // the chord's third, sitting a tenth above the o2 root
+        bar.o2(QUARTER, root).o2(QUARTER, fifth).o3(QUARTER, root);
+        if (breath) bar.r(QUARTER); else bar.o3(QUARTER, tenth);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -762,10 +772,10 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
                 case INTRO, JINGYESI_3 -> rest(bar_);
                 case CHUNXIAO_3 -> {
                     if (cb == 7) bar_.o2(QUARTER, root(ch)).r(HALF.dot());   // stop-time
-                    else         rootFifth(bar_, ch);
+                    else         rootFifth(bar_, root(ch), fifth(ch), breathAt(bar));
                 }
-                case CODA -> rootFifth(bar_, ch);                             // keeps walking on the sus4
-                default -> rootFifth(bar_, ch);
+                case CODA -> rootFifth(bar_, root(ch), fifth(ch), breathAt(bar));                             // keeps walking on the sus4
+                default -> rootFifth(bar_, root(ch), fifth(ch), breathAt(bar));
             }
             bar_.done();
         }
@@ -773,8 +783,9 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** Root on 1 (held to 3), fifth on 3, root on 4. */
-    private static void rootFifth(BarBuilderTyped bar, Ch ch) {
-        bar.o2(HALF, root(ch)).o2(QUARTER, fifth(ch)).o2(QUARTER, root(ch));
+    static void rootFifth(BarBuilderTyped bar, Note root, Note fifth, boolean breath) {
+        bar.o2(HALF, root).o2(QUARTER, fifth);
+        if (breath) bar.r(QUARTER); else bar.o2(QUARTER, root);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -782,18 +793,18 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     //  ride). No backbeat until 静夜思 II. Straight eighths.
     // ════════════════════════════════════════════════════════════════
 
-    private List<Bar> drumBars() {
+    static List<Bar> drumBars() {
         var bars = new ArrayList<Bar>(TOTAL);
         for (int bar = 0; bar < TOTAL; bar++) {
             Sec s = sectionAt(bar);
             int cb = chorusBar(bar);
             bars.add(switch (s) {
-                case INTRO       -> cb < 4 ? silentBar() : hatTime();
-                case CHUNXIAO_1, GUITAR_SOLO, CHUNXIAO_2, JINGYESI_1 -> hatTime();
-                case JINGYESI_2  -> backbeatHat();
-                case RHODES_SOLO -> backbeatRide();
+                case INTRO       -> cb < 4 ? silentBar() : hatTime(breathAt(bar));
+                case CHUNXIAO_1, GUITAR_SOLO, CHUNXIAO_2, JINGYESI_1 -> hatTime(breathAt(bar));
+                case JINGYESI_2  -> backbeatHat(breathAt(bar));
+                case RHODES_SOLO -> backbeatRide(breathAt(bar));
                 case JINGYESI_3  -> silentBar();
-                case CHUNXIAO_3  -> cb == 7 ? stopTimeBar() : backbeatHat();
+                case CHUNXIAO_3  -> cb == 7 ? stopTimeBar() : backbeatHat(false);
                 case CODA        -> cb < 4 ? hatQuarters() : (cb == 4 ? rideOnOne() : silentBar());
             });
         }
@@ -801,26 +812,26 @@ public final class BluesChunXiaoJingYeSi implements PieceContentProvider<ChunXia
     }
 
     /** Pre-backbeat time: kick on 1, closed hat on every other eighth. */
-    private static Bar hatTime() {
+    private static Bar hatTime(boolean breath) {
         var k = perc(BASS_DRUM, EIGHTH);
         var h = perc(CLOSED_HI_HAT, EIGHTH);
-        return Bar.of(BAR_SF, k, h, h, h, h, h, h, h);
+        return breath ? Bar.of(BAR_SF, k, h, h, h, h, h, REST_Q) : Bar.of(BAR_SF, k, h, h, h, h, h, h, h);
     }
 
     /** Backbeat with side-stick (cross-stick) on 2 and 4. */
-    private static Bar backbeatHat() {
+    private static Bar backbeatHat(boolean breath) {
         var k = perc(BASS_DRUM, EIGHTH);
         var h = perc(CLOSED_HI_HAT, EIGHTH);
         var s = perc(SIDE_STICK, EIGHTH);
-        return Bar.of(BAR_SF, k, h, s, h, k, h, s, h);
+        return breath ? Bar.of(BAR_SF, k, h, s, h, k, h, REST_Q) : Bar.of(BAR_SF, k, h, s, h, k, h, s, h);
     }
 
     /** Same backbeat on the ride for the Rhodes solo. */
-    private static Bar backbeatRide() {
+    private static Bar backbeatRide(boolean breath) {
         var k = perc(BASS_DRUM, EIGHTH);
         var r = perc(RIDE_CYMBAL, EIGHTH);
         var s = perc(SIDE_STICK, EIGHTH);
-        return Bar.of(BAR_SF, k, r, s, r, k, r, s, r);
+        return breath ? Bar.of(BAR_SF, k, r, s, r, k, r, REST_Q) : Bar.of(BAR_SF, k, r, s, r, k, r, s, r);
     }
 
     /** Stop-time: kick + hat on 1, then nothing. */
