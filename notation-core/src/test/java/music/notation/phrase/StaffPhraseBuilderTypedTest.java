@@ -118,4 +118,39 @@ class StaffPhraseBuilderTypedTest {
         assertEquals(untyped.bars().size(), typed.bars().size());
         assertEquals(untyped.nodes(), typed.nodes());
     }
+
+    // ── octaveShift: same notation, another register ────────────────
+
+    @Test
+    void octaveShiftTransposesEveryResolvedPitch() {
+        var written = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER)
+                .bar().o4(C).o4(E, G).grace(B, 3).main(QUARTER, 4, C).o4(D).done()
+                .build(end());
+        var lower = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER).octaveShift(-1)
+                .bar().o4(C).o4(E, G).grace(B, 3).main(QUARTER, 4, C).o4(D).done()
+                .build(end());
+
+        var w = written.bars().get(0).nodes();
+        var l = lower.bars().get(0).nodes();
+        assertEquals(w.size(), l.size());
+        for (int i = 0; i < w.size(); i++) {
+            if (w.get(i) instanceof PitchNode wp && l.get(i) instanceof PitchNode lp) {
+                assertEquals(wp.pitches().size(), lp.pitches().size());
+                for (int k = 0; k < wp.pitches().size(); k++) {
+                    var a = (music.notation.pitch.StaffPitch) wp.pitches().get(k);
+                    var b = (music.notation.pitch.StaffPitch) lp.pitches().get(k);
+                    assertEquals(a.noteName(), b.noteName());
+                    assertEquals(a.accidental(), b.accidental());
+                    assertEquals(a.octave().value() - 1, b.octave().value(), "node " + i);
+                }
+            }
+        }
+    }
+
+    @Test
+    void octaveShiftMustPrecedeTheFirstBar() {
+        var b = StaffPhraseBuilderTyped.in(KEY, TS, QUARTER);
+        b.bar().o4(C).o4(D).o4(E).o4(F).done();
+        assertThrows(IllegalStateException.class, () -> b.octaveShift(1));
+    }
 }
