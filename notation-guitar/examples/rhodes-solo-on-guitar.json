@@ -1,0 +1,7 @@
+{
+  "source":    { "type": "library", "title": "春晓 / 静夜思 (Spring Dawn / Quiet Night Thoughts)", "variant": "Super Blue in B♭" },
+  "track":     "Rhodes Solo",
+  "hand":      { "maxFret": 22, "span": 4, "maxStretch": 5, "preferredMaxFret": 12,
+                 "allowOpenStrings": true, "foldOutOfRange": true },
+  "breakdown": { "mode": "BAR", "maxBars": 1, "phraseGapBeats": 1.0 }
+}
