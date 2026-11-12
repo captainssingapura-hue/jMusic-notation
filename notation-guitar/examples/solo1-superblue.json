@@ -1,0 +1,11 @@
+{
+  "source":    { "type": "library", "title": "春晓 / 静夜思 (Spring Dawn / Quiet Night Thoughts)", "variant": "Super Blue in B♭" },
+  "track":     "Solo 1",
+  "bars":      { "fromBar": 17, "toBar": 24 },
+  "tuning":    { "name": "standard", "openStrings": [64, 59, 55, 50, 45, 40], "capo": 0 },
+  "hand":      { "maxFret": 22, "span": 4, "maxStretch": 5, "preferredMaxFret": 12,
+                 "allowOpenStrings": true, "foldOutOfRange": false },
+  "weights":   { "positionChange": 2.0, "shift": 1.0, "stringSkip": 0.5, "highFret": 0.75,
+                 "openString": 0.5, "stretch": 2.0, "speedSensitivity": 1.0, "maxSpeedFactor": 4.0 },
+  "breakdown": { "mode": "PHRASE", "maxBars": 2, "phraseGapBeats": 1.0 }
+}

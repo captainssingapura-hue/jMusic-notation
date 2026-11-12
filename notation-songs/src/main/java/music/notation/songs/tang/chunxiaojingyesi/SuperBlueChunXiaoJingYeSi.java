@@ -182,14 +182,14 @@ public final class SuperBlueChunXiaoJingYeSi implements PieceContentProvider<Chu
     private List<AuthorPhrase> voicePhrases(int sh) {
         return List.of(
                 silent(Sec.INTRO.bars),
-                chunxiao(sh),
+                chunxiao(vb(sh)),
                 silent(Sec.GUITAR_SOLO.bars),
-                chunxiao(sh),                      // §4 — the door is in the harmony now
+                chunxiao(vb(sh)),                      // §4 — the door is in the harmony now
                 jingyesi(sh, false),
                 jingyesi(sh, true),                // §6 — 望 lifts to ♭3′
                 silent(Sec.RHODES_SOLO.bars),
                 jingyesiStripped(sh),
-                chunxiao(sh),
+                chunxiao(vb(sh)),
                 coda(sh));
     }
 
@@ -206,8 +206,7 @@ public final class SuperBlueChunXiaoJingYeSi implements PieceContentProvider<Chu
      *  8  1′ ♪ · rest  (caesura)                          少 shoots half a beat over
      * </pre>
      */
-    private MelodicPhrase chunxiao(int sh) {
-        var bb = vb(sh);
+    static MelodicPhrase chunxiao(StaffPhraseBuilderTyped bb) {
         // 1: 春 眠 不 覺 曉
         var b1 = bb.bar();
         n(b1, QUARTER, 3, Blue.R); n(b1, QUARTER.dot(), 3, Blue.F3);
