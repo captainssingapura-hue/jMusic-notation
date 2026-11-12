@@ -86,6 +86,9 @@ public final class LauncherApp extends Application {
             new AppEntry("Lyrics", "📝",
                     "Attach lyrics to a monophonic melody, one glyph per note.",
                     "music.notation.lyrics.LyricsEditorApp"),
+            new AppEntry("Transcribe", "🎙",
+                    "Sung take → notes: pitch curve, segmentation and grid, with A/B playback.",
+                    "music.notation.transcribe.bench.TranscribeBenchApp"),
             new AppEntry("Soundbanks", "🎻",
                     "Browse GM instruments across loaded SF2 banks; audition via MIDI keyboard.",
                     "music.notation.ui.explorer.SoundbankExplorer")

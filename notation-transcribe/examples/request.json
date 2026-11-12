@@ -1,0 +1,38 @@
+{
+  "audio" : "take-01.wav",
+  "window" : {
+    "startSec" : 0.0,
+    "endSec" : 30.0
+  },
+  "detector" : {
+    "type" : "yin",
+    "windowSize" : 1024,
+    "hopMs" : 10.0,
+    "threshold" : 0.15,
+    "minHz" : 65.0,
+    "maxHz" : 1100.0,
+    "minRms" : 0.003
+  },
+  "segmentation" : {
+    "relativeFloorDb" : 35.0,
+    "medianMs" : 50.0,
+    "minNoteMs" : 60.0,
+    "splitCents" : 60.0,
+    "bridgeGapMs" : 30.0,
+    "glideRate" : 15.0,
+    "glideMaxMs" : 200.0,
+    "dipRatio" : 0.35,
+    "trimFraction" : 0.2
+  },
+  "timing" : {
+    "bpm" : 92,
+    "downbeatSec" : 1.3,
+    "timeSignature" : {
+      "beats" : 4,
+      "beatValue" : 4
+    },
+    "key" : "auto",
+    "grid" : "1/16"
+  },
+  "title" : "Take 1"
+}

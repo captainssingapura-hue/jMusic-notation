@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>music.notation</groupId>
+        <artifactId>notation-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>notation-transcribe-bench</artifactId>
+    <name>Music Notation Transcription Bench</name>
+    <description>
+        JavaFX test bench for notation-transcribe: open or record a take,
+        adjust the request parameters and see the pitch curve, the
+        detected notes and the bar grid update; play the original, the
+        transcription or both; save the request and the outputs.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-transcribe</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-play</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>music.notation.transcribe.bench.TranscribeBenchApp</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
