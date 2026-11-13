@@ -27,6 +27,8 @@
         <module>notation-recorder</module>
         <module>notation-lyrics</module>
         <module>notation-guitar</module>
+        <module>notation-transcribe</module>
+        <module>notation-transcribe-bench</module>
         <module>notation-launcher</module>
     </modules>
 

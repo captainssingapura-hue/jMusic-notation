@@ -49,6 +49,11 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>music.notation</groupId>
+            <artifactId>notation-transcribe-bench</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
@@ -75,6 +80,8 @@
                         <option>java.desktop/com.sun.media.sound=ALL-UNNAMED</option>
                         <!-- PieceLibrary discovery in NotationApp. -->
                         <option>-Dmusic.collections=${project.basedir}/../collections.json</option>
+                        <!-- ONNX Runtime (Transcribe's RMVPE detector) loads a native library. -->
+                        <option>--enable-native-access=ALL-UNNAMED</option>
                     </options>
                 </configuration>
             </plugin>
