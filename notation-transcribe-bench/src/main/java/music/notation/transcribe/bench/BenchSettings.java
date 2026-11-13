@@ -4,6 +4,7 @@ import music.notation.duration.Duration;
 import music.notation.structure.TimeSignature;
 import music.notation.transcribe.PitchDetectorSpec;
 import music.notation.transcribe.SegmentationSpec;
+import music.notation.transcribe.SmoothingSpec;
 import music.notation.transcribe.TimeWindow;
 import music.notation.transcribe.TimingSpec;
 import music.notation.transcribe.TranscriptionRequest;
@@ -16,7 +17,8 @@ import music.notation.transcribe.TranscriptionRequest;
  */
 public record BenchSettings(int bpm, Double downbeatSec, TimeSignature timeSignature, String key, Duration grid,
                             double fromSec, double toSec,
-                            double minNoteMs, double splitCents, double dipRatio, String detector) {
+                            double minNoteMs, double splitCents, double dipRatio, String detector,
+                            SmoothingSpec smoothing) {
 
     public static final String YIN = "yin", RMVPE = "rmvpe";
 
@@ -29,6 +31,7 @@ public record BenchSettings(int bpm, Double downbeatSec, TimeSignature timeSigna
         withSegmentation(SegmentationSpec.DEFAULT, minNoteMs, splitCents, dipRatio);
         if (!YIN.equals(detector) && !RMVPE.equals(detector))
             throw new IllegalArgumentException("detector must be " + YIN + " or " + RMVPE + ": " + detector);
+        java.util.Objects.requireNonNull(smoothing, "smoothing");
     }
 
     public static BenchSettings from(TranscriptionRequest r) {
@@ -36,7 +39,7 @@ public record BenchSettings(int bpm, Double downbeatSec, TimeSignature timeSigna
         SegmentationSpec s = r.segmentation();
         return new BenchSettings(t.bpm(), t.downbeatSec(), t.timeSignature(), t.key(), t.grid(),
                 r.window().startSec(), r.window().endSec(), s.minNoteMs(), s.splitCents(), s.dipRatio(),
-                r.detector() instanceof PitchDetectorSpec.Rmvpe ? RMVPE : YIN);
+                r.detector() instanceof PitchDetectorSpec.Rmvpe ? RMVPE : YIN, r.smoothing());
     }
 
     /**
@@ -46,12 +49,12 @@ public record BenchSettings(int bpm, Double downbeatSec, TimeSignature timeSigna
      */
     public TranscriptionRequest apply(TranscriptionRequest base, String audio, String title) {
         return new TranscriptionRequest(audio, new TimeWindow(fromSec, toSec), detectorFor(base.detector()),
-                withSegmentation(base.segmentation(), minNoteMs, splitCents, dipRatio),
+                withSegmentation(base.segmentation(), minNoteMs, splitCents, dipRatio), smoothing,
                 new TimingSpec(bpm, downbeatSec, timeSignature, key, grid), title);
     }
 
     public BenchSettings withDownbeat(Double sec) {
-        return new BenchSettings(bpm, sec, timeSignature, key, grid, fromSec, toSec, minNoteMs, splitCents, dipRatio, detector);
+        return new BenchSettings(bpm, sec, timeSignature, key, grid, fromSec, toSec, minNoteMs, splitCents, dipRatio, detector, smoothing);
     }
 
     private PitchDetectorSpec detectorFor(PitchDetectorSpec base) {

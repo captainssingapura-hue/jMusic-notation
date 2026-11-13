@@ -16,7 +16,8 @@ import java.util.List;
  * @param key            key written into the piece
  * @param keyEstimated   true when {@code key} came from {@link KeyEstimator}
  * @param voicedFraction share of frames the detector found a pitch in
- * @param notes          segmented notes, real time
+ * @param notes          segmented and smoothed notes, real time
+ * @param smoothing      what {@link NoteSmoother} changed, in time order
  * @param quantized      the same notes on the bar grid
  * @param pickupBars     bars added before the downbeat for early notes
  * @param dropped        notes lost to onset collisions on the grid
@@ -25,12 +26,13 @@ import java.util.List;
  */
 public record Transcription(TranscriptionRequest request, double fromSec, double toSec, double downbeatSec,
                             KeySignature key, boolean keyEstimated, double voicedFraction,
-                            List<TranscribedNote> notes, List<QuantizedNote> quantized,
+                            List<TranscribedNote> notes, List<SmoothingEdit> smoothing, List<QuantizedNote> quantized,
                             int pickupBars, int dropped,
                             @JsonIgnore PitchTrack pitchTrack) {
 
     public Transcription {
         notes = List.copyOf(notes);
+        smoothing = List.copyOf(smoothing);
         quantized = List.copyOf(quantized);
     }
 

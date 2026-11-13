@@ -7,7 +7,8 @@ import java.util.List;
 
 /**
  * The pipeline: read → cut window → resample to {@link #ANALYSIS_RATE}
- * → pitch track → notes → key → grid. Stateless.
+ * → pitch track → notes → octave/blip fixes → key → snap to key → grid.
+ * Stateless.
  */
 public final class Transcriber {
 
@@ -38,16 +39,23 @@ public final class Transcriber {
 
     /** The cheap half: notes, key and grid from a pitch track of {@code cut}. */
     public static Transcription fromTrack(TranscriptionRequest request, AudioClip cut, PitchTrack track) {
-        List<TranscribedNote> notes = new NoteSegmenter(request.segmentation()).segment(track);
+        List<TranscribedNote> segmented = new NoteSegmenter(request.segmentation()).segment(track);
+        var smoother = new NoteSmoother(request.smoothing());
+        NoteSmoother.Result shaped = smoother.fixShapes(segmented);
 
         TimingSpec timing = request.timing();
-        KeySignature key = timing.autoKey() ? KeyEstimator.estimate(notes) : timing.fixedKey();
+        KeySignature key = timing.autoKey() ? KeyEstimator.estimate(shaped.notes()) : timing.fixedKey();
+        NoteSmoother.Result snapped = smoother.snap(shaped.notes(), key);
+        List<TranscribedNote> notes = snapped.notes();
+        var edits = new java.util.ArrayList<>(shaped.edits());
+        edits.addAll(snapped.edits());
+        edits.sort(java.util.Comparator.comparingDouble(SmoothingEdit::startMs));
         double downbeat = timing.downbeatSec() != null ? timing.downbeatSec()
                 : notes.isEmpty() ? cut.offsetSec() : notes.getFirst().startMs() / 1000.0;
         GridQuantizer.Result q = GridQuantizer.quantize(notes, timing, downbeat);
 
         return new Transcription(request, cut.offsetSec(), cut.offsetSec() + cut.durationSec(), downbeat,
-                key, timing.autoKey(), track.voicedFraction(), notes, q.notes(), q.pickupBars(), q.dropped(),
+                key, timing.autoKey(), track.voicedFraction(), notes, edits, q.notes(), q.pickupBars(), q.dropped(),
                 track);
     }
 }

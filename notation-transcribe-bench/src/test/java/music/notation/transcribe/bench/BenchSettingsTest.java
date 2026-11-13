@@ -4,6 +4,7 @@ import music.notation.duration.Duration;
 import music.notation.structure.TimeSignature;
 import music.notation.transcribe.PitchDetectorSpec;
 import music.notation.transcribe.SegmentationSpec;
+import music.notation.transcribe.SmoothingSpec;
 import music.notation.transcribe.TimeWindow;
 import music.notation.transcribe.TimingSpec;
 import music.notation.transcribe.TranscriptionRequest;
@@ -24,7 +25,7 @@ class BenchSettingsTest {
         assertEquals(1.3, s.downbeatSec());
         assertEquals("Eb major", s.key());
 
-        var tweaked = new BenchSettings(100, null, s.timeSignature(), "auto", s.grid(), 2, 0, 80, 70, 0, BenchSettings.YIN);
+        var tweaked = new BenchSettings(100, null, s.timeSignature(), "auto", s.grid(), 2, 0, 80, 70, 0, BenchSettings.YIN, new SmoothingSpec(20, 0, 80, 60));
         var r = tweaked.apply(base, "b.wav", "B");
         assertEquals("b.wav", r.audio());
         assertEquals("B", r.title());
@@ -36,6 +37,7 @@ class BenchSettingsTest {
         assertEquals(new TimeWindow(2, 0), r.window());
         assertNull(r.timing().downbeatSec());
         assertTrue(r.timing().autoKey());
+        assertEquals(new SmoothingSpec(20, 0, 80, 60), r.smoothing());
         assertEquals(tweaked, BenchSettings.from(r));
     }
 
@@ -48,7 +50,7 @@ class BenchSettingsTest {
         assertSame(yin, s.apply(base, "a.wav", "A").detector());
 
         var r = new BenchSettings(s.bpm(), s.downbeatSec(), s.timeSignature(), s.key(), s.grid(), s.fromSec(), s.toSec(),
-                s.minNoteMs(), s.splitCents(), s.dipRatio(), BenchSettings.RMVPE).apply(base, "a.wav", "A");
+                s.minNoteMs(), s.splitCents(), s.dipRatio(), BenchSettings.RMVPE, s.smoothing()).apply(base, "a.wav", "A");
         assertEquals(PitchDetectorSpec.Rmvpe.DEFAULT, r.detector());
         assertEquals(BenchSettings.RMVPE, BenchSettings.from(r).detector());
 
@@ -61,15 +63,15 @@ class BenchSettingsTest {
     void badValuesAreRejected() {
         var d = BenchSettings.DEFAULT;
         assertThrows(IllegalArgumentException.class, () ->
-                new BenchSettings(5, null, d.timeSignature(), "auto", d.grid(), 0, 0, 60, 60, 0.35, "yin"));
+                new BenchSettings(5, null, d.timeSignature(), "auto", d.grid(), 0, 0, 60, 60, 0.35, "yin", SmoothingSpec.DEFAULT));
         assertThrows(IllegalArgumentException.class, () ->
-                new BenchSettings(120, null, d.timeSignature(), "X minor", d.grid(), 0, 0, 60, 60, 0.35, "yin"));
+                new BenchSettings(120, null, d.timeSignature(), "X minor", d.grid(), 0, 0, 60, 60, 0.35, "yin", SmoothingSpec.DEFAULT));
         assertThrows(IllegalArgumentException.class, () ->
-                new BenchSettings(120, null, d.timeSignature(), "auto", d.grid(), 5, 3, 60, 60, 0.35, "yin"));
+                new BenchSettings(120, null, d.timeSignature(), "auto", d.grid(), 5, 3, 60, 60, 0.35, "yin", SmoothingSpec.DEFAULT));
         assertThrows(IllegalArgumentException.class, () ->
-                new BenchSettings(120, null, d.timeSignature(), "auto", d.grid(), 0, 0, 60, 60, 1.5, "yin"));
+                new BenchSettings(120, null, d.timeSignature(), "auto", d.grid(), 0, 0, 60, 60, 1.5, "yin", SmoothingSpec.DEFAULT));
         assertThrows(IllegalArgumentException.class, () ->
-                new BenchSettings(120, null, d.timeSignature(), "auto", d.grid(), 0, 0, 60, 60, 0.35, "crepe"));
+                new BenchSettings(120, null, d.timeSignature(), "auto", d.grid(), 0, 0, 60, 60, 0.35, "crepe", SmoothingSpec.DEFAULT));
     }
 
     @Test

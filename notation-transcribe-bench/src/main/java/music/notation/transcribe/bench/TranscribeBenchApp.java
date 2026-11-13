@@ -39,6 +39,7 @@ import music.notation.transcribe.AudioReader;
 import music.notation.transcribe.Keys;
 import music.notation.transcribe.PitchTrack;
 import music.notation.transcribe.RmvpeModel;
+import music.notation.transcribe.SmoothingSpec;
 import music.notation.transcribe.TimeWindow;
 import music.notation.transcribe.TimingSpec;
 import music.notation.transcribe.Transcriber;
@@ -85,7 +86,8 @@ public final class TranscribeBenchApp extends Application {
 
     private final TextField bpm = field("120", 60), downbeat = field("", 60),
             from = field("0", 60), to = field("0", 60),
-            minNote = field("60", 60), split = field("60", 60), dip = field("0.35", 60);
+            minNote = field("60", 60), split = field("60", 60), dip = field("0.35", 60),
+            snap = field("30", 60), octave = field("250", 60), blip = field("100", 60);
     private final ComboBox<String> meter = new ComboBox<>(), key = new ComboBox<>(), grid = new ComboBox<>(),
             voice = new ComboBox<>(), detector = new ComboBox<>();
     private final Button recordBtn = new Button("● Record"), modelBtn = new Button("Model…");
@@ -216,10 +218,14 @@ public final class TranscribeBenchApp extends Application {
         r = row(g, r, "Min note", minNote, "ms");
         r = row(g, r, "Split at", split, "cents from the note");
         r = row(g, r, "Dip ratio", dip, "0 = never split on loudness");
+        r = section(g, r, "Smoothing");
+        r = row(g, r, "Snap to key", snap, "¢ off-pitch towards an in-key note · 0 = off");
+        r = row(g, r, "Octave fix", octave, "ms, notes up to · 0 = off");
+        r = row(g, r, "Blips", blip, "ms, slide / scoop fragments up to · 0 = off");
         r = section(g, r, "Playback");
         row(g, r, "Sound", voice, null);
 
-        for (TextField f : List.of(bpm, downbeat, from, to, minNote, split, dip)) {
+        for (TextField f : List.of(bpm, downbeat, from, to, minNote, split, dip, snap, octave, blip)) {
             f.textProperty().addListener((o, a, b) -> changed());
         }
         for (ComboBox<String> c : List.of(meter, key, grid, detector)) c.valueProperty().addListener((o, a, b) -> changed());
@@ -228,6 +234,7 @@ public final class TranscribeBenchApp extends Application {
                 dots — detected pitch per 10 ms
                 filled boxes — notes as sung
                 dashed boxes — notes on the grid
+                purple — smoothing: sung pitch → written
                 red line — downbeat · green — play from
                 wheel scrolls · Ctrl+wheel zooms
                 click: play position · double-click: downbeat""");
@@ -296,6 +303,9 @@ public final class TranscribeBenchApp extends Application {
             split.setText(fmt(s.splitCents()));
             dip.setText(fmt(s.dipRatio()));
             detector.setValue(s.detector());
+            snap.setText(fmt(s.smoothing().snapCents()));
+            octave.setText(fmt(s.smoothing().octaveMaxMs()));
+            blip.setText(fmt(s.smoothing().blipMaxMs()));
         } finally {
             loadingControls = false;
         }
@@ -311,7 +321,9 @@ public final class TranscribeBenchApp extends Application {
                 music.notation.duration.Duration.of(Long.parseLong(gr[0]), Long.parseLong(gr[1])),
                 Double.parseDouble(from.getText().trim()), Double.parseDouble(to.getText().trim()),
                 Double.parseDouble(minNote.getText().trim()), Double.parseDouble(split.getText().trim()),
-                Double.parseDouble(dip.getText().trim()), detector.getValue());
+                Double.parseDouble(dip.getText().trim()), detector.getValue(),
+                new SmoothingSpec(Double.parseDouble(snap.getText().trim()), Double.parseDouble(octave.getText().trim()),
+                        Double.parseDouble(blip.getText().trim()), base.smoothing().neighbourGapMs()));
     }
 
     private void changed() {

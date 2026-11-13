@@ -15,6 +15,7 @@ import music.notation.input.PitchEstimate;
 import music.notation.transcribe.Keys;
 import music.notation.transcribe.PitchTrack;
 import music.notation.transcribe.QuantizedNote;
+import music.notation.transcribe.SmoothingEdit;
 import music.notation.transcribe.TranscribedNote;
 import music.notation.transcribe.Transcription;
 
@@ -40,7 +41,8 @@ final class PitchView extends BorderPane {
             BEAT = Color.web("#e2e5ee"), BAR = Color.web("#a3abbd"), DOWNBEAT = Color.web("#d04646"),
             NOTE_FILL = Color.web("#3a6fd8", 0.22), NOTE_EDGE = Color.web("#3a6fd8"),
             GRID_NOTE = Color.web("#1f3f8f"), CURVE = Color.web("#d0582a"), LOUD = Color.web("#9aa3b5"),
-            SEEK = Color.web("#2e8b57"), PLAY = Color.web("#e08a00"), TEXT = Color.web("#444a57");
+            SEEK = Color.web("#2e8b57"), PLAY = Color.web("#e08a00"), TEXT = Color.web("#444a57"),
+            EDIT = Color.web("#8e44ad");
 
     private final Canvas canvas = new Canvas();
     private final ScrollBar scroll = new ScrollBar();
@@ -152,6 +154,7 @@ final class PitchView extends BorderPane {
                 .filter(PitchEstimate::hasPitch).mapToDouble(PitchEstimate::midiFloat).sorted().toArray();
         int a = Integer.MAX_VALUE, b = Integer.MIN_VALUE;
         for (TranscribedNote n : t.notes()) { a = Math.min(a, n.midi()); b = Math.max(b, n.midi()); }
+        for (SmoothingEdit e : t.smoothing()) { a = Math.min(a, e.fromMidi()); b = Math.max(b, e.fromMidi()); }
         if (v.length > 0) {
             a = Math.min(a, (int) Math.floor(v[(int) (v.length * 0.02)]));
             b = Math.max(b, (int) Math.ceil(v[(int) (v.length * 0.98)]));
@@ -231,6 +234,7 @@ final class PitchView extends BorderPane {
             g.setFill(NOTE_FILL); g.fillRect(x0, y, x1 - x0, rh);
             g.setStroke(NOTE_EDGE); g.setLineWidth(1); g.strokeRect(x0, y, x1 - x0, rh);
         }
+        drawEdits(g, rh);
         BarClock clock = BarClock.of(t);
         g.setLineDashes(4, 3);
         for (QuantizedNote q : t.quantized()) {
@@ -244,6 +248,25 @@ final class PitchView extends BorderPane {
             }
         }
         g.setLineDashes();
+    }
+
+    /** Where smoothing moved a note: a dotted ghost at the sung pitch, an arrow to where it went. */
+    private void drawEdits(GraphicsContext g, double rh) {
+        g.setStroke(EDIT); g.setFill(EDIT); g.setLineWidth(1.2);
+        for (SmoothingEdit e : t.smoothing()) {
+            double x0 = xOf(e.startMs() / 1000), x1 = xOf(e.endMs() / 1000);
+            double yFrom = yOf(e.fromMidi() + 0.5), yTo = yOf(e.toMidi() + 0.5);
+            g.setLineDashes(2, 2);
+            g.strokeRect(x0, yFrom, Math.max(2, x1 - x0), rh);
+            g.setLineDashes();
+            double xm = (x0 + x1) / 2, ya = yFrom + rh / 2, yb = yTo + rh / 2;
+            g.strokeLine(xm, ya, xm, yb);
+            double tip = Math.signum(yb - ya) * Math.min(5, Math.abs(yb - ya));
+            g.fillPolygon(new double[]{xm - 3, xm + 3, xm}, new double[]{yb - tip, yb - tip, yb}, 3);
+            if (rh >= 10) {
+                g.fillText(e.kind().name().toLowerCase(java.util.Locale.ROOT), x1 + 3, ya);
+            }
+        }
     }
 
     private void drawCurve(GraphicsContext g, PitchTrack track, double h) {

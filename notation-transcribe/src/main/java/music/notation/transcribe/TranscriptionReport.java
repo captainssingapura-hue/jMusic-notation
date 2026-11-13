@@ -19,6 +19,7 @@ public final class TranscriptionReport {
         line(sb, "Timing:    ♩ = %d, %d/%d, grid %s, downbeat at %.3f s", timing.bpm(),
                 timing.timeSignature().beats(), timing.timeSignature().beatValue(), fraction(timing.grid()), t.downbeatSec());
         line(sb, "Key:       %s%s", Keys.name(t.key()), t.keyEstimated() ? " (estimated)" : "");
+        line(sb, "Smoothing: %s", smoothing(r.smoothing(), t.smoothing()));
         line(sb, "Result:    %d notes · voiced %.0f%% of frames · pickup %d bar%s · %d dropped on the grid",
                 t.quantized().size(), 100 * t.voicedFraction(), t.pickupBars(), t.pickupBars() == 1 ? "" : "s", t.dropped());
         if (!t.quantized().isEmpty()) {
@@ -42,7 +43,29 @@ public final class TranscriptionReport {
                     Keys.noteName(q.midi(), t.key()), fraction(q.duration()), q.cents(),
                     q.source().startMs() / 1000, q.source().endMs() / 1000, q.velocity());
         }
+        if (!t.smoothing().isEmpty()) {
+            sb.append('\n');
+            line(sb, "Smoothing edits:");
+            for (SmoothingEdit e : t.smoothing()) {
+                line(sb, "  %7.3f – %7.3f  %-6s %s → %s", e.startMs() / 1000, e.endMs() / 1000,
+                        e.kind().name().toLowerCase(Locale.ROOT),
+                        Keys.noteName(e.fromMidi(), t.key()), Keys.noteName(e.toMidi(), t.key()));
+            }
+        }
         return sb.toString();
+    }
+
+    private static String smoothing(SmoothingSpec s, java.util.List<SmoothingEdit> edits) {
+        var on = new java.util.ArrayList<String>();
+        if (s.snapCents() > 0) on.add(String.format(Locale.ROOT, "snap ≥ %.0f¢", s.snapCents()));
+        if (s.octaveMaxMs() > 0) on.add(String.format(Locale.ROOT, "octave ≤ %.0f ms", s.octaveMaxMs()));
+        if (s.blipMaxMs() > 0) on.add(String.format(Locale.ROOT, "blips ≤ %.0f ms", s.blipMaxMs()));
+        if (on.isEmpty()) return "off";
+        var counts = new java.util.EnumMap<SmoothingEdit.Kind, Integer>(SmoothingEdit.Kind.class);
+        for (SmoothingEdit e : edits) counts.merge(e.kind(), 1, Integer::sum);
+        var parts = new java.util.ArrayList<String>();
+        counts.forEach((k, n) -> parts.add(n + " " + k.name().toLowerCase(Locale.ROOT)));
+        return String.join(", ", on) + " · " + (edits.isEmpty() ? "no changes" : String.join(", ", parts));
     }
 
     static String fraction(Duration d) {
