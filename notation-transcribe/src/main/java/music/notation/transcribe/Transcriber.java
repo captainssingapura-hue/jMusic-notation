@@ -23,8 +23,21 @@ public final class Transcriber {
     /** Transcribe already-decoded audio (any rate, mono). */
     public static Transcription transcribe(TranscriptionRequest request, AudioClip audio) {
         AudioClip cut = audio.slice(request.window());
-        AudioClip clip = Resampler.resample(cut, ANALYSIS_RATE);
-        PitchTrack track = PitchDetector.of(request.detector()).detect(clip);
+        return fromTrack(request, cut, track(request.detector(), cut));
+    }
+
+    /**
+     * The expensive half: resample {@code cut} and run the detector. Its
+     * result depends only on the detector and the audio window, so a
+     * caller that re-runs with other segmentation or timing settings can
+     * keep it and call {@link #fromTrack}.
+     */
+    public static PitchTrack track(PitchDetectorSpec detector, AudioClip cut) {
+        return PitchDetector.of(detector).detect(Resampler.resample(cut, ANALYSIS_RATE));
+    }
+
+    /** The cheap half: notes, key and grid from a pitch track of {@code cut}. */
+    public static Transcription fromTrack(TranscriptionRequest request, AudioClip cut, PitchTrack track) {
         List<TranscribedNote> notes = new NoteSegmenter(request.segmentation()).segment(track);
 
         TimingSpec timing = request.timing();

@@ -14,7 +14,7 @@ import java.util.List;
  * <pre>
  *   transcribe request.json [--out DIR]
  *   transcribe take.wav [--bpm N] [--downbeat SEC] [--key "Bb major"] [--grid 1/16]
- *                       [--from SEC] [--to SEC] [--out DIR]
+ *                       [--from SEC] [--to SEC] [--detector yin|rmvpe] [--model rmvpe.onnx] [--out DIR]
  *   transcribe --example FILE        write an example request
  * </pre>
  *
@@ -64,6 +64,7 @@ public final class TranscribeCli {
         } else {
             int bpm = 120; Double downbeat = null; String key = null; Duration grid = null;
             double from = 0, to = 0;
+            String detector = "yin", model = null;
             for (int i = 1; i < args.length; i++) {
                 String a = args[i];
                 if (i + 1 >= args.length) throw new IllegalArgumentException("missing value for " + a);
@@ -75,11 +76,13 @@ public final class TranscribeCli {
                     case "--grid" -> grid = parseFraction(v);
                     case "--from" -> from = Double.parseDouble(v);
                     case "--to" -> to = Double.parseDouble(v);
+                    case "--detector" -> detector = v.toLowerCase(java.util.Locale.ROOT);
+                    case "--model" -> model = v;
                     case "--out" -> outDir = Path.of(v);
                     default -> throw new IllegalArgumentException("unknown option " + a);
                 }
             }
-            request = new TranscriptionRequest(input.toString(), new TimeWindow(from, to), null, null,
+            request = new TranscriptionRequest(input.toString(), new TimeWindow(from, to), detector(detector, model), null,
                     new TimingSpec(bpm, downbeat, null, key, grid), null);
         }
         if (outDir == null) outDir = base.resolve(TranscriptionWriter.slug(request.title()) + "-transcription");
@@ -102,6 +105,20 @@ public final class TranscribeCli {
                 new TimingSpec(92, 1.3, new TimeSignature(4, 4), "auto", Duration.of(1, 16)), "Take 1");
     }
 
+    private static PitchDetectorSpec detector(String name, String model) {
+        return switch (name) {
+            case "yin" -> {
+                if (model != null) throw new IllegalArgumentException("--model only applies to --detector rmvpe");
+                yield PitchDetectorSpec.Yin.DEFAULT;
+            }
+            case "rmvpe" -> {
+                var d = PitchDetectorSpec.Rmvpe.DEFAULT;
+                yield new PitchDetectorSpec.Rmvpe(model, d.threshold(), d.minHz(), d.maxHz(), d.minRms());
+            }
+            default -> throw new IllegalArgumentException("--detector must be yin or rmvpe: " + name);
+        };
+    }
+
     private static Duration parseFraction(String s) {
         int slash = s.indexOf('/');
         if (slash < 0) throw new IllegalArgumentException("grid must be a fraction like 1/16: " + s);
@@ -113,7 +130,11 @@ public final class TranscribeCli {
                 usage:
                   transcribe request.json [--out DIR]
                   transcribe take.wav [--bpm N] [--downbeat SEC] [--key "Bb major"|auto] [--grid 1/16]
-                                      [--from SEC] [--to SEC] [--out DIR]
-                  transcribe --example FILE""");
+                                      [--from SEC] [--to SEC] [--detector yin|rmvpe] [--model rmvpe.onnx]
+                                      [--out DIR]
+                  transcribe --example FILE
+
+                rmvpe needs the model weights: --model, -D%s=…, %s, or %s"""
+                .formatted(RmvpeModel.PROPERTY, RmvpeModel.ENV, RmvpeModel.DEFAULT_PATH));
     }
 }

@@ -50,6 +50,10 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>music.notation.transcribe.bench.TranscribeBenchApp</mainClass>
+                    <options>
+                        <!-- ONNX Runtime (RMVPE) loads a native library. -->
+                        <option>--enable-native-access=ALL-UNNAMED</option>
+                    </options>
                 </configuration>
             </plugin>
         </plugins>

@@ -37,6 +37,9 @@ import music.notation.structure.TimeSignature;
 import music.notation.transcribe.AudioClip;
 import music.notation.transcribe.AudioReader;
 import music.notation.transcribe.Keys;
+import music.notation.transcribe.PitchTrack;
+import music.notation.transcribe.RmvpeModel;
+import music.notation.transcribe.TimeWindow;
 import music.notation.transcribe.TimingSpec;
 import music.notation.transcribe.Transcriber;
 import music.notation.transcribe.Transcription;
@@ -56,6 +59,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.prefs.Preferences;
 
 /**
  * Test bench for {@code notation-transcribe}. Open an audio file (or
@@ -83,8 +87,18 @@ public final class TranscribeBenchApp extends Application {
             from = field("0", 60), to = field("0", 60),
             minNote = field("60", 60), split = field("60", 60), dip = field("0.35", 60);
     private final ComboBox<String> meter = new ComboBox<>(), key = new ComboBox<>(), grid = new ComboBox<>(),
-            voice = new ComboBox<>();
-    private final Button recordBtn = new Button("● Record");
+            voice = new ComboBox<>(), detector = new ComboBox<>();
+    private final Button recordBtn = new Button("● Record"), modelBtn = new Button("Model…");
+    private final Label modelLabel = new Label();
+
+    /** Where the bench remembers a located RMVPE model between runs. */
+    private static final Preferences PREFS = Preferences.userRoot().node("music/notation/transcribe");
+    private static final String PREF_MODEL = "rmvpeModel";
+
+    /** The last pitch track, reused while only segmentation or timing change. Worker thread only. */
+    private record TrackKey(AudioClip audio, TimeWindow window, music.notation.transcribe.PitchDetectorSpec detector) {}
+    private TrackKey trackKey;
+    private PitchTrack cachedTrack;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "transcribe");
@@ -110,6 +124,7 @@ public final class TranscribeBenchApp extends Application {
     @Override
     public void start(Stage stage) {
         this.stage = stage;
+        restoreModel();
         stage.setTitle("Notation · Transcription Bench");
 
         BorderPane root = new BorderPane();
@@ -171,11 +186,23 @@ public final class TranscribeBenchApp extends Application {
         grid.getItems().addAll("1/4", "1/8", "1/12", "1/16", "1/24", "1/32");
         voice.getItems().addAll("Piano", "Flute", "Voice oohs", "Square lead");
         voice.setValue("Piano");
+        detector.getItems().addAll(BenchSettings.YIN, BenchSettings.RMVPE);
+        detector.setValue(BenchSettings.YIN);
+        modelBtn.setOnAction(e -> chooseModel());
+        modelBtn.setTooltip(new Tooltip("Locate rmvpe.onnx (remembered for next time)"));
+        modelLabel.setStyle("-fx-text-fill: #777; -fx-font-size: 11px;");
+        modelLabel.setWrapText(true);
+        modelLabel.setMaxWidth(150);
+        updateModelLabel();
 
         GridPane g = new GridPane();
         g.setHgap(8);
         g.setVgap(6);
         int r = 0;
+        r = section(g, r, "Pitch");
+        r = row(g, r, "Detector", detector, "yin: clean solo voice · rmvpe: robust, works over backing");
+        g.add(modelBtn, 1, r);
+        g.add(modelLabel, 2, r++);
         r = section(g, r, "Timing");
         r = row(g, r, "Tempo ♩", bpm, "bpm");
         r = row(g, r, "Downbeat", downbeat, "s · blank = first note · double-click the view");
@@ -195,7 +222,7 @@ public final class TranscribeBenchApp extends Application {
         for (TextField f : List.of(bpm, downbeat, from, to, minNote, split, dip)) {
             f.textProperty().addListener((o, a, b) -> changed());
         }
-        for (ComboBox<String> c : List.of(meter, key, grid)) c.valueProperty().addListener((o, a, b) -> changed());
+        for (ComboBox<String> c : List.of(meter, key, grid, detector)) c.valueProperty().addListener((o, a, b) -> changed());
 
         Label legend = new Label("""
                 dots — detected pitch per 10 ms
@@ -268,6 +295,7 @@ public final class TranscribeBenchApp extends Application {
             minNote.setText(fmt(s.minNoteMs()));
             split.setText(fmt(s.splitCents()));
             dip.setText(fmt(s.dipRatio()));
+            detector.setValue(s.detector());
         } finally {
             loadingControls = false;
         }
@@ -283,7 +311,7 @@ public final class TranscribeBenchApp extends Application {
                 music.notation.duration.Duration.of(Long.parseLong(gr[0]), Long.parseLong(gr[1])),
                 Double.parseDouble(from.getText().trim()), Double.parseDouble(to.getText().trim()),
                 Double.parseDouble(minNote.getText().trim()), Double.parseDouble(split.getText().trim()),
-                Double.parseDouble(dip.getText().trim()));
+                Double.parseDouble(dip.getText().trim()), detector.getValue());
     }
 
     private void changed() {
@@ -319,17 +347,32 @@ public final class TranscribeBenchApp extends Application {
         int gen = generation.incrementAndGet();
         AudioClip a = audio;
         worker.submit(() -> {
+            if (gen != generation.get()) return;                   // superseded while queued
             try {
                 long t0 = System.nanoTime();
-                Transcription t = Transcriber.transcribe(req, a);
+                AudioClip cut = a.slice(req.window());
+                var k = new TrackKey(a, req.window(), req.detector());
+                boolean reuse = k.equals(trackKey);
+                if (!reuse) {
+                    Platform.runLater(() -> { if (gen == generation.get()) status.setText("Tracking pitch (" + detector.getValue() + ")…"); });
+                    cachedTrack = Transcriber.track(req.detector(), cut);
+                    trackKey = k;
+                }
+                Transcription t = Transcriber.fromTrack(req, cut, cachedTrack);
                 long ms = (System.nanoTime() - t0) / 1_000_000;
                 Platform.runLater(() -> {
                     if (gen != generation.get()) return;
                     current = t;
                     view.setTranscription(t);
                     report.setText(TranscriptionReport.render(t));
-                    status.setText(String.format(Locale.ROOT, "%d notes · key %s · %d ms",
-                            t.quantized().size(), Keys.name(t.key()), ms));
+                    status.setText(String.format(Locale.ROOT, "%d notes · key %s · %d ms%s",
+                            t.quantized().size(), Keys.name(t.key()), ms, reuse ? " (pitch track reused)" : ""));
+                });
+            } catch (RmvpeModel.ModelNotFoundException ex) {
+                Platform.runLater(() -> {
+                    if (gen != generation.get()) return;
+                    status.setText("⚠ RMVPE model not found — click Model… to locate rmvpe.onnx");
+                    status.setStyle("-fx-text-fill: #c03030;");
                 });
             } catch (RuntimeException ex) {
                 Platform.runLater(() -> {
@@ -339,6 +382,39 @@ public final class TranscribeBenchApp extends Application {
                 });
             }
         });
+    }
+
+    // ── RMVPE model ────────────────────────────────────────────────────
+
+    /** Use a model remembered from an earlier run, unless one is configured already. */
+    private static void restoreModel() {
+        String saved = PREFS.get(PREF_MODEL, null);
+        if (saved != null && System.getProperty(RmvpeModel.PROPERTY) == null && !RmvpeModel.available(null)
+                && Files.isRegularFile(Path.of(saved))) {
+            System.setProperty(RmvpeModel.PROPERTY, saved);
+        }
+    }
+
+    private void chooseModel() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Locate the RMVPE model");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("ONNX model", "*.onnx"));
+        Path current = RmvpeModel.locate(null);
+        if (current.getParent() != null && Files.isDirectory(current.getParent()))
+            fc.setInitialDirectory(current.getParent().toFile());
+        File f = fc.showOpenDialog(stage);
+        if (f == null) return;
+        System.setProperty(RmvpeModel.PROPERTY, f.getAbsolutePath());
+        PREFS.put(PREF_MODEL, f.getAbsolutePath());
+        updateModelLabel();
+        if (!BenchSettings.RMVPE.equals(detector.getValue())) detector.setValue(BenchSettings.RMVPE);
+        else changed();
+    }
+
+    private void updateModelLabel() {
+        Path p = RmvpeModel.locate(null);
+        modelLabel.setText(RmvpeModel.available(null) ? p.getFileName() + " ✓" : "rmvpe.onnx not found");
+        modelLabel.setTooltip(new Tooltip(p.toString()));
     }
 
     // ── files ──────────────────────────────────────────────────────────

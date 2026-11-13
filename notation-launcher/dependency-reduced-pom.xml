@@ -24,6 +24,7 @@
             <option>--add-exports</option>
             <option>java.desktop/com.sun.media.sound=ALL-UNNAMED</option>
             <option>-Dmusic.collections=${project.basedir}/../collections.json</option>
+            <option>--enable-native-access=ALL-UNNAMED</option>
           </options>
         </configuration>
       </plugin>

@@ -11,6 +11,7 @@ public interface PitchDetector {
     static PitchDetector of(PitchDetectorSpec spec) {
         return switch (spec) {
             case PitchDetectorSpec.Yin y -> new YinTrackDetector(y);
+            case PitchDetectorSpec.Rmvpe r -> new RmvpeTrackDetector(r);
         };
     }
 }
